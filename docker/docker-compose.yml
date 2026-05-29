@@ -1,0 +1,16 @@
+# docker/docker-compose.yml
+services:
+  postgres:
+    image: postgres:16
+    container_name: gestao_de_obras_postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: gestao_de_obras_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

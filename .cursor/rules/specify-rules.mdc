@@ -1,0 +1,43 @@
+---
+alwaysApply: true
+---
+
+<!-- SPECKIT START -->
+## Active Feature: Spec 01 — Cadastro de Entidades (Tenants)
+
+**Plan**: `specs/001-tenant-entities/plan.md`
+**Spec**: `specs/001-tenant-entities/spec.md`
+**Branch**: `001-tenant-entities`
+
+### Stack
+- **API**: Node.js + TypeScript + Fastify 5 + Prisma 7 + Zod + PostgreSQL 16
+- **Frontend**: React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + React Router 7
+- **Design**: `frontend/DESIGN.md` (tokens → CSS variables)
+
+### Architecture
+- Monorepo: `api/` (backend) + `frontend/` (UI)
+- Platform layer: `/platform/*` (UI), `/api/platform/v1/*` (API)
+- Tenant layer (Spec 02): `/t/{slug}/*`, `/api/tenant/v1/*`
+- Multi-tenancy: shared DB, `Entity` as tenant root, future tables scoped by `entityId`
+- Auth: JWT with `scope: platform` | `scope: tenant` (separate tokens)
+
+### Key paths
+- Plan & artifacts: `specs/001-tenant-entities/`
+- OpenAPI: `specs/001-tenant-entities/contracts/platform-api.openapi.yaml`
+- Data model: `specs/001-tenant-entities/data-model.md`
+- Quickstart: `specs/001-tenant-entities/quickstart.md`
+- Constitution: `.specify/memory/constitution.md`
+
+### Commands
+```powershell
+cd docker && docker compose up -d
+cd api && npm run dev          # :3000
+cd frontend && npm run dev     # :5173
+```
+
+### Rules
+- Business logic ONLY in `api/` — never in React
+- Entity slug immutable after creation; no physical delete
+- Platform operators manage entities only — no tenant operational access
+- Audit all entity CRUD and auth events
+<!-- SPECKIT END -->

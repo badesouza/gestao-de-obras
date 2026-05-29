@@ -1,0 +1,538 @@
+openapi: 3.1.0
+info:
+  title: Gestão de Obras — Tenant API (Licitações)
+  version: 1.0.0
+  description: Endpoints tenant para licitações e importação de itens (Spec 03).
+
+servers:
+  - url: http://localhost:3000/api/tenant/v1
+    description: Local development
+
+tags:
+  - name: Licitacoes
+  - name: LicitacaoItems
+  - name: Import
+
+paths:
+  /licitacoes:
+    get:
+      tags: [Licitacoes]
+      summary: Listar licitações da entidade
+      operationId: listLicitacoes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Busca por identificação ou objeto
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/LicitacaoStatus'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicitacaoListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Licitacoes]
+      summary: Criar licitação
+      operationId: createLicitacao
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLicitacaoRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Licitacao'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /licitacoes/{id}:
+    get:
+      tags: [Licitacoes]
+      summary: Detalhe da licitação
+      operationId: getLicitacao
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicitacaoId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicitacaoDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /licitacoes/{id}/status:
+    patch:
+      tags: [Licitacoes]
+      summary: Alterar status da licitação (desativar)
+      operationId: updateLicitacaoStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicitacaoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [INACTIVE]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Licitacao'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /licitacoes/{id}/items:
+    get:
+      tags: [LicitacaoItems]
+      summary: Listar itens da licitação
+      operationId: listLicitacaoItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicitacaoId'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Filtro por descrição
+        - name: categoria
+          in: query
+          schema:
+            type: string
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicitacaoItemListResponse'
+
+  /licitacoes/{id}/items/import/spreadsheet:
+    post:
+      tags: [Import]
+      summary: Importar itens via planilha
+      operationId: importLicitacaoItemsSpreadsheet
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicitacaoId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Arquivo .csv (UTF-8) ou .xlsx
+      responses:
+        '201':
+          description: Importação concluída
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '413':
+          description: Arquivo ou lote muito grande
+        '422':
+          description: Erro de validação (linhas inválidas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportValidationError'
+
+  /licitacoes/{id}/items/import/columns:
+    post:
+      tags: [Import]
+      summary: Importar itens via colunas (textarea)
+      operationId: importLicitacaoItemsColumns
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LicitacaoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportColumnsRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '422':
+          description: Paridade de colunas ou validação de linhas
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ImportColumnMismatchError'
+                  - $ref: '#/components/schemas/ImportValidationError'
+
+  /licitacoes/{licitacaoId}/items/{itemId}/status:
+    patch:
+      tags: [LicitacaoItems]
+      summary: Desativar item
+      operationId: deactivateLicitacaoItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: licitacaoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [INACTIVE]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicitacaoItem'
+
+  /licitacoes/import-template:
+    get:
+      tags: [Import]
+      summary: Baixar modelo de planilha
+      operationId: downloadImportTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, xlsx]
+      responses:
+        '200':
+          description: Arquivo modelo
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    LicitacaoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Não autenticado
+    Forbidden:
+      description: Sem permissão ou entidade inativa
+    NotFound:
+      description: Recurso não encontrado
+    ValidationError:
+      description: Erro de validação
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    LicitacaoStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    UserRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    CreateLicitacaoRequest:
+      type: object
+      required: [identificacao, objeto]
+      properties:
+        identificacao:
+          type: string
+          maxLength: 100
+          example: '001/2026'
+        objeto:
+          type: string
+          maxLength: 500
+          example: 'Contratação de serviços de engenharia para reforma'
+
+    Licitacao:
+      type: object
+      required:
+        - id
+        - identificacao
+        - objeto
+        - status
+        - createdAt
+        - createdBy
+        - activeItemCount
+      properties:
+        id:
+          type: string
+          format: uuid
+        identificacao:
+          type: string
+        objeto:
+          type: string
+        status:
+          $ref: '#/components/schemas/LicitacaoStatus'
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          $ref: '#/components/schemas/UserRef'
+        activeItemCount:
+          type: integer
+
+    LicitacaoDetail:
+      allOf:
+        - $ref: '#/components/schemas/Licitacao'
+
+    LicitacaoListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Licitacao'
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    LicitacaoItem:
+      type: object
+      required:
+        - id
+        - licitacaoId
+        - descricao
+        - unidadeMedida
+        - status
+        - createdAt
+        - createdBy
+      properties:
+        id:
+          type: string
+          format: uuid
+        licitacaoId:
+          type: string
+          format: uuid
+        categoria:
+          type: string
+          nullable: true
+        descricao:
+          type: string
+        unidadeMedida:
+          type: string
+        valorUnitario:
+          type: string
+          nullable: true
+          description: Decimal serializado
+        status:
+          $ref: '#/components/schemas/LicitacaoStatus'
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          $ref: '#/components/schemas/UserRef'
+
+    LicitacaoItemListResponse:
+      type: object
+      required: [items, total, page, pageSize]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LicitacaoItem'
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    ImportColumnsRequest:
+      type: object
+      required: [columns]
+      properties:
+        columns:
+          type: object
+          description: Chaves opcionais categoria, descricao, unidade, valor
+          properties:
+            categoria:
+              type: string
+              description: Uma linha por item
+            descricao:
+              type: string
+            unidade:
+              type: string
+            valor:
+              type: string
+
+    ImportResult:
+      type: object
+      required: [importedCount, licitacaoId]
+      properties:
+        importedCount:
+          type: integer
+        licitacaoId:
+          type: string
+          format: uuid
+
+    ImportValidationError:
+      type: object
+      required: [code, message, lineErrors]
+      properties:
+        code:
+          type: string
+          example: IMPORT_VALIDATION_ERROR
+        message:
+          type: string
+        lineErrors:
+          type: array
+          items:
+            type: object
+            required: [line, field, message]
+            properties:
+              line:
+                type: integer
+              field:
+                type: string
+              message:
+                type: string
+
+    ImportColumnMismatchError:
+      type: object
+      required: [code, message, columns]
+      properties:
+        code:
+          type: string
+          example: IMPORT_COLUMN_MISMATCH
+        message:
+          type: string
+        columns:
+          type: array
+          items:
+            type: object
+            required: [name, lineCount]
+            properties:
+              name:
+                type: string
+              lineCount:
+                type: integer
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

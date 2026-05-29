@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+:root {
+  font-family: var(--font-sans);
+  color: var(--color-body);
+  background: var(--color-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+a {
+  color: inherit;
+}

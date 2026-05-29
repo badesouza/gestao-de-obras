@@ -1,0 +1,372 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OperatorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TenantUserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LicitacaoStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CentroCustoStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PropriedadeTipo {
+  TEXTO
+  DATA
+  VALOR
+  BOOLEAN
+  ITEM_LICITACAO
+  ITENS_LICITACAO
+}
+
+enum PropriedadeProductionRole {
+  NONE
+  INICIO
+  CONCLUSAO
+}
+
+model Entity {
+  id                      String       @id @default(uuid())
+  name                    String
+  status                  EntityStatus @default(ACTIVE)
+  cnpj                    String?      @unique
+  email                   String?
+  phone                   String?
+  legalRepresentativeName String?      @map("legal_representative_name")
+  uf                      String?      @db.Char(2)
+  municipalityId          Int?         @map("municipality_id")
+  municipalityName        String?      @map("municipality_name")
+  address                 String?
+  coatOfArmsUrl           String?      @map("coat_of_arms_url")
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  auditLogs      PlatformAuditLog[]
+  tenantUsers    TenantUser[]
+  tenantAudits   TenantAuditLog[]
+  licitacoes     Licitacao[]
+  licitacaoItems LicitacaoItem[]
+  centrosCusto   CentroCusto[]
+  centroCustoPropriedades CentroCustoPropriedade[]
+  registrosDiarios RegistroDiario[]
+  centroCustoLicitacoes CentroCustoLicitacao[]
+  centroCustoPropriedadeConfigs CentroCustoPropriedadeConfig[]
+  registroDiarioValores RegistroDiarioValor[]
+  registroDiarioValorItens RegistroDiarioValorItem[]
+
+  @@index([status])
+  @@map("entities")
+}
+
+model PlatformOperator {
+  id           String         @id @default(uuid())
+  name         String
+  email        String         @unique
+  passwordHash String
+  status       OperatorStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  auditLogs PlatformAuditLog[]
+
+  @@map("platform_operators")
+}
+
+model PlatformAuditLog {
+  id            String   @id @default(uuid())
+  operatorId    String
+  entityId      String?
+  action        String
+  resource      String
+  previousValue Json?
+  newValue      Json?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  operator PlatformOperator @relation(fields: [operatorId], references: [id])
+  entity   Entity?          @relation(fields: [entityId], references: [id])
+
+  @@index([entityId])
+  @@index([operatorId])
+  @@index([createdAt])
+  @@map("platform_audit_logs")
+}
+
+model TenantRole {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  permissions TenantRolePermission[]
+  users       TenantUser[]
+
+  @@map("tenant_roles")
+}
+
+model TenantPermission {
+  id          String @id @default(uuid())
+  code        String @unique
+  description String
+  module      String
+
+  roles TenantRolePermission[]
+
+  @@map("tenant_permissions")
+}
+
+model TenantRolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       TenantRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission TenantPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("tenant_role_permissions")
+}
+
+model TenantUser {
+  id           String           @id @default(uuid())
+  entityId     String           @map("entity_id")
+  roleId       String           @map("role_id")
+  name         String
+  email        String
+  passwordHash String           @map("password_hash")
+  status       TenantUserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?        @map("last_login_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  entity               Entity          @relation(fields: [entityId], references: [id])
+  role                 TenantRole      @relation(fields: [roleId], references: [id])
+  auditLogs            TenantAuditLog[]
+  licitacoesCreated    Licitacao[]     @relation("LicitacaoCreatedBy")
+  licitacaoItemsCreated LicitacaoItem[] @relation("LicitacaoItemCreatedBy")
+  centrosCustoCreated  CentroCusto[]   @relation("CentroCustoCreatedBy")
+  propriedadesCreated  CentroCustoPropriedade[] @relation("PropriedadeCreatedBy")
+  registrosDiariosCreated RegistroDiario[] @relation("RegistroDiarioCreatedBy")
+  registrosDiariosUpdated RegistroDiario[] @relation("RegistroDiarioUpdatedBy")
+
+  @@unique([entityId, email])
+  @@index([entityId])
+  @@index([status])
+  @@map("tenant_users")
+}
+
+model TenantAuditLog {
+  id            String   @id @default(uuid())
+  entityId      String   @map("entity_id")
+  userId        String?  @map("user_id")
+  action        String
+  resource      String
+  previousValue Json?    @map("previous_value")
+  newValue      Json?    @map("new_value")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  entity Entity      @relation(fields: [entityId], references: [id])
+  user   TenantUser? @relation(fields: [userId], references: [id])
+
+  @@index([entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("tenant_audit_logs")
+}
+
+model Licitacao {
+  id              String          @id @default(uuid())
+  entityId        String          @map("entity_id")
+  identificacao   String          @db.VarChar(100)
+  objeto          String          @db.VarChar(500)
+  status          LicitacaoStatus @default(ACTIVE)
+  createdByUserId String          @map("created_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  entity    Entity          @relation(fields: [entityId], references: [id])
+  createdBy TenantUser      @relation("LicitacaoCreatedBy", fields: [createdByUserId], references: [id])
+  items     LicitacaoItem[]
+  centrosCusto CentroCustoLicitacao[]
+
+  @@unique([entityId, identificacao])
+  @@index([entityId, status])
+  @@map("licitacoes")
+}
+
+model LicitacaoItem {
+  id              String          @id @default(uuid())
+  licitacaoId     String          @map("licitacao_id")
+  entityId        String          @map("entity_id")
+  categoria       String?         @db.VarChar(100)
+  descricao       String          @db.VarChar(500)
+  unidadeMedida   String          @map("unidade_medida") @db.VarChar(50)
+  valorUnitario   Decimal?        @map("valor_unitario") @db.Decimal(15, 4)
+  status          LicitacaoStatus @default(ACTIVE)
+  createdByUserId String          @map("created_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  licitacao Licitacao  @relation(fields: [licitacaoId], references: [id])
+  entity    Entity     @relation(fields: [entityId], references: [id])
+  createdBy TenantUser @relation("LicitacaoItemCreatedBy", fields: [createdByUserId], references: [id])
+  registroValores RegistroDiarioValorItem[]
+
+  @@index([licitacaoId, status])
+  @@index([entityId, licitacaoId])
+  @@map("licitacao_items")
+}
+
+model CentroCusto {
+  id                  String            @id @default(uuid())
+  entityId            String            @map("entity_id")
+  nome                String            @db.VarChar(200)
+  dataPrevistaInicio  DateTime?         @map("data_prevista_inicio") @db.Date
+  dataPrevistaFim     DateTime?         @map("data_prevista_fim") @db.Date
+  dataRealizadaInicio DateTime?         @map("data_realizada_inicio") @db.Date
+  dataRealizadaFim    DateTime?         @map("data_realizada_fim") @db.Date
+  status              CentroCustoStatus @default(ACTIVE)
+  createdByUserId     String            @map("created_by_user_id")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+
+  entity             Entity                         @relation(fields: [entityId], references: [id])
+  createdBy          TenantUser                     @relation("CentroCustoCreatedBy", fields: [createdByUserId], references: [id])
+  licitacoes         CentroCustoLicitacao[]
+  propriedadeConfigs CentroCustoPropriedadeConfig[]
+  registrosDiarios   RegistroDiario[]
+
+  @@unique([entityId, nome])
+  @@index([entityId, status])
+  @@map("centros_custo")
+}
+
+model CentroCustoLicitacao {
+  centroCustoId String   @map("centro_custo_id")
+  licitacaoId   String   @map("licitacao_id")
+  entityId      String   @map("entity_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  centroCusto CentroCusto @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  licitacao   Licitacao   @relation(fields: [licitacaoId], references: [id])
+  entity      Entity      @relation(fields: [entityId], references: [id])
+
+  @@id([centroCustoId, licitacaoId])
+  @@map("centro_custo_licitacoes")
+}
+
+model CentroCustoPropriedade {
+  id              String            @id @default(uuid())
+  entityId        String            @map("entity_id")
+  nome            String            @db.VarChar(100)
+  tipo            PropriedadeTipo
+  status          CentroCustoStatus @default(ACTIVE)
+  createdByUserId String            @map("created_by_user_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  entity  Entity                         @relation(fields: [entityId], references: [id])
+  createdBy TenantUser                   @relation("PropriedadeCreatedBy", fields: [createdByUserId], references: [id])
+  configs CentroCustoPropriedadeConfig[]
+  valores RegistroDiarioValor[]
+
+  @@unique([entityId, nome])
+  @@index([entityId, status])
+  @@map("centro_custo_propriedades")
+}
+
+model CentroCustoPropriedadeConfig {
+  id              String                    @id @default(uuid())
+  centroCustoId   String                    @map("centro_custo_id")
+  propriedadeId   String                    @map("propriedade_id")
+  entityId        String                    @map("entity_id")
+  columnOrder     Int                       @map("column_order")
+  productionRole  PropriedadeProductionRole @default(NONE) @map("production_role")
+  active          Boolean                   @default(true)
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  centroCusto CentroCusto            @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  propriedade CentroCustoPropriedade @relation(fields: [propriedadeId], references: [id])
+  entity      Entity                 @relation(fields: [entityId], references: [id])
+
+  @@unique([centroCustoId, propriedadeId])
+  @@index([centroCustoId, active, columnOrder])
+  @@map("centro_custo_propriedade_configs")
+}
+
+model RegistroDiario {
+  id              String   @id @default(uuid())
+  centroCustoId   String   @map("centro_custo_id")
+  entityId        String   @map("entity_id")
+  data            DateTime @db.Date
+  createdByUserId String   @map("created_by_user_id")
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  centroCusto CentroCusto           @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  entity      Entity                @relation(fields: [entityId], references: [id])
+  createdBy   TenantUser            @relation("RegistroDiarioCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy   TenantUser?           @relation("RegistroDiarioUpdatedBy", fields: [updatedByUserId], references: [id])
+  valores     RegistroDiarioValor[]
+
+  @@index([centroCustoId, data])
+  @@index([entityId, centroCustoId, data])
+  @@map("registros_diarios")
+}
+
+model RegistroDiarioValor {
+  id               String   @id @default(uuid())
+  registroDiarioId String   @map("registro_diario_id")
+  propriedadeId    String   @map("propriedade_id")
+  entityId         String   @map("entity_id")
+  valorTexto       String?  @map("valor_texto") @db.VarChar(2000)
+  valorData        DateTime? @map("valor_data") @db.Date
+  valorDecimal     Decimal? @map("valor_decimal") @db.Decimal(15, 4)
+  valorBoolean     Boolean? @map("valor_boolean")
+
+  registroDiario RegistroDiario            @relation(fields: [registroDiarioId], references: [id], onDelete: Cascade)
+  propriedade  CentroCustoPropriedade      @relation(fields: [propriedadeId], references: [id])
+  entity       Entity                      @relation(fields: [entityId], references: [id])
+  itens        RegistroDiarioValorItem[]
+
+  @@unique([registroDiarioId, propriedadeId])
+  @@map("registro_diario_valores")
+}
+
+model RegistroDiarioValorItem {
+  registroDiarioValorId String @map("registro_diario_valor_id")
+  licitacaoItemId       String @map("licitacao_item_id")
+  entityId              String @map("entity_id")
+
+  registroDiarioValor RegistroDiarioValor @relation(fields: [registroDiarioValorId], references: [id], onDelete: Cascade)
+  licitacaoItem       LicitacaoItem       @relation(fields: [licitacaoItemId], references: [id])
+  entity              Entity              @relation(fields: [entityId], references: [id])
+
+  @@id([registroDiarioValorId, licitacaoItemId])
+  @@map("registro_diario_valor_itens")
+}

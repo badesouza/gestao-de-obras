@@ -1,0 +1,551 @@
+openapi: 3.1.0
+info:
+  title: Gestão de Obras — Tenant API (Centros de Custo)
+  version: 1.0.0
+  description: Endpoints tenant para centros de custo, propriedades e registro diário (Spec 04).
+
+servers:
+  - url: http://localhost:3000/api/tenant/v1
+
+tags:
+  - name: CentrosCusto
+  - name: Propriedades
+  - name: RegistroDiario
+  - name: Producao
+
+paths:
+  /centros-custo:
+    get:
+      tags: [CentrosCusto]
+      summary: Listar centros de custo
+      operationId: listCentrosCusto
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/CentroCustoStatus' }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoListResponse' }
+    post:
+      tags: [CentrosCusto]
+      summary: Criar centro de custo
+      operationId: createCentroCusto
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCentroCustoRequest' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoDetail' }
+
+  /centros-custo/propriedades:
+    get:
+      tags: [Propriedades]
+      summary: Listar catálogo de propriedades
+      operationId: listPropriedades
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Propriedade' }
+    post:
+      tags: [Propriedades]
+      summary: Criar propriedade no catálogo
+      operationId: createPropriedade
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePropriedadeRequest' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Propriedade' }
+
+  /centros-custo/propriedades/{id}:
+    patch:
+      tags: [Propriedades]
+      summary: Atualizar ou desativar propriedade
+      operationId: updatePropriedade
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePropriedadeRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Propriedade' }
+
+  /centros-custo/{id}:
+    get:
+      tags: [CentrosCusto]
+      summary: Detalhe do centro de custo
+      operationId: getCentroCusto
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoDetail' }
+    patch:
+      tags: [CentrosCusto]
+      summary: Atualizar centro de custo
+      operationId: updateCentroCusto
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCentroCustoRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoDetail' }
+
+  /centros-custo/{id}/status:
+    patch:
+      tags: [CentrosCusto]
+      summary: Desativar centro de custo
+      operationId: deactivateCentroCusto
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [INACTIVE]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoDetail' }
+
+  /centros-custo/{id}/licitacoes:
+    put:
+      tags: [CentrosCusto]
+      summary: Definir licitações vinculadas
+      operationId: setCentroCustoLicitacoes
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [licitacaoIds]
+              properties:
+                licitacaoIds:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoDetail' }
+
+  /centros-custo/{id}/propriedades-config:
+    put:
+      tags: [CentrosCusto]
+      summary: Configurar propriedades do centro (ordem e marcadores)
+      operationId: setCentroCustoPropriedadesConfig
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PropriedadesConfigRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CentroCustoDetail' }
+
+  /centros-custo/{id}/registros:
+    get:
+      tags: [RegistroDiario]
+      summary: Listar registros diários do mês
+      operationId: listRegistrosDiarios
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: month
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistroDiarioListResponse' }
+    post:
+      tags: [RegistroDiario]
+      summary: Criar linha de registro diário
+      operationId: createRegistroDiario
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpsertRegistroDiarioRequest' }
+      responses:
+        '201':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistroDiarioRow' }
+
+  /centros-custo/{id}/registros/{registroId}:
+    patch:
+      tags: [RegistroDiario]
+      summary: Atualizar linha de registro diário
+      operationId: updateRegistroDiario
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+        - name: registroId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpsertRegistroDiarioRequest' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistroDiarioRow' }
+    delete:
+      tags: [RegistroDiario]
+      summary: Excluir linha de registro diário
+      operationId: deleteRegistroDiario
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+        - name: registroId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Deleted
+
+  /centros-custo/{id}/producao:
+    get:
+      tags: [Producao]
+      summary: Produção diária agregada por dia
+      operationId: getProducaoDiaria
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: month
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProducaoDiariaResponse' }
+
+  /centros-custo/{id}/itens-busca:
+    get:
+      tags: [RegistroDiario]
+      summary: Buscar itens de licitação para células
+      operationId: searchItensForCentro
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CentroCustoId'
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 50 }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemSearchResponse' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CentroCustoId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    CentroCustoStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    PropriedadeTipo:
+      type: string
+      enum: [TEXTO, DATA, VALOR, BOOLEAN, ITEM_LICITACAO, ITENS_LICITACAO]
+
+    PropriedadeProductionRole:
+      type: string
+      enum: [NONE, INICIO, CONCLUSAO]
+
+    UserRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    LicitacaoRef:
+      type: object
+      required: [id, identificacao]
+      properties:
+        id: { type: string, format: uuid }
+        identificacao: { type: string }
+
+    CreateCentroCustoRequest:
+      type: object
+      required: [nome]
+      properties:
+        nome: { type: string, maxLength: 200 }
+        dataPrevistaInicio: { type: string, format: date }
+        dataPrevistaFim: { type: string, format: date }
+        dataRealizadaInicio: { type: string, format: date }
+        dataRealizadaFim: { type: string, format: date }
+        licitacaoIds:
+          type: array
+          items: { type: string, format: uuid }
+
+    UpdateCentroCustoRequest:
+      allOf:
+        - $ref: '#/components/schemas/CreateCentroCustoRequest'
+
+    CentroCusto:
+      type: object
+      required: [id, nome, status, createdAt, createdBy]
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+        dataPrevistaInicio: { type: string, format: date, nullable: true }
+        dataPrevistaFim: { type: string, format: date, nullable: true }
+        dataRealizadaInicio: { type: string, format: date, nullable: true }
+        dataRealizadaFim: { type: string, format: date, nullable: true }
+        status: { $ref: '#/components/schemas/CentroCustoStatus' }
+        licitacaoCount: { type: integer }
+        propriedadeCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        createdBy: { $ref: '#/components/schemas/UserRef' }
+
+    Propriedade:
+      type: object
+      required: [id, nome, tipo, status]
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+        tipo: { $ref: '#/components/schemas/PropriedadeTipo' }
+        status: { $ref: '#/components/schemas/CentroCustoStatus' }
+
+    PropriedadeConfig:
+      type: object
+      required: [propriedadeId, columnOrder, productionRole, active]
+      properties:
+        propriedadeId: { type: string, format: uuid }
+        propriedade: { $ref: '#/components/schemas/Propriedade' }
+        columnOrder: { type: integer }
+        productionRole: { $ref: '#/components/schemas/PropriedadeProductionRole' }
+        active: { type: boolean }
+
+    CentroCustoDetail:
+      allOf:
+        - $ref: '#/components/schemas/CentroCusto'
+        - type: object
+          properties:
+            licitacoes:
+              type: array
+              items: { $ref: '#/components/schemas/LicitacaoRef' }
+            propriedadesConfig:
+              type: array
+              items: { $ref: '#/components/schemas/PropriedadeConfig' }
+            entity:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                name: { type: string }
+
+    CentroCustoListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CentroCusto' }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+
+    CreatePropriedadeRequest:
+      type: object
+      required: [nome, tipo]
+      properties:
+        nome: { type: string, maxLength: 100 }
+        tipo: { $ref: '#/components/schemas/PropriedadeTipo' }
+
+    UpdatePropriedadeRequest:
+      type: object
+      properties:
+        nome: { type: string }
+        status: { type: string, enum: [INACTIVE] }
+
+    PropriedadesConfigRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [propriedadeId, columnOrder, productionRole]
+            properties:
+              propriedadeId: { type: string, format: uuid }
+              columnOrder: { type: integer }
+              productionRole: { $ref: '#/components/schemas/PropriedadeProductionRole' }
+              active: { type: boolean, default: true }
+
+    CellValue:
+      type: object
+      properties:
+        text: { type: string }
+        date: { type: string, format: date }
+        decimal: { type: string }
+        boolean: { type: boolean }
+        itemIds:
+          type: array
+          items: { type: string, format: uuid }
+
+    UpsertRegistroDiarioRequest:
+      type: object
+      required: [data]
+      properties:
+        data: { type: string, format: date }
+        values:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/CellValue' }
+
+    RegistroDiarioRow:
+      type: object
+      required: [id, data, values]
+      properties:
+        id: { type: string, format: uuid }
+        data: { type: string, format: date }
+        values:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/CellValue' }
+
+    RegistroDiarioListResponse:
+      type: object
+      properties:
+        year: { type: integer }
+        month: { type: integer }
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/RegistroDiarioRow' }
+
+    ProducaoDiariaDia:
+      type: object
+      required: [day, cadastradas, iniciadas, concluidas]
+      properties:
+        day: { type: integer }
+        date: { type: string, format: date }
+        cadastradas: { type: integer }
+        iniciadas: { type: integer }
+        concluidas: { type: integer }
+
+    ProducaoDiariaResponse:
+      type: object
+      properties:
+        year: { type: integer }
+        month: { type: integer }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/ProducaoDiariaDia' }
+        markersConfigured:
+          type: object
+          properties:
+            inicio: { type: boolean }
+            conclusao: { type: boolean }
+
+    ItemSearchResult:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        descricao: { type: string }
+        unidadeMedida: { type: string }
+        licitacaoIdentificacao: { type: string }
+
+    ItemSearchResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ItemSearchResult' }
