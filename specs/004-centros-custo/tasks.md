@@ -30,8 +30,8 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 **Purpose**: Estrutura de módulo centros-custo
 
-- [ ] T001 Create centros-custo module directory structure per plan in `api/src/modules/tenant/centros-custo/`
-- [ ] T002 [P] Create frontend folders `frontend/src/tenant/components/centros-custo/` and `frontend/src/tenant/hooks/`
+- [x] T001 Create centros-custo module directory structure per plan in `api/src/modules/tenant/centros-custo/`
+- [x] T002 [P] Create frontend folders `frontend/src/tenant/components/centros-custo/` and `frontend/src/tenant/hooks/`
 
 ---
 
@@ -41,13 +41,13 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 **⚠️ CRITICAL**: No user story work until this phase is complete
 
-- [ ] T003 Implement Prisma models (CentroCusto, CentroCustoLicitacao, CentroCustoPropriedade, CentroCustoPropriedadeConfig, RegistroDiario, RegistroDiarioValor, RegistroDiarioValorItem) and relations in `api/prisma/schema.prisma`
-- [ ] T004 Create and apply migration `20260529120000_centros_custo` in `api/prisma/migrations/`
-- [ ] T005 [P] Add centros_custo permission constants in `api/src/shared/constants.ts`
-- [ ] T006 Extend seed with centros_custo permissions and role mappings (ADMIN all, ENGINEER view+registros.edit, OPERATOR view) in `api/prisma/seed.ts`
-- [ ] T007 [P] Implement typed cell value validator in `api/src/modules/tenant/centros-custo/cell-value.validator.ts`
-- [ ] T008 [P] Create Zod schemas for centro, propriedade, registro in `centro-custo.schema.ts`, `propriedade.schema.ts`, `registro-diario.schema.ts`
-- [ ] T009 [P] Add entity-active and centro-active guard helpers in `centro-custo.service.ts`
+- [x] T003 Implement Prisma models (CentroCusto, CentroCustoLicitacao, CentroCustoPropriedade, CentroCustoPropriedadeConfig, RegistroDiario, RegistroDiarioValor, RegistroDiarioValorItem) and relations in `api/prisma/schema.prisma`
+- [x] T004 Create and apply migration `20260529103541_centros_custo` in `api/prisma/migrations/`
+- [x] T005 [P] Add centros_custo permission constants in `api/src/shared/constants.ts`
+- [x] T006 Extend seed with centros_custo permissions and role mappings (ADMIN all, ENGINEER view+registros.edit, OPERATOR view) in `api/prisma/seed.ts`
+- [x] T007 [P] Implement typed cell value validator in `api/src/modules/tenant/centros-custo/cell-value.validator.ts`
+- [x] T008 [P] Create Zod schemas for centro, propriedade, registro in `centro-custo.schema.ts`, `propriedade.schema.ts`, `registro-diario.schema.ts`
+- [x] T009 [P] Add entity-active and centro-active guard helpers in `centro-custo.service.ts`
 - [ ] T010 Unit tests for cell-value.validator (all PropriedadeTipo) in `api/tests/unit/centros-custo/cell-value.validator.test.ts`
 
 **Checkpoint**: Schema migrado, RBAC seeded, validador testado
@@ -62,15 +62,15 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Implement centro-custo service (create, list, getById, update, deactivate) in `api/src/modules/tenant/centros-custo/centro-custo.service.ts`
-- [ ] T012 [US1] Write audit on centro create/update/deactivate in `centro-custo.service.ts`
-- [ ] T013 [US1] Implement routes GET/POST `/centros-custo`, GET/PATCH `/centros-custo/:id`, PATCH status in `centro-custo.routes.ts`
-- [ ] T014 [US1] Register centros-custo routes in `api/src/modules/tenant/tenant.routes.ts`
-- [ ] T015 [P] [US1] Add `tenantApi.centrosCusto` methods (list, create, get, update, deactivate) in `frontend/src/lib/api-client.ts`
-- [ ] T016 [P] [US1] Add Centros de Custo nav item with icon and `centros_custo.view` in `frontend/src/tenant/components/TenantSidebar.tsx`
-- [ ] T017 [US1] Implement `CentroCustoListPage` in `frontend/src/tenant/pages/CentroCustoListPage.tsx`
-- [ ] T018 [US1] Implement `CentroCustoCreatePage` with date fields validation UX in `frontend/src/tenant/pages/CentroCustoCreatePage.tsx`
-- [ ] T019 [US1] Wire routes `/t/:id/centros-custo` and `/t/:id/centros-custo/new` with permission guards in `frontend/src/App.tsx`
+- [x] T011 [US1] Implement centro-custo service (create, list, getById, update, deactivate) in `api/src/modules/tenant/centros-custo/centro-custo.service.ts`
+- [x] T012 [US1] Write audit on centro create/update/deactivate in `centro-custo.service.ts`
+- [x] T013 [US1] Implement routes GET/POST `/centros-custo`, GET/PATCH `/centros-custo/:id`, PATCH status in `centro-custo.routes.ts`
+- [x] T014 [US1] Register centros-custo routes in `api/src/modules/tenant/tenant.routes.ts`
+- [x] T015 [P] [US1] Add `tenantApi.centrosCusto` methods (list, create, get, update, deactivate) in `frontend/src/lib/api-client.ts`
+- [x] T016 [P] [US1] Add Centros de Custo nav item with icon and `centros_custo.view` in `frontend/src/tenant/components/TenantSidebar.tsx`
+- [x] T017 [US1] Implement `CentroCustoListPage` in `frontend/src/tenant/pages/CentroCustoListPage.tsx`
+- [x] T018 [US1] Implement `CentroCustoCreatePage` with date fields validation UX in `frontend/src/tenant/pages/CentroCustoCreatePage.tsx`
+- [x] T019 [US1] Wire routes `/t/:id/centros-custo` and `/t/:id/centros-custo/new` with permission guards in `frontend/src/App.tsx`
 
 **Checkpoint**: US1 complete — cadastro e listagem de centros end-to-end
 
@@ -84,12 +84,12 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 2
 
-- [ ] T020 [US2] Implement `setCentroCustoLicitacoes` with ACTIVE entity/licitacao validation in `centro-custo.service.ts`
-- [ ] T021 [US2] Write audit `CENTRO_CUSTO_LICITACOES_UPDATED` in `centro-custo.service.ts`
-- [ ] T022 [US2] Implement PUT `/centros-custo/:id/licitacoes` in `centro-custo.routes.ts`
-- [ ] T023 [P] [US2] Include licitacoes in GET detail response in `centro-custo.service.ts`
-- [ ] T024 [US2] Add licitacao multi-select on create/edit pages in `CentroCustoCreatePage.tsx` and edit form (detail or dedicated edit section)
-- [ ] T025 [US2] Add `tenantApi.centrosCusto.setLicitacoes` in `frontend/src/lib/api-client.ts`
+- [x] T020 [US2] Implement `setCentroCustoLicitacoes` with ACTIVE entity/licitacao validation in `centro-custo.service.ts`
+- [x] T021 [US2] Write audit `CENTRO_CUSTO_LICITACOES_UPDATED` in `centro-custo.service.ts`
+- [x] T022 [US2] Implement PUT `/centros-custo/:id/licitacoes` in `centro-custo.routes.ts`
+- [x] T023 [P] [US2] Include licitacoes in GET detail response in `centro-custo.service.ts`
+- [x] T024 [US2] Add licitacao multi-select on create/edit pages in `CentroCustoCreatePage.tsx` and edit form (detail or dedicated edit section)
+- [x] T025 [US2] Add `tenantApi.centrosCusto.setLicitacoes` in `frontend/src/lib/api-client.ts`
 
 **Checkpoint**: US2 complete — vínculo licitação funcional
 
@@ -103,12 +103,12 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Implement propriedade service (create, list, update name, deactivate, block tipo change after use) in `propriedade.service.ts`
-- [ ] T027 [US3] Write audit on propriedade create/deactivate in `propriedade.service.ts`
-- [ ] T028 [US3] Implement GET/POST `/centros-custo/propriedades`, PATCH `/centros-custo/propriedades/:id` in `centro-custo.routes.ts`
-- [ ] T029 [P] [US3] Implement `PropriedadeCatalogPage` with tipo help text in `frontend/src/tenant/pages/PropriedadeCatalogPage.tsx`
-- [ ] T030 [US3] Add `tenantApi.centrosCusto.propriedades` CRUD in `frontend/src/lib/api-client.ts`
-- [ ] T031 [US3] Wire route `/t/:id/centros-custo/propriedades` with `centros_custo.propriedades.manage` guard in `frontend/src/App.tsx`
+- [x] T026 [US3] Implement propriedade service (create, list, update name, deactivate, block tipo change after use) in `propriedade.service.ts`
+- [x] T027 [US3] Write audit on propriedade create/deactivate in `propriedade.service.ts`
+- [x] T028 [US3] Implement GET/POST `/centros-custo/propriedades`, PATCH `/centros-custo/propriedades/:id` in `centro-custo.routes.ts`
+- [x] T029 [P] [US3] Implement `PropriedadeCatalogPage` with tipo help text in `frontend/src/tenant/pages/PropriedadeCatalogPage.tsx`
+- [x] T030 [US3] Add `tenantApi.centrosCusto.propriedades` CRUD in `frontend/src/lib/api-client.ts`
+- [x] T031 [US3] Wire route `/t/:id/centros-custo/propriedades` with `centros_custo.propriedades.manage` guard in `frontend/src/App.tsx`
 
 **Checkpoint**: US3 complete — catálogo de propriedades operacional
 
@@ -122,12 +122,12 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 4
 
-- [ ] T032 [US4] Implement `setPropriedadesConfig` (order, productionRole, active flag, item-type requires licitacao) in `centro-custo.service.ts`
-- [ ] T033 [US4] Write audit `CENTRO_PROPRIEDADES_CONFIG_UPDATED` in `centro-custo.service.ts`
-- [ ] T034 [US4] Implement PUT `/centros-custo/:id/propriedades-config` in `centro-custo.routes.ts`
-- [ ] T035 [US4] Implement `PropriedadeConfigPanel` (drag/order or numeric order, role selectors) in `frontend/src/tenant/components/centros-custo/PropriedadeConfigPanel.tsx`
-- [ ] T036 [US4] Integrate config panel on centro edit section or detail settings area
-- [ ] T037 [US4] Add `tenantApi.centrosCusto.setPropriedadesConfig` in `frontend/src/lib/api-client.ts`
+- [x] T032 [US4] Implement `setPropriedadesConfig` (order, productionRole, active flag, item-type requires licitacao) in `centro-custo.service.ts`
+- [x] T033 [US4] Write audit `CENTRO_PROPRIEDADES_CONFIG_UPDATED` in `centro-custo.service.ts`
+- [x] T034 [US4] Implement PUT `/centros-custo/:id/propriedades-config` in `centro-custo.routes.ts`
+- [x] T035 [US4] Implement `PropriedadeConfigPanel` (drag/order or numeric order, role selectors) in `frontend/src/tenant/components/centros-custo/PropriedadeConfigPanel.tsx`
+- [x] T036 [US4] Integrate config panel on centro edit section or detail settings area
+- [x] T037 [US4] Add `tenantApi.centrosCusto.setPropriedadesConfig` in `frontend/src/lib/api-client.ts`
 
 **Checkpoint**: US4 complete — configuração de colunas por centro
 
@@ -141,11 +141,11 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 7
 
-- [ ] T038 [US7] Implement `CentroCustoHeader` (entity name, centro nome/datas/licitações/createdBy) in `frontend/src/tenant/components/centros-custo/CentroCustoHeader.tsx`
-- [ ] T039 [US7] Implement `CentroCustoTabs` and `useCentroCustoMonthNav` hook (URL `tab`, `year`, `month`) in `CentroCustoTabs.tsx` and `useCentroCustoMonthNav.ts`
-- [ ] T040 [US7] Implement `CentroCustoDetailPage` shell (header + tabs + outlet) in `frontend/src/tenant/pages/CentroCustoDetailPage.tsx`
-- [ ] T041 [US7] Wire route `/t/:id/centros-custo/:centroId` with `centros_custo.view` guard in `frontend/src/App.tsx`
-- [ ] T042 [US7] Enhance list page with licitacaoCount and propriedadeCount from API in `CentroCustoListPage.tsx`
+- [x] T038 [US7] Implement `CentroCustoHeader` (entity name, centro nome/datas/licitações/createdBy) in `frontend/src/tenant/components/centros-custo/CentroCustoHeader.tsx`
+- [x] T039 [US7] Implement `CentroCustoTabs` and `useCentroCustoMonthNav` hook (URL `tab`, `year`, `month`) in `CentroCustoTabs.tsx` and `useCentroCustoMonthNav.ts`
+- [x] T040 [US7] Implement `CentroCustoDetailPage` shell (header + tabs + outlet) in `frontend/src/tenant/pages/CentroCustoDetailPage.tsx`
+- [x] T041 [US7] Wire route `/t/:id/centros-custo/:centroId` with `centros_custo.view` guard in `frontend/src/App.tsx`
+- [x] T042 [US7] Enhance list page with licitacaoCount and propriedadeCount from API in `CentroCustoListPage.tsx`
 
 **Checkpoint**: US7 shell complete — navegação para abas operacionais
 
@@ -159,17 +159,17 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 5
 
-- [ ] T043 [US5] Implement registro-diario service (listByMonth, create, update, delete row) in `registro-diario.service.ts`
-- [ ] T044 [US5] Persist typed cell values + item junction rows in `registro-diario.service.ts`
-- [ ] T045 [US5] Write audit REGISTRO_DIARIO_* on create/update/delete in `registro-diario.service.ts`
-- [ ] T046 [US5] Implement item-search service (scoped to centro licitacoes, active items) in `item-search.service.ts`
-- [ ] T047 [US5] Implement GET/POST/PATCH/DELETE registro routes and GET itens-busca in `centro-custo.routes.ts`
-- [ ] T048 [P] [US5] Implement `DailyRegisterCellEditors` per PropriedadeTipo in `DailyRegisterCellEditors.tsx`
-- [ ] T049 [P] [US5] Implement `ItemPickerCombobox` with async search in `ItemPickerCombobox.tsx`
-- [ ] T050 [US5] Implement `DailyRegisterGrid` (table, add row, month filter, save row) in `DailyRegisterGrid.tsx`
-- [ ] T051 [US5] Integrate grid on detail page tab `registro` with empty state when no propriedades configured
-- [ ] T052 [US5] Add registro and itens-busca methods to `tenantApi.centrosCusto` in `frontend/src/lib/api-client.ts`
-- [ ] T053 [US5] Enforce read-only grid for users without `centros_custo.registros.edit`
+- [x] T043 [US5] Implement registro-diario service (listByMonth, create, update, delete row) in `registro-diario.service.ts`
+- [x] T044 [US5] Persist typed cell values + item junction rows in `registro-diario.service.ts`
+- [x] T045 [US5] Write audit REGISTRO_DIARIO_* on create/update/delete in `registro-diario.service.ts`
+- [x] T046 [US5] Implement item-search service (scoped to centro licitacoes, active items) in `item-search.service.ts`
+- [x] T047 [US5] Implement GET/POST/PATCH/DELETE registro routes and GET itens-busca in `centro-custo.routes.ts`
+- [x] T048 [P] [US5] Implement `DailyRegisterCellEditors` per PropriedadeTipo in `DailyRegisterCellEditors.tsx`
+- [x] T049 [P] [US5] Implement `ItemPickerCombobox` with async search in `ItemPickerCombobox.tsx`
+- [x] T050 [US5] Implement `DailyRegisterGrid` (table, add row, month filter, save row) in `DailyRegisterGrid.tsx`
+- [x] T051 [US5] Integrate grid on detail page tab `registro` with empty state when no propriedades configured
+- [x] T052 [US5] Add registro and itens-busca methods to `tenantApi.centrosCusto` in `frontend/src/lib/api-client.ts`
+- [x] T053 [US5] Enforce read-only grid for users without `centros_custo.registros.edit`
 
 **Checkpoint**: US5 complete — registro diário editável end-to-end
 
@@ -183,13 +183,13 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 6
 
-- [ ] T054 [US6] Implement production aggregation service (all days in month, marker rules) in `production.service.ts`
-- [ ] T055 [US6] Implement GET `/centros-custo/:id/producao?year=&month=` in `centro-custo.routes.ts`
+- [x] T054 [US6] Implement production aggregation service (all days in month, marker rules) in `production.service.ts`
+- [x] T055 [US6] Implement GET `/centros-custo/:id/producao?year=&month=` in `centro-custo.routes.ts`
 - [ ] T056 [US6] Unit tests for marker counting rules in `api/tests/unit/centros-custo/production.service.test.ts`
-- [ ] T057 [US6] Implement `ProductionDailyPanel` table in `frontend/src/tenant/components/centros-custo/ProductionDailyPanel.tsx`
-- [ ] T058 [US6] Integrate panel on detail tab `producao` sharing month nav with registro tab
-- [ ] T059 [US6] Show explanatory note when marcadores INICIO/CONCLUSAO not configured
-- [ ] T060 [US6] Add `tenantApi.centrosCusto.getProducao` in `frontend/src/lib/api-client.ts`
+- [x] T057 [US6] Implement `ProductionDailyPanel` table in `frontend/src/tenant/components/centros-custo/ProductionDailyPanel.tsx`
+- [x] T058 [US6] Integrate panel on detail tab `producao` sharing month nav with registro tab
+- [x] T059 [US6] Show explanatory note when marcadores INICIO/CONCLUSAO not configured
+- [x] T060 [US6] Add `tenantApi.centrosCusto.getProducao` in `frontend/src/lib/api-client.ts`
 
 **Checkpoint**: US6 complete — produção diária sincronizada com mês
 
@@ -203,8 +203,8 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 
 ### Implementation for User Story 8
 
-- [ ] T061 [US8] Implement `PerformancePanelPlaceholder` in `frontend/src/tenant/components/centros-custo/PerformancePanelPlaceholder.tsx`
-- [ ] T062 [US8] Wire tab `desempenho` content on `CentroCustoDetailPage.tsx`
+- [x] T061 [US8] Implement `PerformancePanelPlaceholder` in `frontend/src/tenant/components/centros-custo/PerformancePanelPlaceholder.tsx`
+- [x] T062 [US8] Wire tab `desempenho` content on `CentroCustoDetailPage.tsx`
 
 **Checkpoint**: US8 complete — placeholder navegável
 
@@ -219,7 +219,7 @@ description: "Task list for Spec 04 — Centros de Custo e Registro Diário"
 - [ ] T065 [P] Integration test: producao aggregation for sample month in `api/tests/integration/centros-custo/producao.test.ts`
 - [ ] T066 [P] Integration test: cell validation rejects wrong type in `api/tests/integration/centros-custo/registro.test.ts`
 - [ ] T067 Run end-to-end validation following `specs/004-centros-custo/quickstart.md`
-- [ ] T068 [P] Mark completed tasks in `specs/004-centros-custo/tasks.md` after implementation
+- [x] T068 [P] Mark completed tasks in `specs/004-centros-custo/tasks.md` after implementation
 
 ---
 

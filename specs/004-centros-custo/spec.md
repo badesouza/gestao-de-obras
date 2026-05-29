@@ -4,7 +4,7 @@
 
 **Created**: 2026-05-29
 
-**Status**: Draft
+**Status**: Implemented (core) — ver [docs/IMPLEMENTACAO.md](../../docs/IMPLEMENTACAO.md)
 
 **Input**: User description: "Spec 04 — Usuário tenant cadastra centros de custo vinculados a uma ou mais licitações para uso de itens. Centro de custo com nome, datas previstas e realizadas de início/fim. Propriedades reutilizáveis com tipos (string, data, money, item de licitação, etc.) associadas a um ou vários centros. Menu com listagem configurada; detalhe com cabeçalho da entidade/centro e abas: Registro Diário (grade estilo Excel com colunas=propriedades, primeira coluna=data, navegação por mês, edição por tipo incluindo seleção de item com busca), Painel de Desempenho (a definir), Produção Diária (agrupamento por dia: tarefas cadastradas, iniciadas e concluídas conforme propriedades do centro)."
 
