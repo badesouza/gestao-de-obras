@@ -75,9 +75,38 @@ model Entity {
   centroCustoPropriedadeConfigs CentroCustoPropriedadeConfig[]
   registroDiarioValores RegistroDiarioValor[]
   registroDiarioValorItens RegistroDiarioValorItem[]
+  cadastrosAuxiliares CadastroAuxiliar[]
+  enderecosDescobertos EnderecoDescoberto[]
+  registroMidias RegistroMidia[]
 
   @@index([status])
   @@map("entities")
+}
+
+enum CadastroAuxiliarTipo {
+  BAIRRO
+  EQUIPE
+  VEICULO
+  EQUIPAMENTO
+}
+
+model CadastroAuxiliar {
+  id        String               @id @default(uuid())
+  entityId  String               @map("entity_id")
+  tipo      CadastroAuxiliarTipo
+  nome      String               @db.VarChar(150)
+  ativo     Boolean              @default(true)
+  ordem     Int                  @default(0)
+  lat       Float?
+  lng       Float?
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  entity Entity @relation(fields: [entityId], references: [id])
+
+  @@unique([entityId, tipo, nome])
+  @@index([entityId, tipo, ativo])
+  @@map("cadastros_auxiliares")
 }
 
 model PlatformOperator {
@@ -224,6 +253,7 @@ model LicitacaoItem {
   categoria       String?         @db.VarChar(100)
   descricao       String          @db.VarChar(500)
   unidadeMedida   String          @map("unidade_medida") @db.VarChar(50)
+  quantidade      Decimal?        @db.Decimal(15, 4)
   valorUnitario   Decimal?        @map("valor_unitario") @db.Decimal(15, 4)
   status          LicitacaoStatus @default(ACTIVE)
   createdByUserId String          @map("created_by_user_id")
@@ -319,24 +349,47 @@ model CentroCustoPropriedadeConfig {
 }
 
 model RegistroDiario {
-  id              String   @id @default(uuid())
-  centroCustoId   String   @map("centro_custo_id")
-  entityId        String   @map("entity_id")
-  data            DateTime @db.Date
-  createdByUserId String   @map("created_by_user_id")
-  updatedByUserId String?  @map("updated_by_user_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid())
+  centroCustoId         String   @map("centro_custo_id")
+  entityId              String   @map("entity_id")
+  data                  DateTime @db.Date
+  lat                   Float?
+  lng                   Float?
+  enderecoGeocodificado String?  @map("endereco_geocodificado")
+  createdByUserId       String   @map("created_by_user_id")
+  updatedByUserId       String?  @map("updated_by_user_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   centroCusto CentroCusto           @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
   entity      Entity                @relation(fields: [entityId], references: [id])
   createdBy   TenantUser            @relation("RegistroDiarioCreatedBy", fields: [createdByUserId], references: [id])
   updatedBy   TenantUser?           @relation("RegistroDiarioUpdatedBy", fields: [updatedByUserId], references: [id])
   valores     RegistroDiarioValor[]
+  midias      RegistroMidia[]
 
   @@index([centroCustoId, data])
   @@index([entityId, centroCustoId, data])
+  @@index([entityId, lat, lng])
   @@map("registros_diarios")
+}
+
+model RegistroMidia {
+  id               String   @id @default(uuid())
+  registroDiarioId String   @map("registro_diario_id")
+  entityId         String   @map("entity_id")
+  tipo             String   @db.VarChar(10)
+  nomeArquivo      String   @map("nome_arquivo") @db.VarChar(255)
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  tamanhoBytes     Int      @map("tamanho_bytes")
+  dados            Bytes
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  registroDiario RegistroDiario @relation(fields: [registroDiarioId], references: [id], onDelete: Cascade)
+  entity         Entity         @relation(fields: [entityId], references: [id])
+
+  @@index([registroDiarioId])
+  @@map("registro_midias")
 }
 
 model RegistroDiarioValor {
@@ -356,6 +409,22 @@ model RegistroDiarioValor {
 
   @@unique([registroDiarioId, propriedadeId])
   @@map("registro_diario_valores")
+}
+
+model EnderecoDescoberto {
+  id          String   @id @default(uuid())
+  entityId    String   @map("entity_id")
+  bairro      String   @db.VarChar(150)
+  logradouro  String   @db.VarChar(300)
+  lat         Float
+  lng         Float
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  entity Entity @relation(fields: [entityId], references: [id])
+
+  @@unique([entityId, bairro, logradouro])
+  @@index([entityId, bairro])
+  @@map("enderecos_descobertos")
 }
 
 model RegistroDiarioValorItem {

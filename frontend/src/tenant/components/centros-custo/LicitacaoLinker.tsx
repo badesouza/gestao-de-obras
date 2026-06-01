@@ -104,7 +104,7 @@ export function LicitacaoLinker({
               <button
                 type="button"
                 onClick={() => setShowSearch(true)}
-                className="text-xs text-[var(--color-brand-ochre)] hover:underline"
+                className="text-xs text-[var(--color-brand-blue)] hover:underline"
               >
                 Alterar
               </button>

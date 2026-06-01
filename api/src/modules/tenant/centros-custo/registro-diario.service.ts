@@ -19,6 +19,9 @@ function mapRowToDto(
   registro: {
     id: string;
     data: Date;
+    lat?: number | null;
+    lng?: number | null;
+    enderecoGeocodificado?: string | null;
     valores: Array<{
       propriedadeId: string;
       valorTexto: string | null;
@@ -41,6 +44,9 @@ function mapRowToDto(
   return {
     id: registro.id,
     data: formatDateOnly(registro.data),
+    lat: registro.lat ?? null,
+    lng: registro.lng ?? null,
+    enderecoGeocodificado: registro.enderecoGeocodificado ?? null,
     values,
   };
 }

@@ -36,7 +36,7 @@ export function CentroCustoTabs({
             onClick={() => onTabChange(item.id)}
             className={`rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium transition ${
               tab === item.id
-                ? 'bg-[var(--color-brand-ochre)] text-white'
+                ? 'bg-[var(--color-brand-blue)] text-white'
                 : 'bg-white text-[var(--color-ink)] ring-1 ring-[var(--color-hairline)] hover:bg-[var(--color-canvas)]'
             }`}
           >

@@ -54,7 +54,7 @@ export function SpreadsheetImportPanel({ licitacaoId, onSuccess }: SpreadsheetIm
         <input
           type="file"
           accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-          className="text-sm text-[var(--color-muted)] file:mr-3 file:rounded-[var(--radius-md)] file:border-0 file:bg-[var(--color-accent-soft)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--color-brand-ochre)]"
+          className="text-sm text-[var(--color-muted)] file:mr-3 file:rounded-[var(--radius-md)] file:border-0 file:bg-[var(--color-accent-soft)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--color-brand-blue)]"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
       </label>

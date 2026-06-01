@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    include: ['recharts', 'recharts/es6/component/DefaultLegendContent'],
+  },
   server: {
     proxy: {
       '/api': {

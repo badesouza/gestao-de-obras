@@ -280,13 +280,13 @@ export interface TenantSession {
   name: string;
   email: string;
   status: string;
-  entity: { id: string; name: string; status: string };
+  entity: { id: string; name: string; status: string; municipalityName: string | null; uf: string | null };
   role: { code: string; name: string };
   permissions: string[];
 }
 
 export interface TenantDashboard {
-  entity: { id: string; name: string; status: string };
+  entity: { id: string; name: string; status: string; coatOfArmsUrl: string | null; municipalityName: string | null; uf: string | null };
   stats: { usersTotal: number; usersActive: number };
   message: string;
 }
@@ -312,6 +312,7 @@ export interface LicitacaoItem {
   categoria: string | null;
   descricao: string;
   unidadeMedida: string;
+  quantidade: string | null;
   valorUnitario: string | null;
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
@@ -379,6 +380,9 @@ export interface CellValue {
 export interface RegistroDiarioRow {
   id: string;
   data: string;
+  lat?: number | null;
+  lng?: number | null;
+  enderecoGeocodificado?: string | null;
   values: Record<string, CellValue>;
 }
 
@@ -519,7 +523,7 @@ export const tenantApi = {
     importColumns: (
       entityId: string,
       licitacaoId: string,
-      columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'valor', string>>,
+      columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor', string>>,
     ) =>
       tenantRequest<ImportResult>(
         entityId,
@@ -533,10 +537,19 @@ export const tenantApi = {
       tenantRequest<LicitacaoItem>(
         entityId,
         `/api/tenant/v1/licitacoes/${licitacaoId}/items/${itemId}/status`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'INACTIVE' }),
-        },
+        { method: 'PATCH', body: JSON.stringify({ status: 'INACTIVE' }) },
+      ),
+    updateItem: (entityId: string, licitacaoId: string, itemId: string, body: { categoria?: string; descricao: string; unidadeMedida: string; quantidade?: string | null; valorUnitario?: string | null }) =>
+      tenantRequest<LicitacaoItem>(
+        entityId,
+        `/api/tenant/v1/licitacoes/${licitacaoId}/items/${itemId}`,
+        { method: 'PUT', body: JSON.stringify(body) },
+      ),
+    deleteItem: (entityId: string, licitacaoId: string, itemId: string) =>
+      tenantRequest<void>(
+        entityId,
+        `/api/tenant/v1/licitacoes/${licitacaoId}/items/${itemId}`,
+        { method: 'DELETE' },
       ),
     downloadTemplate: (entityId: string, format: 'csv' | 'xlsx') =>
       tenantDownloadBlob(
@@ -641,6 +654,39 @@ export const tenantApi = {
         entityId,
         `/api/tenant/v1/centros-custo/${centroId}/producao?year=${year}&month=${month}`,
       ),
+    analytics: (entityId: string, centroId: string, year: number, month: number) =>
+      tenantRequest<{
+        resumo: { total: number; concluidos: number; taxaConclusao: number; totalArea: number };
+        producaoDiaria: { data: string; total: number; concluidos: number; area: number }[];
+        porBairro:  { name: string; value: number }[];
+        porStatus:  { name: string; value: number }[];
+        porTipo:    { name: string; value: number }[];
+        porOrigem:  { name: string; value: number }[];
+        porEquipe:  { name: string; registros: number; area: number; horas: number }[];
+        year: number; month: number;
+      }>(
+        entityId,
+        `/api/tenant/v1/centros-custo/${centroId}/analytics?year=${year}&month=${month}`,
+      ),
+    getMetasAno: (entityId: string, centroId: string, year: number) =>
+      tenantRequest<{
+        year: number;
+        metas: Record<number, { metaRegistros: number | null; metaProducao: number | null; metaHoras: number | null }>;
+      }>(entityId, `/api/tenant/v1/centros-custo/${centroId}/metas/ano?year=${year}`),
+    saveMetasAno: (entityId: string, centroId: string, body: { year: number; metas: Record<number, { metaRegistros: number | null; metaProducao: number | null; metaHoras: number | null }> }) =>
+      tenantRequest<{ ok: boolean }>(entityId, `/api/tenant/v1/centros-custo/${centroId}/metas/ano`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }),
+    getMetas: (entityId: string, centroId: string, year: number, month: number) =>
+      tenantRequest<{ year: number; month: number; metaRegistros: number | null; metaProducao: number | null; metaHoras: number | null }>(
+        entityId,
+        `/api/tenant/v1/centros-custo/${centroId}/metas?year=${year}&month=${month}`,
+      ),
+    saveMetas: (entityId: string, centroId: string, body: { year: number; month: number; metaRegistros: number | null; metaProducao: number | null; metaHoras: number | null }) =>
+      tenantRequest<{ ok: boolean }>(entityId, `/api/tenant/v1/centros-custo/${centroId}/metas`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
     searchItens: (entityId: string, centroId: string, q?: string, limit = 20) => {
       const params = new URLSearchParams();
       if (q) params.set('q', q);
@@ -673,6 +719,159 @@ export const tenantApi = {
         ),
     },
   },
+};
+
+export type CadastroAuxiliarTipo = 'BAIRRO' | 'EQUIPE' | 'VEICULO' | 'EQUIPAMENTO';
+
+export interface CadastroAuxiliar {
+  id: string;
+  entityId: string;
+  tipo: CadastroAuxiliarTipo;
+  nome: string;
+  ativo: boolean;
+  ordem: number;
+  lat?: number | null;
+  lng?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BairroCoord {
+  id: string;
+  nome: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface MapaPin {
+  id: string;
+  lat: number;
+  lng: number;
+  data: string;
+  endereco: string | null;
+  centroCusto: { id: string; nome: string };
+  status: string;
+  bairro: string;
+  logradouro: string;
+  tipoServico: string;
+}
+
+export interface GeocodeResult {
+  lat: number;
+  lng: number;
+  label: string;
+  importance: number;
+}
+
+export const mapaApi = {
+  geocode: (entityId: string, q: string) =>
+    tenantRequest<{ results: GeocodeResult[] }>(
+      entityId,
+      `/api/tenant/v1/mapa/geocode?q=${encodeURIComponent(q)}`,
+    ),
+  reverse: (entityId: string, lat: number, lng: number) =>
+    tenantRequest<{ label: string; logradouro: string | null; bairro: string | null }>(
+      entityId,
+      `/api/tenant/v1/mapa/reverse?lat=${lat}&lng=${lng}`,
+    ),
+  bairroMaisProximo: (entityId: string, lat: number, lng: number) =>
+    tenantRequest<{ bairro: string | null; distancia: number | null }>(
+      entityId,
+      `/api/tenant/v1/mapa/bairro-mais-proximo?lat=${lat}&lng=${lng}`,
+    ),
+  salvarCoords: (entityId: string, registroId: string, lat: number, lng: number, endereco?: string) =>
+    tenantRequest<{ id: string; lat: number; lng: number }>(
+      entityId,
+      `/api/tenant/v1/mapa/registros/${registroId}/coords`,
+      { method: 'PATCH', body: JSON.stringify({ lat, lng, enderecoGeocodificado: endereco }) },
+    ),
+  pins: (entityId: string, year?: number, month?: number, centroCustoId?: string) => {
+    const params = new URLSearchParams();
+    if (year)          params.set('year',  String(year));
+    if (month)         params.set('month', String(month));
+    if (centroCustoId) params.set('centroCustoId', centroCustoId);
+    return tenantRequest<{ pins: MapaPin[]; year: number; month: number }>(
+      entityId,
+      `/api/tenant/v1/mapa/pins?${params}`,
+    );
+  },
+  uploadMidia: (entityId: string, registroId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return tenantUpload<{ id: string; tipo: string; nomeArquivo: string; mimeType: string; tamanhoBytes: number; createdAt: string }>(entityId, `/api/tenant/v1/mapa/registros/${registroId}/midias`, form);
+  },
+  listMidias: (entityId: string, registroId: string) =>
+    tenantRequest<{ midias: { id: string; tipo: string; nomeArquivo: string; mimeType: string; tamanhoBytes: number; createdAt: string }[] }>(
+      entityId,
+      `/api/tenant/v1/mapa/registros/${registroId}/midias`,
+    ),
+  deleteMidia: (entityId: string, midiaId: string) =>
+    tenantRequest<void>(entityId, `/api/tenant/v1/mapa/midias/${midiaId}`, { method: 'DELETE' }),
+  midiaUrl: (entityId: string, midiaId: string) =>
+    `/api/tenant/v1/mapa/midias/${midiaId}`,
+};
+
+export const cadastrosAuxiliaresApi = {
+  list: (entityId: string, tipo?: CadastroAuxiliarTipo) => {
+    const params = tipo ? `?tipo=${tipo}` : '';
+    return tenantRequest<{ items: CadastroAuxiliar[] }>(
+      entityId,
+      `/api/tenant/v1/cadastros-auxiliares${params}`,
+    );
+  },
+  create: (entityId: string, body: { tipo: CadastroAuxiliarTipo; nome: string }) =>
+    tenantRequest<CadastroAuxiliar>(entityId, '/api/tenant/v1/cadastros-auxiliares', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (entityId: string, id: string, body: { nome?: string; ativo?: boolean; ordem?: number }) =>
+    tenantRequest<CadastroAuxiliar>(entityId, `/api/tenant/v1/cadastros-auxiliares/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  delete: (entityId: string, id: string) =>
+    tenantRequest<void>(entityId, `/api/tenant/v1/cadastros-auxiliares/${id}`, {
+      method: 'DELETE',
+    }),
+  listBairrosCoords: (entityId: string) =>
+    tenantRequest<{ items: BairroCoord[] }>(
+      entityId,
+      '/api/tenant/v1/cadastros-auxiliares/bairros-coords',
+    ),
+  saveBairroCoords: (entityId: string, id: string, lat: number, lng: number) =>
+    tenantRequest<CadastroAuxiliar>(entityId, `/api/tenant/v1/cadastros-auxiliares/${id}/coords`, {
+      method: 'PATCH',
+      body: JSON.stringify({ lat, lng }),
+    }),
+};
+
+export interface EnderecoDescoberto {
+  id: string;
+  entityId: string;
+  bairro: string;
+  logradouro: string;
+  lat: number;
+  lng: number;
+  createdAt: string;
+}
+
+export const enderecosDescobertoApi = {
+  list: (entityId: string, bairro?: string) => {
+    const params = bairro ? `?bairro=${encodeURIComponent(bairro)}` : '';
+    return tenantRequest<{ items: EnderecoDescoberto[]; total: number }>(
+      entityId,
+      `/api/tenant/v1/enderecos-descobertos${params}`,
+    );
+  },
+  create: (entityId: string, body: { bairro: string; logradouro: string; lat: number; lng: number }) =>
+    tenantRequest<EnderecoDescoberto>(entityId, '/api/tenant/v1/enderecos-descobertos', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  delete: (entityId: string, id: string) =>
+    tenantRequest<void>(entityId, `/api/tenant/v1/enderecos-descobertos/${id}`, {
+      method: 'DELETE',
+    }),
 };
 
 export const entityBootstrapApi = {

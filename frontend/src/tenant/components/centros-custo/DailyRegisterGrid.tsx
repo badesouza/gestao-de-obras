@@ -187,7 +187,7 @@ export function DailyRegisterGrid({
             <button
               type="button"
               onClick={onConfigureProperties}
-              className="mt-2 text-sm font-medium text-[var(--color-brand-ochre)] hover:underline"
+              className="mt-2 text-sm font-medium text-[var(--color-brand-blue)] hover:underline"
             >
               Ir para configuração na Home →
             </button>

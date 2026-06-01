@@ -18,6 +18,7 @@ export interface LicitacaoItemDto {
   categoria: string | null;
   descricao: string;
   unidadeMedida: string;
+  quantidade: string | null;
   valorUnitario: string | null;
   status: LicitacaoStatus;
   createdAt: string;
@@ -32,6 +33,7 @@ function toItemDto(
     categoria: string | null;
     descricao: string;
     unidadeMedida: string;
+    quantidade: { toString(): string } | null;
     valorUnitario: { toString(): string } | null;
     status: LicitacaoStatus;
     createdAt: Date;
@@ -44,6 +46,7 @@ function toItemDto(
     categoria: item.categoria,
     descricao: item.descricao,
     unidadeMedida: item.unidadeMedida,
+    quantidade: item.quantidade?.toString() ?? null,
     valorUnitario: item.valorUnitario?.toString() ?? null,
     status: item.status,
     createdAt: item.createdAt.toISOString(),
@@ -81,6 +84,7 @@ async function persistImport(
         categoria: item.categoria,
         descricao: item.descricao,
         unidadeMedida: item.unidadeMedida,
+        quantidade: item.quantidade,
         valorUnitario: item.valorUnitario,
         createdByUserId: actorId,
       })),
@@ -194,7 +198,7 @@ export async function importItemsFromColumns(
   actorId: string,
   entityId: string,
   licitacaoId: string,
-  columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'valor', string>>,
+  columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor', string>>,
 ) {
   await assertEntityActive(prisma, entityId);
   await assertLicitacaoActiveForImport(prisma, entityId, licitacaoId);

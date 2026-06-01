@@ -27,7 +27,7 @@ export function parseSpreadsheetBuffer(
   if (matrix.length === 0) return [];
 
   const headerRow = matrix[0]?.map((cell) => String(cell ?? '')) ?? [];
-  const fieldIndexes: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'valor', number>> = {};
+  const fieldIndexes: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor', number>> = {};
 
   for (let i = 0; i < headerRow.length; i += 1) {
     const field = mapHeaderToField(headerRow[i] ?? '');
@@ -57,6 +57,7 @@ export function parseSpreadsheetBuffer(
       categoria: fieldIndexes.categoria !== undefined ? getCell('categoria') || null : null,
       descricao: getCell('descricao'),
       unidade: getCell('unidade'),
+      quantidade: fieldIndexes.quantidade !== undefined ? getCell('quantidade') || null : null,
       valor: fieldIndexes.valor !== undefined ? getCell('valor') || null : null,
     });
   }

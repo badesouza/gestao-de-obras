@@ -8,7 +8,7 @@ export function normalizeHeader(raw: string): string {
     .replace(/\s+/g, ' ');
 }
 
-const HEADER_ALIASES: Record<string, 'categoria' | 'descricao' | 'unidade' | 'valor'> = {
+const HEADER_ALIASES: Record<string, 'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor'> = {
   categoria: 'categoria',
   category: 'categoria',
   descricao: 'descricao',
@@ -16,13 +16,17 @@ const HEADER_ALIASES: Record<string, 'categoria' | 'descricao' | 'unidade' | 'va
   unidade: 'unidade',
   'unidade de medida': 'unidade',
   un: 'unidade',
+  quantidade: 'quantidade',
+  qtd: 'quantidade',
+  qtde: 'quantidade',
+  quant: 'quantidade',
   valor: 'valor',
   'valor unitario': 'valor',
   preco: 'valor',
 };
 
 /** Maps a normalized header to an internal column key, or null if unknown */
-export function mapHeaderToField(header: string): 'categoria' | 'descricao' | 'unidade' | 'valor' | null {
+export function mapHeaderToField(header: string): 'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor' | null {
   const normalized = normalizeHeader(header);
   return HEADER_ALIASES[normalized] ?? null;
 }

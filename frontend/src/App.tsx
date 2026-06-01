@@ -21,6 +21,9 @@ import { CentroCustoListPage } from './tenant/pages/CentroCustoListPage';
 import { CentroCustoCreatePage } from './tenant/pages/CentroCustoCreatePage';
 import { CentroCustoDetailPage } from './tenant/pages/CentroCustoDetailPage';
 import { PropriedadeCatalogPage } from './tenant/pages/PropriedadeCatalogPage';
+import { ServicosPage } from './tenant/pages/ServicosPage';
+import { ServicoDetailPage } from './tenant/pages/ServicoDetailPage';
+import { CadastrosAuxiliaresPage } from './tenant/pages/CadastrosAuxiliaresPage';
 
 /** Application router root */
 function App() {
@@ -42,6 +45,9 @@ function App() {
         <Route path="/t/:id" element={<TenantGuard />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<TenantDashboardPage />} />
+          <Route path="servicos" element={<ServicosPage />} />
+          <Route path="servicos/:slug" element={<ServicoDetailPage />} />
+          <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />
           <Route element={<TenantPermissionGuard permission="licitacoes.view" />}>
             <Route path="licitacoes" element={<LicitacaoListPage />} />
             <Route path="licitacoes/:licitacaoId" element={<LicitacaoDetailPage />} />

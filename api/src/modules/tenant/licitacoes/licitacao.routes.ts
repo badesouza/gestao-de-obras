@@ -248,6 +248,70 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
     },
   );
 
+  /* ── PUT /licitacoes/:licitacaoId/items/:itemId ── editar item ── */
+  const updateItemSchema = z.object({
+    categoria:     z.string().optional(),
+    descricao:     z.string().min(1),
+    unidadeMedida: z.string().min(1),
+    quantidade:    z.string().optional().nullable(),
+    valorUnitario: z.string().optional().nullable(),
+  });
+
+  fastify.put(
+    '/licitacoes/:licitacaoId/items/:itemId',
+    { preHandler: canDeactivateItem },
+    async (request, reply) => {
+      try {
+        const { licitacaoId, itemId } = request.params as { licitacaoId: string; itemId: string };
+        const body = updateItemSchema.parse(request.body);
+        const entityId = request.user.entityId!;
+
+        const item = await fastify.prisma.licitacaoItem.findFirst({
+          where: { id: itemId, licitacaoId, entityId },
+        });
+        if (!item) throw new AppError(404, 'NOT_FOUND', 'Item não encontrado');
+
+        const updated = await fastify.prisma.licitacaoItem.update({
+          where: { id: itemId },
+          data: {
+            categoria:     body.categoria ?? null,
+            descricao:     body.descricao,
+            unidadeMedida: body.unidadeMedida,
+            quantidade:    body.quantidade ? body.quantidade : null,
+            valorUnitario: body.valorUnitario ? body.valorUnitario : null,
+            updatedAt:     new Date(),
+          },
+          include: { createdBy: { select: { id: true, name: true } } },
+        });
+        return reply.send(updated);
+      } catch (error) {
+        return handleAppError(reply, error);
+      }
+    },
+  );
+
+  /* ── DELETE /licitacoes/:licitacaoId/items/:itemId ── excluir item ── */
+  fastify.delete(
+    '/licitacoes/:licitacaoId/items/:itemId',
+    { preHandler: canDeactivateItem },
+    async (request, reply) => {
+      try {
+        const { licitacaoId, itemId } = request.params as { licitacaoId: string; itemId: string };
+        const entityId = request.user.entityId!;
+
+        const item = await fastify.prisma.licitacaoItem.findFirst({
+          where: { id: itemId, licitacaoId, entityId },
+        });
+        if (!item) throw new AppError(404, 'NOT_FOUND', 'Item não encontrado');
+
+        await fastify.prisma.licitacaoItem.delete({ where: { id: itemId } });
+        return reply.code(204).send();
+      } catch (error) {
+        return handleAppError(reply, error);
+      }
+    },
+  );
+
   fastify.patch(
     '/licitacoes/:licitacaoId/items/:itemId/status',
     { preHandler: canDeactivateItem },

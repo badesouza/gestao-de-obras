@@ -1,10 +1,11 @@
-export type ImportColumnKey = 'categoria' | 'descricao' | 'unidade' | 'valor';
+export type ImportColumnKey = 'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor';
 
 export interface ParsedImportRow {
   line: number;
   categoria: string | null;
   descricao: string;
   unidade: string;
+  quantidade: string | null;
   valor: string | null;
 }
 
@@ -38,6 +39,7 @@ export function parseColumnsInput(columns: Partial<Record<ImportColumnKey, strin
   const descricaoLines = splitColumnLines(columns.descricao);
   const unidadeLines = splitColumnLines(columns.unidade);
   const categoriaLines = splitColumnLines(columns.categoria);
+  const quantidadeLines = splitColumnLines(columns.quantidade);
   const valorLines = splitColumnLines(columns.valor);
 
   if (descricaoLines.length === 0 || unidadeLines.length === 0) {
@@ -51,6 +53,9 @@ export function parseColumnsInput(columns: Partial<Record<ImportColumnKey, strin
 
   if (isColumnUsed(categoriaLines)) {
     usedColumns.push({ name: 'categoria', lines: categoriaLines });
+  }
+  if (isColumnUsed(quantidadeLines)) {
+    usedColumns.push({ name: 'quantidade', lines: quantidadeLines });
   }
   if (isColumnUsed(valorLines)) {
     usedColumns.push({ name: 'valor', lines: valorLines });
@@ -74,6 +79,7 @@ export function parseColumnsInput(columns: Partial<Record<ImportColumnKey, strin
       categoria: isColumnUsed(categoriaLines) ? (categoriaLines[i] ?? '') : null,
       descricao: descricaoLines[i] ?? '',
       unidade: unidadeLines[i] ?? '',
+      quantidade: isColumnUsed(quantidadeLines) ? (quantidadeLines[i] ?? '') : null,
       valor: isColumnUsed(valorLines) ? (valorLines[i] ?? '') : null,
     });
   }

@@ -9,12 +9,13 @@ interface ColumnsImportPanelProps {
   onSuccess: () => void;
 }
 
-type ColumnKey = 'categoria' | 'descricao' | 'unidade' | 'valor';
+type ColumnKey = 'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor';
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
   categoria: 'Categoria (opcional)',
   descricao: 'Descrição (obrigatório)',
   unidade: 'Unidade (obrigatório)',
+  quantidade: 'Quantidade (opcional)',
   valor: 'Valor (opcional)',
 };
 
@@ -35,6 +36,7 @@ export function ColumnsImportPanel({ licitacaoId, onSuccess }: ColumnsImportPane
     categoria: '',
     descricao: '',
     unidade: '',
+    quantidade: '',
     valor: '',
   });
   const [loading, setLoading] = useState(false);
@@ -80,7 +82,7 @@ export function ColumnsImportPanel({ licitacaoId, onSuccess }: ColumnsImportPane
       }
       const result = await tenantApi.licitacoes.importColumns(entityId, licitacaoId, payload);
       setSuccess(`${result.importedCount} item(ns) importado(s) com sucesso.`);
-      setColumns({ categoria: '', descricao: '', unidade: '', valor: '' });
+      setColumns({ categoria: '', descricao: '', unidade: '', quantidade: '', valor: '' });
       onSuccess();
     } catch (err) {
       if (err instanceof ApiError && err.body.code === 'IMPORT_COLUMN_MISMATCH') {

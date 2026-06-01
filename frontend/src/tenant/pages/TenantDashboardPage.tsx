@@ -1,63 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { tenantApi } from '../../lib/api-client';
-import { Card } from '../../components/ui/Card';
 import { useTenant, useTenantPermission } from '../TenantContext';
-import { TenantPageHeader } from '../components/TenantPageHeader';
 import { formatTodayPtBr } from '../utils/format';
+import { MapaServicos } from '../components/MapaServicos';
 
-interface StatCardProps {
-  label: string;
-  value: number | string;
-  hint: string;
-  accent?: boolean;
-}
-
-/** Dashboard metric card */
-function StatCard({ label, value, hint, accent = false }: StatCardProps) {
-  return (
-    <Card className={`p-5 ${accent ? 'border-[var(--color-accent)]/20 bg-white' : 'bg-white'}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-muted)]">
-        {label}
-      </p>
-      <p className="mt-3 text-4xl font-semibold tracking-tight text-[var(--color-ink)]">{value}</p>
-      <p className="mt-2 text-sm text-[var(--color-muted)]">{hint}</p>
-    </Card>
-  );
-}
-
-/** Tenant dashboard with operational overview */
 export function TenantDashboardPage() {
   const { entityId, session } = useTenant();
   const canManageUsers = useTenantPermission('users.manage');
+  const canViewLic     = useTenantPermission('licitacoes.view');
+  const canViewCC      = useTenantPermission('centros_custo.view');
   const [data, setData] = useState<Awaited<ReturnType<typeof tenantApi.dashboard>> | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    tenantApi
-      .dashboard(entityId)
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erro ao carregar'));
+    tenantApi.dashboard(entityId).then(setData).catch((err) =>
+      setError(err instanceof Error ? err.message : 'Erro ao carregar'),
+    );
   }, [entityId]);
 
   if (error) {
     return (
-      <Card className="border-[var(--color-error)]/30 bg-white">
-        <p className="text-[var(--color-error)]">{error}</p>
-      </Card>
+      <div className="tn-page">
+        <div className="tn-alert">{error}</div>
+      </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded bg-[var(--color-surface-soft)]" />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((item) => (
-            <div
-              key={item}
-              className="h-36 animate-pulse rounded-[var(--radius-lg)] bg-[var(--color-surface-soft)]"
-            />
+      <div className="tn-page">
+        <div className="tn-stats">
+          {[1,2,3,4].map((n) => (
+            <div key={n} className="tn-skeleton-row" style={{ height: 110, borderRadius: 14, borderBottom: 'none' }} />
           ))}
         </div>
       </div>
@@ -65,107 +40,171 @@ export function TenantDashboardPage() {
   }
 
   const inactiveUsers = Math.max(data.stats.usersTotal - data.stats.usersActive, 0);
+  const isActive = data.entity.status === 'ACTIVE';
+
+  const quickLinks = [
+    canManageUsers && { to: `/t/${entityId}/users/new`,    label: 'Cadastrar usuário',    icon: '👤' },
+    canViewLic     && { to: `/t/${entityId}/licitacoes`,   label: 'Ver licitações',       icon: '📋' },
+    canViewCC      && { to: `/t/${entityId}/centros-custo`,label: 'Centros de custo',     icon: '🏗' },
+    { to: `/t/${entityId}/users`,                           label: 'Gerenciar usuários',   icon: '⚙️' },
+  ].filter(Boolean) as { to: string; label: string; icon: string }[];
 
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-gradient-to-br from-[var(--color-surface-dark)] to-[var(--color-accent)] p-6 text-white lg:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
+    <div className="tn-page">
+
+      {/* ── Hero ── */}
+      <div className="tn-hero-light">
+        <div className="tn-hero-light-glow" />
+        <div className="tn-hero-light-inner">
+          <div className="tn-hero-light-left">
+            <div className="tn-hero-light-kicker">
+              <span className="tn-hero-light-dot" />
               Painel operacional
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight lg:text-3xl">
-              Bem-vindo(a), {session.name.split(' ')[0]}
+            </div>
+            <h2 className="tn-hero-light-title">
+              Bem-vindo(a),&nbsp;<span>{session.name.split(' ')[0]}</span>
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-white/75">
-              Visão consolidada da entidade{' '}
-              <strong className="font-semibold text-white">{data.entity.name}</strong>. Utilize o
-              menu lateral para administrar usuários e acompanhar a operação.
+            <p className="tn-hero-light-desc">
+              {data.entity.name}
             </p>
-          </div>
-          <div className="rounded-[var(--radius-md)] border border-white/15 bg-white/10 px-4 py-3 text-sm capitalize text-white/80">
-            {formatTodayPtBr()}
           </div>
         </div>
-      </section>
-
-      <TenantPageHeader
-        title="Indicadores"
-        description="Resumo inicial do tenant. Módulos de obras, contratos e medições serão integrados nas próximas etapas."
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Usuários ativos"
-          value={data.stats.usersActive}
-          hint="Contas habilitadas para acesso"
-          accent
-        />
-        <StatCard
-          label="Total de usuários"
-          value={data.stats.usersTotal}
-          hint="Cadastrados nesta entidade"
-        />
-        <StatCard
-          label="Usuários inativos"
-          value={inactiveUsers}
-          hint="Contas desabilitadas"
-        />
-        <StatCard
-          label="Status da entidade"
-          value={data.entity.status === 'ACTIVE' ? 'Ativa' : 'Suspensa'}
-          hint="Situação operacional do tenant"
-        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <Card className="bg-white xl:col-span-2">
-          <h3 className="text-base font-semibold text-[var(--color-ink)]">Próximos módulos</h3>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Roadmap funcional previsto para o sistema de gestão de obras públicas.
-          </p>
-          <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-            {[
-              'Cadastro de obras',
-              'Contratos e aditivos',
-              'Medições e fiscalização',
-              'Relatórios financeiros',
-            ].map((module) => (
-              <li
-                key={module}
-                className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-hairline-soft)] bg-[var(--color-surface-soft)] px-4 py-3 text-sm text-[var(--color-body)]"
-              >
-                <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand-ochre)]" />
-                {module}
-              </li>
-            ))}
-          </ul>
-        </Card>
+      {/* ── KPI Stats ── */}
+      <div className="tn-stats">
 
-        <Card className="bg-white">
-          <h3 className="text-base font-semibold text-[var(--color-ink)]">Acesso rápido</h3>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Atalhos para tarefas administrativas frequentes.
-          </p>
-          <div className="mt-6 space-y-3">
-            {canManageUsers ? (
-              <Link
-                to={`/t/${entityId}/users/new`}
-                className="flex min-h-11 items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-hairline)] px-4 text-sm font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-surface-soft)]"
-              >
-                Cadastrar usuário
-                <span aria-hidden>→</span>
-              </Link>
-            ) : null}
-            <Link
-              to={`/t/${entityId}/users`}
-              className="flex min-h-11 items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-hairline)] px-4 text-sm font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-surface-soft)]"
-            >
-              Ver usuários
-              <span aria-hidden>→</span>
-            </Link>
+        <div className="tn-stat tone-blue">
+          <div className="tn-stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>
           </div>
-        </Card>
+          <div className="tn-stat-kicker">Usuários ativos</div>
+          <div className="tn-stat-value">{data.stats.usersActive}</div>
+          <div className="tn-stat-desc">Contas habilitadas</div>
+          <div className="tn-stat-badge"><i />Acesso liberado</div>
+        </div>
+
+        <div className="tn-stat tone-green">
+          <div className="tn-stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <div className="tn-stat-kicker">Total de usuários</div>
+          <div className="tn-stat-value">{data.stats.usersTotal}</div>
+          <div className="tn-stat-desc">Cadastrados nesta entidade</div>
+          <div className="tn-stat-badge"><i />Cadastrados</div>
+        </div>
+
+        <div className="tn-stat tone-blue">
+          <div className="tn-stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div className="tn-stat-kicker">Usuários inativos</div>
+          <div className="tn-stat-value">{inactiveUsers}</div>
+          <div className="tn-stat-desc">Contas desabilitadas</div>
+          <div className="tn-stat-badge"><i />Inativo</div>
+        </div>
+
+        <div className={`tn-stat ${isActive ? 'tone-green' : 'tone-rose'}`}>
+          <div className="tn-stat-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </div>
+          <div className="tn-stat-kicker">Status da entidade</div>
+          <div className="tn-stat-value" style={{ fontSize: 22, paddingTop: 6 }}>
+            {isActive ? 'Ativa' : 'Suspensa'}
+          </div>
+          <div className="tn-stat-desc">Situação operacional</div>
+          <div className="tn-stat-badge"><i />{isActive ? 'Operando' : 'Suspensa'}</div>
+        </div>
+
+      </div>
+
+      {/* ── Mapa de Serviços ── */}
+      <div className="tn-panel tn-panel-mapa" style={{ marginBottom: 16 }}>
+        <div className="tn-panel-head">
+          <div className="tn-panel-head-left">
+            <span>Operação urbana</span>
+            <h3>Mapa de Serviços</h3>
+          </div>
+          <Link to={`/t/${entityId}/servicos`} className="tn-btn-secondary" style={{ fontSize: 12, height: 32 }}>
+            Ver serviços
+          </Link>
+        </div>
+        <MapaServicos height={380} showFilters={true} />
+      </div>
+
+      {/* ── Grid: roadmap + quick actions ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 12 }}>
+
+        {/* Roadmap */}
+        <div className="tn-panel">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left">
+              <span>Desenvolvimento</span>
+              <h3>Próximos módulos</h3>
+            </div>
+            <span className="tn-chip dot-blue"><i />Em desenvolvimento</span>
+          </div>
+          <div style={{ padding: '16px 20px' }}>
+            <p style={{ fontSize: 13, color: 'var(--tn-muted)', marginBottom: 12 }}>
+              Roadmap funcional do sistema de gestão de obras públicas.
+            </p>
+            <div className="tn-roadmap">
+              {[
+                { label: 'Cadastro de obras',        done: false },
+                { label: 'Contratos e aditivos',     done: false },
+                { label: 'Medições e fiscalização',  done: false },
+                { label: 'Relatórios financeiros',   done: false },
+                { label: 'Diário de obras',          done: false },
+                { label: 'Gestão de cronograma',     done: false },
+              ].map(({ label }) => (
+                <div key={label} className="tn-roadmap-item">
+                  <span className="tn-roadmap-dot" />
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick access */}
+        <div className="tn-panel">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left">
+              <span>Atalhos</span>
+              <h3>Acesso rápido</h3>
+            </div>
+          </div>
+          <div style={{ padding: '14px 16px' }}>
+            <div className="tn-quick-actions">
+              {quickLinks.map(({ to, label, icon }) => (
+                <Link key={to} to={to} className="tn-quick-link">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>{icon}</span>
+                    <span>{label}</span>
+                  </span>
+                  <svg className="tn-quick-link-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );

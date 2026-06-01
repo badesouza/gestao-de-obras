@@ -86,6 +86,8 @@ export async function loginTenantUser(
     name: user.name,
     entityId: user.entityId,
     entityName: entity.name,
+    entityMunicipalityName: entity.municipalityName,
+    entityUf: entity.uf,
     roleCode: user.role.code,
     roleName: user.role.name,
     permissions,
@@ -102,7 +104,7 @@ export async function getTenantUserProfile(
     where: { id: userId },
     include: {
       role: true,
-      entity: { select: { id: true, name: true, status: true } },
+      entity: { select: { id: true, name: true, status: true, municipalityName: true, uf: true } },
     },
   });
 

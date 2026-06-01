@@ -1,80 +1,128 @@
+import { useState } from 'react';
 import { ApiError, tenantApi } from '../../lib/api-client';
-import { Button } from '../../components/ui/Button';
 import { useTenant } from '../TenantContext';
 
 interface ImportInstructionsProps {
   onDownload: (format: 'csv' | 'xlsx') => void;
 }
 
-/** Displays clear import instructions for licitacao items */
 export function ImportInstructions({ onDownload }: ImportInstructionsProps) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className="space-y-4 rounded-[var(--radius-md)] border border-[var(--color-hairline)] bg-[var(--color-canvas)] p-5 text-sm text-[var(--color-ink-soft)]">
-      <div>
-        <h3 className="font-semibold text-[var(--color-ink)]">Como importar itens</h3>
-        <p className="mt-1">
-          Use planilha (.csv UTF-8 ou .xlsx) ou cole colunas nos campos de texto. Cada linha
-          representa um item (produto ou serviço).
-        </p>
-      </div>
+    <div style={{ borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', background: '#fafafa' }}>
 
-      <div>
-        <p className="font-medium text-[var(--color-ink)]">Colunas aceitas</p>
-        <ul className="mt-2 list-inside list-disc space-y-1">
-          <li>
-            <strong>categoria</strong> — opcional
-          </li>
-          <li>
-            <strong>descricao</strong> — obrigatório
-          </li>
-          <li>
-            <strong>unidade</strong> — obrigatório (ex.: un, m², kg)
-          </li>
-          <li>
-            <strong>valor</strong> — opcional (formato decimal, ex.: 32,50)
-          </li>
-        </ul>
-      </div>
+      {/* cabeçalho clicável */}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer',
+          textAlign: 'left', transition: 'background 0.15s',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+      >
+        <span style={{
+          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+          background: '#eff6ff', border: '1px solid #bfdbfe',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb',
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </span>
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#334155' }}>
+          Como importar itens
+        </span>
+        <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginRight: 4 }}>
+          {open ? 'Ocultar' : 'Ver instruções'}
+        </span>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5"
+          style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        >
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] border-collapse text-left text-xs">
-          <thead>
-            <tr className="border-b border-[var(--color-hairline)]">
-              <th className="py-2 pr-3 font-semibold">categoria</th>
-              <th className="py-2 pr-3 font-semibold">descricao</th>
-              <th className="py-2 pr-3 font-semibold">unidade</th>
-              <th className="py-2 font-semibold">valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-[var(--color-hairline)]">
-              <td className="py-2 pr-3">Material</td>
-              <td className="py-2 pr-3">Cimento CP II</td>
-              <td className="py-2 pr-3">saco 50kg</td>
-              <td className="py-2">32,50</td>
-            </tr>
-            <tr>
-              <td className="py-2 pr-3">Serviço</td>
-              <td className="py-2 pr-3">Execução de alvenaria</td>
-              <td className="py-2 pr-3">m²</td>
-              <td className="py-2">85,00</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {/* conteúdo colapsável */}
+      <div style={{
+        maxHeight: open ? 600 : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.3s cubic-bezier(.22,1,.36,1)',
+      }}>
+        <div style={{ padding: '0 16px 16px', borderTop: '1px solid #f1f5f9' }}>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '12px 0 14px', lineHeight: 1.6 }}>
+            Use planilha <strong style={{ color: '#334155' }}>.csv UTF-8</strong> ou <strong style={{ color: '#334155' }}>.xlsx</strong>, ou cole colunas nos campos de texto.
+            Cada linha representa um item (produto ou serviço).
+          </p>
 
-      <p>
-        No modo <strong>colunas</strong>, cada textarea deve ter o mesmo número de linhas nas
-        colunas preenchidas. Linhas vazias no final são ignoradas.
-      </p>
+          {/* colunas aceitas */}
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Colunas aceitas</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+            {[
+              { nome: 'categoria',  tipo: 'opcional',     detalhe: '' },
+              { nome: 'descricao',  tipo: 'obrigatório',  detalhe: '' },
+              { nome: 'unidade',    tipo: 'obrigatório',  detalhe: 'ex.: un, m², kg' },
+              { nome: 'valor',      tipo: 'opcional',     detalhe: 'formato decimal, ex.: 32,50' },
+            ].map(col => (
+              <div key={col.nome} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <code style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', background: '#eff6ff', borderRadius: 6, padding: '2px 7px', border: '1px solid #bfdbfe', minWidth: 72 }}>{col.nome}</code>
+                <span style={{ fontSize: 10, fontWeight: 700, color: col.tipo === 'obrigatório' ? '#dc2626' : '#94a3b8', minWidth: 70 }}>{col.tipo}</span>
+                {col.detalhe && <span style={{ fontSize: 11, color: '#94a3b8' }}>{col.detalhe}</span>}
+              </div>
+            ))}
+          </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" onClick={() => onDownload('csv')}>
-          Baixar modelo CSV
-        </Button>
-        <Button type="button" variant="secondary" onClick={() => onDownload('xlsx')}>
-          Baixar modelo XLSX
-        </Button>
+          {/* tabela exemplo */}
+          <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 14 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  {['categoria', 'descricao', 'unidade', 'valor'].map(h => (
+                    <th key={h} style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 700, color: '#475569', fontFamily: 'monospace' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Material', 'Cimento CP II', 'saco 50kg', '32,50'],
+                  ['Serviço', 'Execução de alvenaria', 'm²', '85,00'],
+                ].map((row, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid #f1f5f9' }}>
+                    {row.map((cell, j) => (
+                      <td key={j} style={{ padding: '6px 12px', color: '#64748b' }}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 14, lineHeight: 1.5 }}>
+            No modo <strong style={{ color: '#475569' }}>colunas</strong>, cada textarea deve ter o mesmo número de linhas. Linhas vazias no final são ignoradas.
+          </p>
+
+          {/* botões download */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['csv', 'xlsx'] as const).map(fmt => (
+              <button key={fmt} type="button" onClick={() => onDownload(fmt)}
+                className="tn-btn-secondary"
+                style={{ fontSize: 11, height: 32 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Modelo {fmt.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
