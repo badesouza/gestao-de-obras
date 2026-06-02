@@ -12,6 +12,7 @@ export const createTenantUserSchema = z.object({
 export const updateTenantUserSchema = z.object({
     name: z.string().min(2).max(200).optional(),
     roleCode: z.enum(['ADMIN', 'ENGINEER', 'OPERATOR']).optional(),
+    isLiderEquipe: z.boolean().optional(),
 });
 export const updateTenantUserStatusSchema = z.object({
     status: z.enum(['ACTIVE', 'INACTIVE']),

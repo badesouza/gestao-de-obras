@@ -1,9 +1,10 @@
-export type ImportColumnKey = 'categoria' | 'descricao' | 'unidade' | 'valor';
+export type ImportColumnKey = 'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor';
 export interface ParsedImportRow {
     line: number;
     categoria: string | null;
     descricao: string;
     unidade: string;
+    quantidade: string | null;
     valor: string | null;
 }
 export interface ColumnLineCounts {

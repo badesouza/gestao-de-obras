@@ -7,6 +7,9 @@ export declare function listRegistrosDiarios(prisma: PrismaClient, entityId: str
     rows: {
         id: string;
         data: string;
+        lat: number | null;
+        lng: number | null;
+        enderecoGeocodificado: string | null;
         values: Record<string, import("./cell-value.validator.js").CellValueOutput | null>;
     }[];
 }>;
@@ -14,12 +17,18 @@ export declare function listRegistrosDiarios(prisma: PrismaClient, entityId: str
 export declare function createRegistroDiario(prisma: PrismaClient, actorId: string, entityId: string, centroId: string, input: UpsertRegistroDiarioRequest): Promise<{
     id: string;
     data: string;
+    lat: number | null;
+    lng: number | null;
+    enderecoGeocodificado: string | null;
     values: Record<string, import("./cell-value.validator.js").CellValueOutput | null>;
 }>;
 /** Updates a registro diario row */
 export declare function updateRegistroDiario(prisma: PrismaClient, actorId: string, entityId: string, centroId: string, registroId: string, input: UpsertRegistroDiarioRequest): Promise<{
     id: string;
     data: string;
+    lat: number | null;
+    lng: number | null;
+    enderecoGeocodificado: string | null;
     values: Record<string, import("./cell-value.validator.js").CellValueOutput | null>;
 }>;
 /** Deletes a registro diario row */

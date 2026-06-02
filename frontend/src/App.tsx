@@ -24,6 +24,7 @@ import { PropriedadeCatalogPage } from './tenant/pages/PropriedadeCatalogPage';
 import { ServicosPage } from './tenant/pages/ServicosPage';
 import { ServicoDetailPage } from './tenant/pages/ServicoDetailPage';
 import { CadastrosAuxiliaresPage } from './tenant/pages/CadastrosAuxiliaresPage';
+import { ComprasPage } from './tenant/pages/ComprasPage';
 
 /** Application router root */
 function App() {
@@ -47,6 +48,7 @@ function App() {
           <Route path="dashboard" element={<TenantDashboardPage />} />
           <Route path="servicos" element={<ServicosPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
+          <Route path="compras" element={<ComprasPage />} />
           <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />
           <Route element={<TenantPermissionGuard permission="licitacoes.view" />}>
             <Route path="licitacoes" element={<LicitacaoListPage />} />

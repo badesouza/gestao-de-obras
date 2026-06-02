@@ -10,6 +10,7 @@ const PAGE_TITLES: Record<string, string> = {
   dashboard:       'Dashboard',
   servicos:        'Serviços Urbanos',
   'servicos/:slug': 'Serviços Urbanos',
+  compras:         'Compras',
   users:           'Usuários',
   licitacoes:      'Licitações',
   'centros-custo':        'Centros de Custo',

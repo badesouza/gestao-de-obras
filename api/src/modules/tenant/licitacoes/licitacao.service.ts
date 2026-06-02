@@ -8,11 +8,18 @@ interface UserRef {
   name: string;
 }
 
+interface FornecedorRef {
+  id: string;
+  razaoSocial: string;
+  cnpj: string | null;
+}
+
 export interface LicitacaoDto {
   id: string;
   identificacao: string;
   objeto: string;
   status: LicitacaoStatus;
+  fornecedor: FornecedorRef | null;
   createdAt: string;
   createdBy: UserRef;
   activeItemCount: number;
@@ -39,6 +46,7 @@ function toLicitacaoDto(
     status: LicitacaoStatus;
     createdAt: Date;
     createdBy: { id: string; name: string };
+    fornecedor?: { id: string; razaoSocial: string; cnpj: string | null } | null;
   },
   activeItemCount: number,
 ): LicitacaoDto {
@@ -47,6 +55,9 @@ function toLicitacaoDto(
     identificacao: licitacao.identificacao,
     objeto: licitacao.objeto,
     status: licitacao.status,
+    fornecedor: licitacao.fornecedor
+      ? { id: licitacao.fornecedor.id, razaoSocial: licitacao.fornecedor.razaoSocial, cnpj: licitacao.fornecedor.cnpj }
+      : null,
     createdAt: licitacao.createdAt.toISOString(),
     createdBy: { id: licitacao.createdBy.id, name: licitacao.createdBy.name },
     activeItemCount,
@@ -61,7 +72,10 @@ export async function getLicitacaoForEntity(
 ) {
   const licitacao = await prisma.licitacao.findFirst({
     where: { id: licitacaoId, entityId },
-    include: { createdBy: { select: { id: true, name: true } } },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      fornecedor: { select: { id: true, razaoSocial: true, cnpj: true } },
+    },
   });
   if (!licitacao) {
     throw new AppError(404, 'LICITACAO_NOT_FOUND', 'Licitação não encontrada');
@@ -100,8 +114,12 @@ export async function createLicitacao(
       identificacao: input.identificacao,
       objeto: input.objeto,
       createdByUserId: actorId,
+      ...(input.fornecedorId ? { fornecedorId: input.fornecedorId } : {}),
     },
-    include: { createdBy: { select: { id: true, name: true } } },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      fornecedor: { select: { id: true, razaoSocial: true, cnpj: true } },
+    },
   });
 
   await writeTenantAudit(prisma, {
@@ -142,7 +160,10 @@ export async function listLicitacoes(
     prisma.licitacao.count({ where }),
     prisma.licitacao.findMany({
       where,
-      include: { createdBy: { select: { id: true, name: true } } },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+        fornecedor: { select: { id: true, razaoSocial: true, cnpj: true } },
+      },
       orderBy: { createdAt: 'desc' },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,

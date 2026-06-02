@@ -10,6 +10,7 @@ function toUserDto(user) {
         name: user.name,
         email: user.email,
         status: user.status,
+        isLiderEquipe: user.isLiderEquipe,
         role: { code: user.role.code, name: user.role.name },
         lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
         createdAt: user.createdAt.toISOString(),
@@ -148,6 +149,7 @@ export async function updateTenantUser(prisma, actorId, entityId, userId, input)
         data: {
             ...(input.name !== undefined ? { name: input.name.trim() } : {}),
             ...(role ? { roleId: role.id } : {}),
+            ...(input.isLiderEquipe !== undefined ? { isLiderEquipe: input.isLiderEquipe } : {}),
         },
         include: { role: true },
     });

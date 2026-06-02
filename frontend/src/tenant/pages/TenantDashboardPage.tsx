@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { tenantApi } from '../../lib/api-client';
 import { useTenant, useTenantPermission } from '../TenantContext';
-import { formatTodayPtBr } from '../utils/format';
 import { MapaServicos } from '../components/MapaServicos';
 
 export function TenantDashboardPage() {

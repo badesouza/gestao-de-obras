@@ -20,6 +20,7 @@ export function TenantUserDetailPage() {
   const [user, setUser] = useState<TenantUser | null>(null);
   const [name, setName] = useState('');
   const [roleCode, setRoleCode] = useState('OPERATOR');
+  const [isLiderEquipe, setIsLiderEquipe] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,6 +34,7 @@ export function TenantUserDetailPage() {
       setUser(data);
       setName(data.name);
       setRoleCode(data.role.code);
+      setIsLiderEquipe(data.isLiderEquipe);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar');
     } finally {
@@ -52,6 +54,7 @@ export function TenantUserDetailPage() {
       const updated = await tenantApi.users.update(entityId, userId, {
         name,
         roleCode,
+        isLiderEquipe,
       });
       setUser(updated);
     } catch (err) {
@@ -128,6 +131,20 @@ export function TenantUserDetailPage() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="lider-toggle-label">
+                <div className="lider-toggle-info">
+                  <span className="lider-toggle-title">Líder de equipe</span>
+                  <span className="lider-toggle-desc">Permite que este usuário seja selecionado como responsável por uma equipe de campo.</span>
+                </div>
+                <button
+                  type="button"
+                  className={`lider-toggle-btn${isLiderEquipe ? ' is-on' : ''}`}
+                  onClick={() => setIsLiderEquipe(v => !v)}
+                  aria-pressed={isLiderEquipe}
+                >
+                  <span className="lider-toggle-knob" />
+                </button>
               </label>
               {error ? <p className="text-sm text-[var(--color-error)]">{error}</p> : null}
               <Button type="submit">Salvar alterações</Button>

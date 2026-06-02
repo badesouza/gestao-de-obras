@@ -16,6 +16,7 @@ export declare const updateTenantUserSchema: z.ZodObject<{
         ENGINEER: "ENGINEER";
         OPERATOR: "OPERATOR";
     }>>;
+    isLiderEquipe: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 export declare const updateTenantUserStatusSchema: z.ZodObject<{
     status: z.ZodEnum<{

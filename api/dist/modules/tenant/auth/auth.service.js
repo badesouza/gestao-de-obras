@@ -64,6 +64,8 @@ export async function loginTenantUser(prisma, input, metadata) {
         name: user.name,
         entityId: user.entityId,
         entityName: entity.name,
+        entityMunicipalityName: entity.municipalityName,
+        entityUf: entity.uf,
         roleCode: user.role.code,
         roleName: user.role.name,
         permissions,
@@ -75,7 +77,7 @@ export async function getTenantUserProfile(prisma, userId, entityId) {
         where: { id: userId },
         include: {
             role: true,
-            entity: { select: { id: true, name: true, status: true } },
+            entity: { select: { id: true, name: true, status: true, municipalityName: true, uf: true } },
         },
     });
     if (!user || user.entityId !== entityId || user.status !== 'ACTIVE') {

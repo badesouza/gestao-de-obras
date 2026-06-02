@@ -396,7 +396,7 @@ export function MapaServicos({ height = 420, showFilters = true }: Props) {
         <div className="sv-mapa-sb-divider" />
 
         {/* Legenda com contadores */}
-        <div className="sv-mapa-sb-block">
+        <div className="sv-mapa-sb-block" title={`${LEGENDA.length} status monitorados`}>
           <div className="sv-mapa-sb-label">Legenda</div>
           <div className="sv-mapa-sb-legenda">
             {[

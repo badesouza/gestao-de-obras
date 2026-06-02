@@ -19,6 +19,7 @@ export interface TenantUserDto {
   name: string;
   email: string;
   status: TenantUserStatus;
+  isLiderEquipe: boolean;
   role: { code: string; name: string };
   lastLoginAt: string | null;
   createdAt: string;
@@ -32,6 +33,7 @@ function toUserDto(user: TenantUser & { role: { code: string; name: string } }):
     name: user.name,
     email: user.email,
     status: user.status,
+    isLiderEquipe: user.isLiderEquipe,
     role: { code: user.role.code, name: user.role.name },
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
@@ -215,6 +217,7 @@ export async function updateTenantUser(
     data: {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(role ? { roleId: role.id } : {}),
+      ...(input.isLiderEquipe !== undefined ? { isLiderEquipe: input.isLiderEquipe } : {}),
     },
     include: { role: true },
   });

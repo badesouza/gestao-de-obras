@@ -13,7 +13,7 @@ export async function registerTenantDashboardRoutes(fastify) {
         try {
             const entity = await fastify.prisma.entity.findUnique({
                 where: { id: request.user.entityId },
-                select: { id: true, name: true, status: true },
+                select: { id: true, name: true, status: true, coatOfArmsUrl: true, municipalityName: true, uf: true },
             });
             if (!entity) {
                 return reply.code(404).send({ code: 'NOT_FOUND', message: 'Entidade não encontrada' });

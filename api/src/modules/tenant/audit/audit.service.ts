@@ -12,7 +12,7 @@ export interface TenantAuditInput {
 
 /** Writes an append-only tenant audit log entry */
 export async function writeTenantAudit(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   input: TenantAuditInput,
 ) {
   return prisma.tenantAuditLog.create({

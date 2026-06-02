@@ -5,6 +5,7 @@ export interface TenantUserDto {
     name: string;
     email: string;
     status: TenantUserStatus;
+    isLiderEquipe: boolean;
     role: {
         code: string;
         name: string;

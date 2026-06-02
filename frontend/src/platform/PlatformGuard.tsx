@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getPlatformToken, platformApi } from '../lib/api-client';
 import { PlatformLayout } from './layouts/PlatformLayout';
@@ -31,9 +31,5 @@ export function PlatformGuard() {
     return <Navigate to="/platform/login" replace />;
   }
 
-  return (
-    <PlatformLayout>
-      <Outlet />
-    </PlatformLayout>
-  );
+  return <PlatformLayout />;
 }

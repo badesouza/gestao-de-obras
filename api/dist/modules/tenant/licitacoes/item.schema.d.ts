@@ -4,6 +4,7 @@ export declare const importRowSchema: z.ZodObject<{
     categoria: z.ZodNullable<z.ZodString>;
     descricao: z.ZodString;
     unidade: z.ZodString;
+    quantidade: z.ZodNullable<z.ZodString>;
     valor: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 export type ImportRowInput = z.infer<typeof importRowSchema>;
@@ -12,6 +13,7 @@ export interface ValidatedImportItem {
     categoria: string | null;
     descricao: string;
     unidadeMedida: string;
+    quantidade: string | null;
     valorUnitario: string | null;
 }
 export interface ImportLineError {
@@ -29,6 +31,7 @@ export declare const importColumnsRequestSchema: z.ZodObject<{
         categoria: z.ZodOptional<z.ZodString>;
         descricao: z.ZodOptional<z.ZodString>;
         unidade: z.ZodOptional<z.ZodString>;
+        quantidade: z.ZodOptional<z.ZodString>;
         valor: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
 }, z.core.$strip>;

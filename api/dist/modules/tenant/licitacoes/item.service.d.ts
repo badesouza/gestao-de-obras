@@ -9,6 +9,7 @@ export interface LicitacaoItemDto {
     categoria: string | null;
     descricao: string;
     unidadeMedida: string;
+    quantidade: string | null;
     valorUnitario: string | null;
     status: LicitacaoStatus;
     createdAt: string;
@@ -33,7 +34,7 @@ export declare function importItemsFromSpreadsheet(prisma: PrismaClient, actorId
     licitacaoId: string;
 }>;
 /** Imports items from column textareas */
-export declare function importItemsFromColumns(prisma: PrismaClient, actorId: string, entityId: string, licitacaoId: string, columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'valor', string>>): Promise<{
+export declare function importItemsFromColumns(prisma: PrismaClient, actorId: string, entityId: string, licitacaoId: string, columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor', string>>): Promise<{
     importedCount: number;
     licitacaoId: string;
 }>;

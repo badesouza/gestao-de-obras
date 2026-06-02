@@ -9,7 +9,7 @@ export interface TenantAuditInput {
     metadata?: Prisma.InputJsonValue | null;
 }
 /** Writes an append-only tenant audit log entry */
-export declare function writeTenantAudit(prisma: PrismaClient, input: TenantAuditInput): Promise<{
+export declare function writeTenantAudit(prisma: PrismaClient | Prisma.TransactionClient, input: TenantAuditInput): Promise<{
     id: string;
     action: string;
     resource: string;

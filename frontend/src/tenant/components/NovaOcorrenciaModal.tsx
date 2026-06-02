@@ -226,7 +226,7 @@ function hoje(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function NovaOcorrenciaModal({ config, centro, propMap, editRow, entityId, municipalityName, uf, onClose, onSaved }: Props) {
+export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow, entityId, municipalityName, uf, onClose, onSaved }: Props) {
   const centroId = CENTRO_IDS[config.slug];
   const isEdit = !!editRow;
 

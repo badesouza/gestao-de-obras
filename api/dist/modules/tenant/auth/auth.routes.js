@@ -26,6 +26,8 @@ export async function registerTenantAuthRoutes(fastify) {
                 entity: {
                     id: result.entityId,
                     name: result.entityName,
+                    municipalityName: result.entityMunicipalityName ?? null,
+                    uf: result.entityUf ?? null,
                 },
             });
         }

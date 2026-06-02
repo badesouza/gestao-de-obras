@@ -9,6 +9,7 @@ import { ModalConclusao, type DadosConclusao } from '../components/ModalConclusa
 import { OrdemServicoModal } from '../components/OrdemServicoModal';
 import { ServicoAnalytics } from '../components/ServicoAnalytics';
 import { PlanejamentoAnual } from '../components/PlanejamentoAnual';
+import { ServicoSolicitacoesPanel } from '../components/ServicoSolicitacoesPanel';
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 function hoje(): { year: number; month: number } {
@@ -64,7 +65,7 @@ export function ServicoDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [rowConcluindo, setRowConcluindo] = useState<RegistroDiarioRow | null>(null);
   const [rowOS, setRowOS] = useState<RegistroDiarioRow | null>(null);
-  const [aba, setAba] = useState<'registros' | 'analises' | 'planejamento'>('registros');
+  const [aba, setAba] = useState<'registros' | 'analises' | 'planejamento' | 'solicitacoes'>('registros');
 
   /* mapa nome→id das propriedades */
   const propMap = useRef<Record<string, string>>({});
@@ -99,6 +100,7 @@ export function ServicoDetailPage() {
   const statusPropId = propMap.current['Status'] ?? Object.values(propMap.current).find((_, k) =>
     Object.keys(propMap.current)[k] === 'Status'
   );
+  void statusPropId;
 
   /* concluir ocorrência — abre modal de conclusão */
   const handleConfirmarConclusao = async (dados: DadosConclusao) => {
@@ -344,6 +346,18 @@ export function ServicoDetailPage() {
           </svg>
           Planejamento
         </button>
+        <button
+          type="button"
+          className={`sv-aba${aba === 'solicitacoes' ? ' is-active' : ''}`}
+          onClick={() => setAba('solicitacoes')}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="8" cy="21" r="1"/>
+            <circle cx="19" cy="21" r="1"/>
+            <path d="M2.05 2.05h2l2.66 12.42a2 2 0 002 1.58h8.77a2 2 0 001.95-1.57L21 8H5.12"/>
+          </svg>
+          Solicitacoes
+        </button>
       </div>
         {aba === 'analises' ? <div className="sv-month-nav self-start sm:self-auto">
           <button type="button" className="sv-month-btn" onClick={() => mudarMes(-1)} title="Mes anterior">
@@ -383,6 +397,10 @@ export function ServicoDetailPage() {
           config={config}
           year={year}
         />
+      )}
+
+      {aba === 'solicitacoes' && (
+        <ServicoSolicitacoesPanel config={config} />
       )}
 
       {/* Painel principal */}

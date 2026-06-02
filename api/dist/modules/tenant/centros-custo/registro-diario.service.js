@@ -15,6 +15,9 @@ function mapRowToDto(registro, tipoByProp) {
     return {
         id: registro.id,
         data: formatDateOnly(registro.data),
+        lat: registro.lat ?? null,
+        lng: registro.lng ?? null,
+        enderecoGeocodificado: registro.enderecoGeocodificado ?? null,
         values,
     };
 }

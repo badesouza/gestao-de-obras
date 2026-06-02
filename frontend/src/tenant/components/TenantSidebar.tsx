@@ -67,13 +67,24 @@ function IconServicos() {
   );
 }
 
+function IconCompras() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="8" cy="21" r="1"/>
+      <circle cx="19" cy="21" r="1"/>
+      <path d="M2.05 2.05h2l2.66 12.42a2 2 0 002 1.58h8.77a2 2 0 001.95-1.57L21 8H5.12"/>
+    </svg>
+  );
+}
+
 const NAV_ITEMS: NavItem[] = [
-  { to: 'dashboard',    label: 'Dashboard',        permission: 'dashboard.view',        icon: <IconDashboard /> },
-  { to: 'servicos',     label: 'Serviços Urbanos', permission: 'centros_custo.view',    icon: <IconServicos /> },
-  { to: 'licitacoes',   label: 'Licitações',        permission: 'licitacoes.view',       icon: <IconLicitacoes /> },
-  { to: 'centros-custo',label: 'Centros de Custo',  permission: 'centros_custo.view',    icon: <IconCentrosCusto /> },
-  { to: 'cadastros-auxiliares', label: 'Cadastros',  permission: 'centros_custo.view',    icon: <IconCadastros /> },
-  { to: 'users',        label: 'Usuários',           permission: 'users.view',            icon: <IconUsers /> },
+  { to: 'dashboard',           label: 'Dashboard',        permission: 'dashboard.view',     icon: <IconDashboard /> },
+  { to: 'cadastros-auxiliares',label: 'Cadastros',         permission: 'centros_custo.view', icon: <IconCadastros /> },
+  { to: 'centros-custo',       label: 'Centro de Custos',  permission: 'centros_custo.view', icon: <IconCentrosCusto /> },
+  { to: 'servicos',            label: 'Serviços Urbanos',  permission: 'centros_custo.view', icon: <IconServicos /> },
+  { to: 'licitacoes',          label: 'Licitações',        permission: 'licitacoes.view',    icon: <IconLicitacoes /> },
+  { to: 'compras',             label: 'Compras',           permission: 'centros_custo.view', icon: <IconCompras /> },
+  { to: 'users',               label: 'Usuários',          permission: 'users.view',         icon: <IconUsers /> },
 ];
 
 interface TenantSidebarProps {

@@ -8,6 +8,8 @@ export declare function loginTenantUser(prisma: PrismaClient, input: TenantLogin
     name: string;
     entityId: string;
     entityName: string;
+    entityMunicipalityName: string | null;
+    entityUf: string | null;
     roleCode: string;
     roleName: string;
     permissions: string[];
@@ -22,6 +24,8 @@ export declare function getTenantUserProfile(prisma: PrismaClient, userId: strin
         id: string;
         name: string;
         status: import("../../../../generated/prisma/index.js").$Enums.EntityStatus;
+        uf: string | null;
+        municipalityName: string | null;
     };
     role: {
         code: string;

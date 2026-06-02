@@ -2,10 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   cadastrosAuxiliaresApi,
+  equipeApi,
   enderecosDescobertoApi,
   type CadastroAuxiliar,
   type CadastroAuxiliarTipo,
   type EnderecoDescoberto,
+  type EquipeDetail,
+  type LiderRef,
+  type Operador,
 } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 
@@ -22,6 +26,396 @@ const ICON_EQUIPES = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
 const ICON_FROTA   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
 const ICON_EQUIP   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07M8.46 8.46a5 5 0 000 7.07"/></svg>;
 const ICON_ENDERECOS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+
+/* ── Painel de detalhe de Equipe (líder + operadores) ──────────── */
+function EquipeDetalhe({
+  entityId,
+  equipe,
+  onClose,
+}: {
+  entityId: string;
+  equipe: CadastroAuxiliar;
+  onClose: () => void;
+}) {
+  const [detail, setDetail]     = useState<EquipeDetail | null>(null);
+  const [lideres, setLideres]   = useState<LiderRef[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [liderSel, setLiderSel] = useState<string>('');
+  const [savingLider, setSavingLider] = useState(false);
+
+  /* form novo operador */
+  const [novoNome, setNovoNome]   = useState('');
+  const [novoCargo, setNovoCargo] = useState('');
+  const [addingOp, setAddingOp]   = useState(false);
+
+  /* edição inline operador */
+  const [editOpId, setEditOpId]     = useState<string | null>(null);
+  const [editOpNome, setEditOpNome] = useState('');
+  const [editOpCargo, setEditOpCargo] = useState('');
+  const [savingOp, setSavingOp]     = useState(false);
+
+  const [confirmDelOp, setConfirmDelOp] = useState<Operador | null>(null);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [det, lids] = await Promise.all([
+        equipeApi.getDetail(entityId, equipe.id),
+        equipeApi.getLideres(entityId),
+      ]);
+      setDetail(det);
+      setLideres(lids.items);
+      setLiderSel(det.liderUserId ?? '');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao carregar');
+    } finally {
+      setLoading(false);
+    }
+  }, [entityId, equipe.id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleSaveLider = async () => {
+    setSavingLider(true); setError('');
+    try {
+      await equipeApi.setLider(entityId, equipe.id, liderSel || null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar líder');
+    } finally { setSavingLider(false); }
+  };
+
+  const handleAddOp = async () => {
+    if (!novoNome.trim() || !novoCargo.trim()) return;
+    setAddingOp(true); setError('');
+    try {
+      await equipeApi.addOperador(entityId, equipe.id, { nome: novoNome.trim(), cargo: novoCargo.trim() });
+      setNovoNome(''); setNovoCargo('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao adicionar');
+    } finally { setAddingOp(false); }
+  };
+
+  const handleSaveOp = async (id: string) => {
+    setSavingOp(true); setError('');
+    try {
+      await equipeApi.updateOperador(entityId, id, { nome: editOpNome.trim(), cargo: editOpCargo.trim() });
+      setEditOpId(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar');
+    } finally { setSavingOp(false); }
+  };
+
+  const handleDelOp = async (op: Operador) => {
+    setSavingOp(true);
+    try {
+      await equipeApi.deleteOperador(entityId, op.id);
+      setConfirmDelOp(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao excluir');
+    } finally { setSavingOp(false); }
+  };
+
+  const operadoresAtivos   = (detail?.operadores ?? []).filter(o => o.ativo);
+  const operadoresInativos = (detail?.operadores ?? []).filter(o => !o.ativo);
+
+  const liderAtual = detail?.lider;
+
+  return (
+    <div className="eq-detalhe-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="eq-detalhe-panel">
+
+        {/* Cabeçalho */}
+        <div className="eq-detalhe-head">
+          <div className="eq-detalhe-head-info">
+            <div className="eq-detalhe-head-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            </div>
+            <div>
+              <span className="eq-detalhe-kicker">Configuração da equipe</span>
+              <h3 className="eq-detalhe-nome">{equipe.nome}</h3>
+            </div>
+          </div>
+          <button type="button" className="eq-detalhe-close" onClick={onClose} title="Fechar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {error && <div className="tn-alert" style={{ margin: '0 20px 4px' }}>{error}</div>}
+
+        {loading ? (
+          <div className="tn-skeleton" style={{ margin: '16px 20px' }}>
+            {[1, 2, 3].map(n => <div key={n} className="tn-skeleton-row" />)}
+          </div>
+        ) : (
+          <div className="eq-detalhe-body">
+
+            {/* ─── KPI strip ─── */}
+            <div className="eq-kpi-strip">
+              <div className="eq-kpi-card eq-kpi-blue">
+                <span className="eq-kpi-label">Operadores ativos</span>
+                <strong className="eq-kpi-val">{operadoresAtivos.length}</strong>
+              </div>
+              <div className="eq-kpi-card eq-kpi-gray">
+                <span className="eq-kpi-label">Inativos</span>
+                <strong className="eq-kpi-val">{operadoresInativos.length}</strong>
+              </div>
+              <div className={`eq-kpi-card ${liderAtual ? 'eq-kpi-green' : 'eq-kpi-amber'}`}>
+                <span className="eq-kpi-label">Líder</span>
+                <strong className="eq-kpi-val eq-kpi-val-sm">{liderAtual ? liderAtual.name.split(' ')[0] : 'Sem líder'}</strong>
+              </div>
+            </div>
+
+            {/* ─── Seção: Líder ─── */}
+            <div className="eq-secao">
+              <div className="eq-secao-titulo">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0112 0v2"/>
+                </svg>
+                Líder da equipe
+              </div>
+
+              {liderAtual ? (
+                <div className="eq-lider-badge">
+                  <div className="eq-lider-avatar">{liderAtual.name.charAt(0).toUpperCase()}</div>
+                  <div className="eq-lider-info">
+                    <strong>{liderAtual.name}</strong>
+                    <span>{liderAtual.email}</span>
+                  </div>
+                  <span className="tn-chip dot-blue" style={{ fontSize: 11 }}><i /> Líder</span>
+                </div>
+              ) : (
+                <p className="eq-sem-lider">Nenhum líder definido. Selecione abaixo.</p>
+              )}
+
+              <div className="eq-lider-form">
+                <select
+                  className="eq-select"
+                  value={liderSel}
+                  onChange={e => setLiderSel(e.target.value)}
+                >
+                  <option value="">— Sem líder —</option>
+                  {lideres.map(l => (
+                    <option key={l.id} value={l.id}>{l.name} ({l.email})</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="tn-btn-blue"
+                  style={{ height: 36, fontSize: 12, whiteSpace: 'nowrap' }}
+                  onClick={() => void handleSaveLider()}
+                  disabled={savingLider}
+                >
+                  {savingLider ? 'Salvando…' : 'Salvar líder'}
+                </button>
+              </div>
+              {lideres.length === 0 && (
+                <p className="eq-hint">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  Nenhum usuário com perfil de líder. Marque a flag "Líder de equipe" em Usuários.
+                </p>
+              )}
+            </div>
+
+            {/* ─── Seção: Operadores ─── */}
+            <div className="eq-secao">
+              <div className="eq-secao-titulo">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+                Operadores de campo
+              </div>
+
+              {/* Form adicionar */}
+              <div className="eq-op-add-form">
+                <input
+                  type="text"
+                  className="eq-op-input"
+                  placeholder="Nome do operador…"
+                  value={novoNome}
+                  onChange={e => setNovoNome(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleAddOp(); }}
+                  maxLength={150}
+                />
+                <input
+                  type="text"
+                  className="eq-op-input"
+                  placeholder="Cargo / função…"
+                  value={novoCargo}
+                  onChange={e => setNovoCargo(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleAddOp(); }}
+                  maxLength={100}
+                />
+                <button
+                  type="button"
+                  className="tn-btn-blue"
+                  style={{ height: 36, fontSize: 12, whiteSpace: 'nowrap' }}
+                  onClick={() => void handleAddOp()}
+                  disabled={addingOp || !novoNome.trim() || !novoCargo.trim()}
+                >
+                  {addingOp ? 'Adicionando…' : '+ Adicionar'}
+                </button>
+              </div>
+
+              {/* Lista operadores ativos */}
+              {operadoresAtivos.length === 0 && operadoresInativos.length === 0 ? (
+                <div className="tn-empty" style={{ padding: '24px 16px' }}>
+                  <div className="tn-empty-icon" style={{ fontSize: 22 }}>👷</div>
+                  <strong>Nenhum operador cadastrado</strong>
+                  <span>Use o formulário acima para adicionar o primeiro.</span>
+                </div>
+              ) : (
+                <div className="eq-op-lista">
+                  {operadoresAtivos.map((op, idx) => (
+                    <div
+                      key={op.id}
+                      className="eq-op-item"
+                      style={{ '--item-delay': `${idx * 0.03}s` } as React.CSSProperties}
+                    >
+                      <div className="eq-op-dot eq-dot-green" />
+                      {editOpId === op.id ? (
+                        <div className="eq-op-edit-fields">
+                          <input
+                            type="text"
+                            className="cad-edit-input"
+                            value={editOpNome}
+                            onChange={e => setEditOpNome(e.target.value)}
+                            placeholder="Nome"
+                            autoFocus
+                          />
+                          <input
+                            type="text"
+                            className="cad-edit-input"
+                            value={editOpCargo}
+                            onChange={e => setEditOpCargo(e.target.value)}
+                            placeholder="Cargo"
+                          />
+                        </div>
+                      ) : (
+                        <div className="eq-op-info">
+                          <span className="eq-op-nome">{op.nome}</span>
+                          <span className="eq-op-cargo">{op.cargo}</span>
+                        </div>
+                      )}
+                      <div className="cad-item-actions">
+                        {editOpId === op.id ? (
+                          <>
+                            <button type="button" className="tn-icon-btn cad-btn-save" title="Salvar"
+                              onClick={() => void handleSaveOp(op.id)} disabled={savingOp}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                            </button>
+                            <button type="button" className="tn-icon-btn" title="Cancelar"
+                              onClick={() => setEditOpId(null)}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" className="tn-icon-btn" title="Editar"
+                              onClick={() => { setEditOpId(op.id); setEditOpNome(op.nome); setEditOpCargo(op.cargo); }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                            <button type="button" className="tn-icon-btn cad-btn-inativar" title="Inativar"
+                              onClick={() => void equipeApi.updateOperador(entityId, op.id, { ativo: false }).then(() => load())}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/>
+                              </svg>
+                            </button>
+                            <button type="button" className="tn-icon-btn sv-btn-excluir" title="Excluir"
+                              onClick={() => setConfirmDelOp(op)}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                                <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {operadoresInativos.length > 0 && (
+                    <>
+                      <div className="cad-section-label">Inativos</div>
+                      {operadoresInativos.map(op => (
+                        <div key={op.id} className="eq-op-item cad-item-inativo">
+                          <div className="eq-op-dot cad-dot-gray" />
+                          <div className="eq-op-info">
+                            <span className="eq-op-nome">{op.nome}</span>
+                            <span className="eq-op-cargo">{op.cargo}</span>
+                          </div>
+                          <div className="cad-item-actions">
+                            <button type="button" className="tn-icon-btn cad-btn-reativar" title="Reativar"
+                              onClick={() => void equipeApi.updateOperador(entityId, op.id, { ativo: true }).then(() => load())}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                              </svg>
+                            </button>
+                            <button type="button" className="tn-icon-btn sv-btn-excluir" title="Excluir"
+                              onClick={() => setConfirmDelOp(op)}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                                <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Confirm excluir operador */}
+      {confirmDelOp && (
+        <div className="sv-modal-backdrop" onClick={() => setConfirmDelOp(null)}>
+          <div className="sv-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="sv-confirm-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+              </svg>
+            </div>
+            <h3>Excluir operador?</h3>
+            <p><strong>{confirmDelOp.nome}</strong> — {confirmDelOp.cargo}</p>
+            <div className="sv-confirm-actions">
+              <button type="button" className="tn-btn-secondary" onClick={() => setConfirmDelOp(null)}>Cancelar</button>
+              <button type="button" className="sv-btn-danger"
+                onClick={() => void handleDelOp(confirmDelOp)} disabled={savingOp}>
+                {savingOp ? 'Excluindo…' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const ABAS_CADASTRO: { tipo: CadastroAuxiliarTipo; label: string; icon: React.ReactNode; dica: string }[] = [
   { tipo: 'BAIRRO',      label: 'Bairros',      icon: ICON_BAIRROS, dica: 'Bairros e localidades do município usados nos registros de serviços.' },
@@ -371,6 +765,7 @@ export function CadastrosAuxiliaresPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<CadastroAuxiliar | null>(null);
+  const [equipeAberta, setEquipeAberta] = useState<CadastroAuxiliar | null>(null);
 
   const load = useCallback(async () => {
     if (abaAtiva === 'ENDERECOS') return;
@@ -563,6 +958,15 @@ export function CadastrosAuxiliaresPage() {
                       </>
                     ) : (
                       <>
+                        {abaAtiva === 'EQUIPE' && (
+                          <button type="button" className="tn-icon-btn eq-btn-config" title="Configurar equipe"
+                            onClick={() => setEquipeAberta(item)}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+                            </svg>
+                          </button>
+                        )}
                         <button type="button" className="tn-icon-btn" title="Editar" onClick={() => { setEditId(item.id); setEditNome(item.nome); }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
@@ -600,6 +1004,14 @@ export function CadastrosAuxiliaresPage() {
             </div>
           )}
         </div>
+      )}
+
+      {equipeAberta && (
+        <EquipeDetalhe
+          entityId={entityId}
+          equipe={equipeAberta}
+          onClose={() => setEquipeAberta(null)}
+        />
       )}
 
       {confirmDelete && (

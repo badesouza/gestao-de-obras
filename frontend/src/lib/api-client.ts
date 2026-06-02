@@ -269,6 +269,7 @@ export interface TenantUser {
   name: string;
   email: string;
   status: 'ACTIVE' | 'INACTIVE';
+  isLiderEquipe: boolean;
   role: { code: string; name: string };
   lastLoginAt?: string | null;
   createdAt?: string;
@@ -296,11 +297,48 @@ export interface UserRef {
   name: string;
 }
 
+export interface Fornecedor {
+  id: string;
+  entityId: string;
+  razaoSocial: string;
+  cnpj: string | null;
+  contato: string | null;
+  telefone: string | null;
+  email: string | null;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FornecedorRef {
+  id: string;
+  razaoSocial: string;
+  cnpj: string | null;
+}
+
+export const fornecedorApi = {
+  list: (entityId: string, q?: string) => {
+    const params = q ? `?q=${encodeURIComponent(q)}` : '';
+    return tenantRequest<{ items: Fornecedor[] }>(entityId, `/api/tenant/v1/fornecedores${params}`);
+  },
+  create: (entityId: string, body: { razaoSocial: string; cnpj?: string; contato?: string; telefone?: string; email?: string }) =>
+    tenantRequest<Fornecedor>(entityId, '/api/tenant/v1/fornecedores', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (entityId: string, id: string, body: Partial<{ razaoSocial: string; cnpj: string; contato: string; telefone: string; email: string; ativo: boolean }>) =>
+    tenantRequest<Fornecedor>(entityId, `/api/tenant/v1/fornecedores/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+};
+
 export interface Licitacao {
   id: string;
   identificacao: string;
   objeto: string;
   status: 'ACTIVE' | 'INACTIVE';
+  fornecedor: FornecedorRef | null;
   createdAt: string;
   createdBy: UserRef;
   activeItemCount: number;
@@ -317,6 +355,82 @@ export interface LicitacaoItem {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   createdBy: UserRef;
+}
+
+export type SolicitacaoServicoStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CONSOLIDATED';
+export type PedidoCompraStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+
+export interface CompraSolicitacao {
+  id: string;
+  numero: string;
+  servicoSlug: string;
+  servicoNome: string;
+  licitacaoId: string;
+  licitacao: { id: string; identificacao: string };
+  status: SolicitacaoServicoStatus;
+  prioridade: string;
+  justificativa: string;
+  observacoes: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: UserRef;
+  valorTotal: string;
+  itens: Array<{
+    id: string;
+    licitacaoItemId: string;
+    descricao: string;
+    unidadeMedida: string;
+    valorUnitario: string;
+    quantidade: string;
+    valorTotal: string;
+    observacoes: string | null;
+  }>;
+}
+
+export interface PedidoCompra {
+  id: string;
+  numero: string;
+  status: PedidoCompraStatus;
+  observacoes: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: UserRef;
+  valorTotal: string;
+  quantidadeTotal: string;
+  quantidadeRecebida: string;
+  itens: Array<{
+    id: string;
+    licitacaoItemId: string;
+    licitacao: { id: string; identificacao: string; objeto: string };
+    descricao: string;
+    unidadeMedida: string;
+    valorUnitario: string;
+    quantidadeTotal: string;
+    quantidadeRecebida: string;
+    quantidadePendente: string;
+    valorTotal: string;
+    origens: Array<{
+      id: string;
+      solicitacaoServicoId: string;
+      solicitacaoServicoItemId: string;
+      servicoSlug: string;
+      servicoNome: string;
+      quantidade: string;
+      valorTotal: string;
+    }>;
+    recebimentos: Array<{
+      id: string;
+      quantidade: string;
+      recebidoEm: string;
+      responsavel: string;
+      observacoes: string | null;
+      createdAt: string;
+      createdBy: UserRef;
+    }>;
+  }>;
 }
 
 export interface ImportResult {
@@ -496,7 +610,7 @@ export const tenantApi = {
       ),
     get: (entityId: string, licitacaoId: string) =>
       tenantRequest<Licitacao>(entityId, `/api/tenant/v1/licitacoes/${licitacaoId}`),
-    create: (entityId: string, body: { identificacao: string; objeto: string }) =>
+    create: (entityId: string, body: { identificacao: string; objeto: string; fornecedorId?: string | null }) =>
       tenantRequest<Licitacao>(entityId, '/api/tenant/v1/licitacoes', {
         method: 'POST',
         body: JSON.stringify(body),
@@ -556,6 +670,58 @@ export const tenantApi = {
         entityId,
         `/api/tenant/v1/licitacoes/import-template?format=${format}`,
       ),
+  },
+  compras: {
+    listSolicitacoes: (entityId: string, params: URLSearchParams) =>
+      tenantRequest<{ items: CompraSolicitacao[]; total: number; page: number; pageSize: number }>(
+        entityId,
+        `/api/tenant/v1/compras/solicitacoes?${params}`,
+      ),
+    createSolicitacao: (entityId: string, body: {
+      servicoSlug: string;
+      servicoNome: string;
+      licitacaoId: string;
+      prioridade: 'Alta' | 'Media' | 'Baixa';
+      justificativa: string;
+      observacoes?: string | null;
+      submit: boolean;
+      itens: Array<{ licitacaoItemId: string; quantidade: string; observacoes?: string | null }>;
+    }) =>
+      tenantRequest<CompraSolicitacao>(entityId, '/api/tenant/v1/compras/solicitacoes', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    changeSolicitacaoStatus: (
+      entityId: string,
+      solicitacaoId: string,
+      action: 'submit' | 'approve' | 'reject' | 'cancel',
+    ) =>
+      tenantRequest<CompraSolicitacao>(entityId, `/api/tenant/v1/compras/solicitacoes/${solicitacaoId}/${action}`, {
+        method: 'POST',
+      }),
+    listPedidos: (entityId: string, params: URLSearchParams) =>
+      tenantRequest<{ items: PedidoCompra[]; total: number; page: number; pageSize: number }>(
+        entityId,
+        `/api/tenant/v1/compras/pedidos?${params}`,
+      ),
+    createPedidoFromSolicitacoes: (entityId: string, body: { solicitacaoIds: string[]; observacoes?: string | null; send: boolean }) =>
+      tenantRequest<PedidoCompra>(entityId, '/api/tenant/v1/compras/pedidos/from-solicitacoes', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    sendPedido: (entityId: string, pedidoId: string) =>
+      tenantRequest<PedidoCompra>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}/send`, { method: 'POST' }),
+    createRecebimento: (entityId: string, pedidoId: string, body: {
+      pedidoCompraItemId: string;
+      quantidade: string;
+      recebidoEm: string;
+      responsavel: string;
+      observacoes?: string | null;
+    }) =>
+      tenantRequest<PedidoCompra>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}/recebimentos`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
   centrosCusto: {
     list: (entityId: string, params: URLSearchParams) =>
@@ -807,8 +973,64 @@ export const mapaApi = {
     ),
   deleteMidia: (entityId: string, midiaId: string) =>
     tenantRequest<void>(entityId, `/api/tenant/v1/mapa/midias/${midiaId}`, { method: 'DELETE' }),
-  midiaUrl: (entityId: string, midiaId: string) =>
+  midiaUrl: (_entityId: string, midiaId: string) =>
     `/api/tenant/v1/mapa/midias/${midiaId}`,
+};
+
+export interface LiderRef {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface Operador {
+  id: string;
+  entityId: string;
+  equipeId: string;
+  nome: string;
+  cargo: string;
+  ativo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EquipeDetail {
+  id?: string;
+  cadastroId: string;
+  liderUserId?: string | null;
+  lider?: LiderRef | null;
+  operadores: Operador[];
+}
+
+export const equipeApi = {
+  getLideres: (entityId: string) =>
+    tenantRequest<{ items: LiderRef[] }>(entityId, '/api/tenant/v1/equipes/lideres'),
+
+  getDetail: (entityId: string, cadastroId: string) =>
+    tenantRequest<EquipeDetail>(entityId, `/api/tenant/v1/equipes/${cadastroId}`),
+
+  setLider: (entityId: string, cadastroId: string, liderUserId: string | null) =>
+    tenantRequest<EquipeDetail>(entityId, `/api/tenant/v1/equipes/${cadastroId}/lider`, {
+      method: 'PATCH',
+      body: JSON.stringify({ liderUserId }),
+    }),
+
+  addOperador: (entityId: string, cadastroId: string, body: { nome: string; cargo: string }) =>
+    tenantRequest<Operador>(entityId, `/api/tenant/v1/equipes/${cadastroId}/operadores`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  updateOperador: (entityId: string, operadorId: string, body: { nome?: string; cargo?: string; ativo?: boolean }) =>
+    tenantRequest<Operador>(entityId, `/api/tenant/v1/equipes/operadores/${operadorId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  deleteOperador: (entityId: string, operadorId: string) =>
+    tenantRequest<void>(entityId, `/api/tenant/v1/equipes/operadores/${operadorId}`, {
+      method: 'DELETE',
+    }),
 };
 
 export const cadastrosAuxiliaresApi = {

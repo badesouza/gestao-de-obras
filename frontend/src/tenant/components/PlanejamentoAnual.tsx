@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { tenantApi } from '../../lib/api-client';
 import type { ServicoConfig } from '../pages/servico-config';
 
@@ -74,9 +74,8 @@ function GraficoAnual({ metas, cor, mesAtual }: {
     }
   }
 
-  const firstValidIdx = metas.findIndex(v => v != null);
   const lastValidIdx = [...metas].reverse().findIndex(v => v != null);
-  const lastIdx = 11 - lastValidIdx;
+  void lastValidIdx;
 
   /* smooth curve path usando bezier */
   const smoothPath = () => {
@@ -163,7 +162,7 @@ function GraficoAnual({ metas, cor, mesAtual }: {
           strokeWidth={3} strokeLinecap="round" filter="url(#pg-glow)" />
 
         {/* zonas hover invisíveis */}
-        {metas.map((v, i) => (
+        {metas.map((_v, i) => (
           <rect key={i}
             x={x(i) - w / n / 2} y={padT}
             width={w / n} height={h + padB}

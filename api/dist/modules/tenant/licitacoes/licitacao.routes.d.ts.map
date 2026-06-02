@@ -1,1 +1,1 @@
-{"version":3,"file":"licitacao.routes.d.ts","sourceRoot":"","sources":["../../../../src/modules/tenant/licitacoes/licitacao.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AAwD/C,0CAA0C;AAC1C,wBAAsB,uBAAuB,CAAC,OAAO,EAAE,eAAe,iBAwNrE"}
+{"version":3,"file":"licitacao.routes.d.ts","sourceRoot":"","sources":["../../../../src/modules/tenant/licitacoes/licitacao.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AAwD/C,0CAA0C;AAC1C,wBAAsB,uBAAuB,CAAC,OAAO,EAAE,eAAe,iBAwRrE"}

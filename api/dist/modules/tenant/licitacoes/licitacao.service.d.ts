@@ -44,6 +44,7 @@ export declare function getLicitacaoForEntity(prisma: PrismaClient, entityId: st
     updatedAt: Date;
     identificacao: string;
     objeto: string;
+    fornecedorId: string | null;
     createdByUserId: string;
 }>;
 /** Creates a licitacao for the current entity */

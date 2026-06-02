@@ -47,6 +47,7 @@ export function parseSpreadsheetBuffer(buffer, filename) {
             categoria: fieldIndexes.categoria !== undefined ? getCell('categoria') || null : null,
             descricao: getCell('descricao'),
             unidade: getCell('unidade'),
+            quantidade: fieldIndexes.quantidade !== undefined ? getCell('quantidade') || null : null,
             valor: fieldIndexes.valor !== undefined ? getCell('valor') || null : null,
         });
     }
