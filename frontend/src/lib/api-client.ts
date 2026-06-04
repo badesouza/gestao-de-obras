@@ -615,6 +615,13 @@ export const tenantApi = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    update: (entityId: string, licitacaoId: string, body: { identificacao: string; objeto: string; fornecedorId?: string | null }) =>
+      tenantRequest<Licitacao>(entityId, `/api/tenant/v1/licitacoes/${licitacaoId}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    delete: (entityId: string, licitacaoId: string) =>
+      tenantRequest<void>(entityId, `/api/tenant/v1/licitacoes/${licitacaoId}`, { method: 'DELETE' }),
     deactivate: (entityId: string, licitacaoId: string) =>
       tenantRequest<Licitacao>(entityId, `/api/tenant/v1/licitacoes/${licitacaoId}/status`, {
         method: 'PATCH',

@@ -89,6 +89,420 @@ function consolidarPreview(solicitacoes: CompraSolicitacao[]) {
   return Array.from(mapa.values());
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Modal de detalhe de pedido
+───────────────────────────────────────────────────────────── */
+function PedidoDetalheModal({
+  pedido,
+  onClose,
+  onRegistrar,
+  saving,
+}: {
+  pedido: PedidoCompra;
+  onClose: () => void;
+  onRegistrar: () => void;
+  saving: boolean;
+}) {
+  const [aba, setAba] = useState<'itens' | 'historico'>('itens');
+
+  const temPendente = pedido.itens.some((i) => num(i.quantidadePendente) > 0);
+
+  const historico = pedido.itens
+    .flatMap((item) =>
+      item.recebimentos.map((r) => ({
+        ...r,
+        itemDescricao: item.descricao,
+        unidadeMedida: item.unidadeMedida,
+        valorUnitario: item.valorUnitario,
+        itemOrigens: item.origens,
+      }))
+    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const totalRecebidoValor = pedido.itens.reduce(
+    (s, i) => s + num(i.quantidadeRecebida) * num(i.valorUnitario), 0
+  );
+  const pctGeral = num(pedido.quantidadeTotal) > 0
+    ? Math.min(100, Math.round((num(pedido.quantidadeRecebida) / num(pedido.quantidadeTotal)) * 100))
+    : 0;
+
+  return (
+    <div className="cp-baixa-backdrop" onClick={onClose}>
+      <div
+        className="cp-baixa-modal"
+        style={{ maxWidth: 860, width: '100%', height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* cabeçalho */}
+        <div className="cp-baixa-head" style={{ flexShrink: 0 }}>
+          <div className="cp-baixa-icon"><FileText size={20} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span>Detalhe do pedido</span>
+            <h3>{pedido.numero}</h3>
+          </div>
+          {/* resumo rápido */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+            <span className={`tn-chip ${pedido.status === 'RECEIVED' ? 'dot-green' : pedido.status === 'PARTIAL' ? 'dot-blue' : pedido.status === 'SENT' ? 'dot-blue' : 'dot-gray'}`}>
+              <i />{statusPedidoLabel(pedido.status)}
+            </span>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Valor total</span>
+              <strong style={{ fontFamily: 'monospace', fontSize: 14, color: '#0f172a' }}>{dinheiro(num(pedido.valorTotal))}</strong>
+            </div>
+          </div>
+          <button type="button" className="sv-modal-close" onClick={onClose}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* barra de progresso geral */}
+        <div style={{ padding: '10px 20px 0', flexShrink: 0, background: '#fafbfc', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b' }}>Progresso geral de recebimento</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: pctGeral === 100 ? '#16a34a' : '#2563eb' }}>{pctGeral}%</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 99, background: '#e2e8f0', overflow: 'hidden', marginBottom: 10 }}>
+            <div style={{
+              height: '100%', width: `${pctGeral}%`, borderRadius: 99,
+              background: pctGeral === 100 ? 'linear-gradient(90deg,#16a34a,#22c55e)' : 'linear-gradient(90deg,#2563eb,#60a5fa)',
+              transition: 'width 0.4s ease',
+              boxShadow: pctGeral > 0 ? '0 0 8px rgba(37,99,235,0.3)' : 'none',
+            }} />
+          </div>
+
+          {/* abas */}
+          <div style={{ display: 'flex', gap: 0 }}>
+            {([
+              { id: 'itens' as const, label: 'Itens', icon: <PackageSearch size={13} />, badge: 0 },
+              { id: 'historico' as const, label: 'Recebimentos', icon: <PackageCheck size={13} />, badge: historico.length },
+            ]).map((tab) => (
+              <button key={tab.id} type="button" onClick={() => setAba(tab.id)} style={{
+                padding: '8px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                border: 'none', background: 'none', marginBottom: -1,
+                borderBottom: `3px solid ${aba === tab.id ? '#2563eb' : 'transparent'}`,
+                color: aba === tab.id ? '#2563eb' : '#64748b',
+                display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
+              }}>
+                {tab.icon}{tab.label}
+                {tab.badge > 0 && (
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 99, background: aba === tab.id ? '#eff6ff' : '#f1f5f9', color: aba === tab.id ? '#2563eb' : '#64748b', border: `1px solid ${aba === tab.id ? '#bfdbfe' : '#e2e8f0'}` }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* conteúdo */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+
+          {/* ABA ITENS */}
+          {aba === 'itens' && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '38%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '14%' }} />
+              </colgroup>
+              <thead>
+                <tr style={{ background: '#fafbfc' }}>
+                  {['Item / Serviços', 'Pedido', 'Entregue', 'Pendente', 'Valor unit.', 'Total'].map((h, i) => (
+                    <th key={i} style={{ padding: '10px 14px', textAlign: i >= 1 ? 'center' : 'left', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#94a3b8', borderBottom: '1px solid #f1f5f9' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pedido.itens.map((item, idx) => {
+                  const pendente = num(item.quantidadePendente);
+                  const recebida = num(item.quantidadeRecebida);
+                  const total = num(item.quantidadeTotal);
+                  const pct = total > 0 ? Math.min(100, Math.round((recebida / total) * 100)) : 0;
+                  const concluido = pct === 100;
+                  return (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #f8fafc', background: idx % 2 === 0 ? '#fff' : '#fafcff' }}>
+                      <td style={{ padding: '12px 14px' }}>
+                        <strong style={{ fontSize: 13, color: '#0f172a', display: 'block', marginBottom: 4 }}>{item.descricao}</strong>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 6 }}>
+                          {item.origens.map((o) => {
+                            const sv = getServico(o.servicoSlug);
+                            return (
+                              <span key={o.id} style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: `${sv.cor ?? '#2563eb'}12`, color: sv.cor ?? '#2563eb', border: `1px solid ${sv.cor ?? '#2563eb'}25` }}>
+                                {o.servicoNome}: {Number(o.quantidade).toLocaleString('pt-BR')}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <div style={{ flex: 1, height: 4, borderRadius: 99, background: '#e2e8f0', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, background: concluido ? 'linear-gradient(90deg,#16a34a,#22c55e)' : 'linear-gradient(90deg,#2563eb,#60a5fa)', transition: 'width 0.4s ease' }} />
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: concluido ? '#16a34a' : '#64748b', minWidth: 30 }}>{pct}%</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 700, color: '#334155', fontFamily: 'monospace' }}>
+                        {Number(item.quantidadeTotal).toLocaleString('pt-BR')}
+                        <span style={{ fontSize: 10, color: '#94a3b8', display: 'block' }}>{item.unidadeMedida}</span>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 700, fontFamily: 'monospace', color: recebida > 0 ? '#16a34a' : '#94a3b8' }}>
+                        {recebida.toLocaleString('pt-BR')}
+                        <span style={{ fontSize: 10, color: '#94a3b8', display: 'block' }}>{item.unidadeMedida}</span>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 8, fontFamily: 'monospace', background: pendente > 0 ? '#fff7ed' : '#f0fdf4', color: pendente > 0 ? '#ea580c' : '#16a34a', border: `1.5px solid ${pendente > 0 ? '#fed7aa' : '#bbf7d0'}` }}>
+                          {pendente.toLocaleString('pt-BR')}
+                        </span>
+                        <span style={{ fontSize: 10, color: '#94a3b8', display: 'block', marginTop: 2 }}>{item.unidadeMedida}</span>
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 700, color: '#16a34a', fontFamily: 'monospace' }}>
+                        {dinheiro(num(item.valorUnitario))}
+                      </td>
+                      <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 800, color: '#0f172a', fontFamily: 'monospace' }}>
+                        {dinheiro(num(item.valorTotal))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {/* ABA RECEBIMENTOS */}
+          {aba === 'historico' && (
+            historico.length === 0 ? (
+              <div className="tn-empty cp-empty-state">
+                <PackageCheck size={32} style={{ color: '#cbd5e1', marginBottom: 8 }} />
+                <strong>Nenhum recebimento registrado</strong>
+                <span style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Após registrar uma entrega ela aparecerá aqui.</span>
+              </div>
+            ) : (
+              <div style={{ padding: '4px 0' }}>
+                {historico.map((rec, idx) => {
+                  const valor = num(rec.quantidade) * num(rec.valorUnitario);
+                  return (
+                    <div key={rec.id}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 20px', borderBottom: idx < historico.length - 1 ? '1px solid #f8fafc' : 'none', transition: 'background 0.12s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', border: '1.5px solid #bbf7d0', color: '#16a34a' }}>
+                        <Truck size={15} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                          <strong style={{ fontSize: 13, color: '#0f172a' }}>{rec.itemDescricao}</strong>
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 8px', borderRadius: 99, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', fontFamily: 'monospace' }}>
+                            +{num(rec.quantidade).toLocaleString('pt-BR')} {rec.unidadeMedida}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            {new Date(rec.recebidoEm).toLocaleDateString('pt-BR')}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            {rec.responsavel}
+                          </span>
+                          {rec.itemOrigens.map((o) => {
+                            const sv = getServico(o.servicoSlug);
+                            return (
+                              <span key={o.id} style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: `${sv.cor ?? '#2563eb'}12`, color: sv.cor ?? '#2563eb', border: `1px solid ${sv.cor ?? '#2563eb'}25` }}>
+                                {o.servicoNome}
+                              </span>
+                            );
+                          })}
+                          {rec.observacoes && <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>"{rec.observacoes}"</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <strong style={{ fontSize: 14, fontFamily: 'monospace', color: '#16a34a', display: 'block' }}>{dinheiro(valor)}</strong>
+                        <span style={{ fontSize: 10, color: '#94a3b8' }}>{new Date(rec.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '12px 20px', borderTop: '2px solid #f1f5f9', gap: 12, background: '#fafbfc' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>{historico.length} {historico.length === 1 ? 'recebimento' : 'recebimentos'}</span>
+                  <div style={{ width: 1, height: 16, background: '#e2e8f0' }} />
+                  <strong style={{ fontSize: 15, fontFamily: 'monospace', color: '#16a34a' }}>{dinheiro(totalRecebidoValor)}</strong>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+
+        {/* rodapé */}
+        <div style={{ padding: '14px 20px', borderTop: '2px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafbfc', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div>
+              <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'block' }}>Recebido</span>
+              <strong style={{ fontFamily: 'monospace', fontSize: 14, color: '#16a34a' }}>{dinheiro(totalRecebidoValor)}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'block' }}>Pendente</span>
+              <strong style={{ fontFamily: 'monospace', fontSize: 14, color: '#ea580c' }}>{dinheiro(num(pedido.valorTotal) - totalRecebidoValor)}</strong>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="tn-btn-secondary" onClick={onClose}>Fechar</button>
+            {temPendente && (
+              <button type="button" className="tn-btn-blue" disabled={saving} onClick={() => { onClose(); onRegistrar(); }}>
+                <Truck size={13} />
+                Registrar entrega
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Painel lista de pedidos
+───────────────────────────────────────────────────────────── */
+function RecebimentoPanel({
+  pedidos,
+  onRegistrar,
+  saving,
+}: {
+  pedidos: PedidoCompra[];
+  onRegistrar: (pedido: PedidoCompra) => void;
+  saving: boolean;
+}) {
+  const [pedidoDetalhe, setPedidoDetalhe] = useState<PedidoCompra | null>(null);
+
+  const totalRecebidoGeral = pedidos.reduce(
+    (s, p) => s + p.itens.reduce((ss, i) => ss + num(i.quantidadeRecebida) * num(i.valorUnitario), 0), 0
+  );
+
+  return (
+    <section className="tn-panel cp-panel" style={{ marginTop: 0 }}>
+      <div className="tn-panel-head">
+        <div className="tn-panel-head-left">
+          <span>Histórico de pedidos</span>
+          <h3>Pedidos de compra</h3>
+        </div>
+        {totalRecebidoGeral > 0 && (
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'block' }}>Total recebido</span>
+            <strong style={{ fontFamily: 'monospace', fontSize: 15, color: '#16a34a' }}>{dinheiro(totalRecebidoGeral)}</strong>
+          </div>
+        )}
+      </div>
+
+      {pedidos.length === 0 ? (
+        <div className="tn-empty cp-empty-state">
+          <PackageSearch size={32} style={{ color: '#cbd5e1', marginBottom: 8 }} />
+          <strong>Nenhum pedido gerado ainda</strong>
+          <span style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Selecione solicitações aprovadas e clique em "Gerar pedido".</span>
+        </div>
+      ) : (
+        <div style={{ padding: '4px 0' }}>
+          {pedidos.map((pedido, idx) => {
+            const totalRec = pedido.itens.reduce((s, i) => s + num(i.quantidadeRecebida) * num(i.valorUnitario), 0);
+            const pct = num(pedido.quantidadeTotal) > 0
+              ? Math.min(100, Math.round((num(pedido.quantidadeRecebida) / num(pedido.quantidadeTotal)) * 100))
+              : 0;
+            const temPendente = pedido.itens.some((i) => num(i.quantidadePendente) > 0);
+            const totalRecebimentos = pedido.itens.reduce((s, i) => s + i.recebimentos.length, 0);
+            const chipClass = pedido.status === 'RECEIVED' ? 'dot-green' : pedido.status === 'PARTIAL' ? 'dot-blue' : pedido.status === 'SENT' ? 'dot-blue' : 'dot-gray';
+
+            return (
+              <div
+                key={pedido.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px',
+                  borderBottom: idx < pedidos.length - 1 ? '1px solid #f8fafc' : 'none',
+                  cursor: 'pointer', transition: 'background 0.12s',
+                }}
+                onClick={() => setPedidoDetalhe(pedido)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                {/* ícone status */}
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: pct === 100 ? '#f0fdf4' : temPendente ? '#fff7ed' : '#eff6ff',
+                  border: `1.5px solid ${pct === 100 ? '#bbf7d0' : temPendente ? '#fed7aa' : '#bfdbfe'}`,
+                  color: pct === 100 ? '#16a34a' : temPendente ? '#ea580c' : '#2563eb',
+                }}>
+                  {pct === 100 ? <CheckCircle2 size={20} /> : temPendente ? <Truck size={20} /> : <PackageCheck size={20} />}
+                </div>
+
+                {/* info principal */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{pedido.numero}</strong>
+                    <span className={`tn-chip ${chipClass}`} style={{ fontSize: 10 }}><i />{statusPedidoLabel(pedido.status)}</span>
+                    {totalRecebimentos > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 99, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
+                        {totalRecebimentos} {totalRecebimentos === 1 ? 'entrega' : 'entregas'}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      {pedido.sentAt ? formatarData(pedido.sentAt) : formatarData(pedido.createdAt)}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>{pedido.itens.length} {pedido.itens.length === 1 ? 'item' : 'itens'}</span>
+                    {totalRec > 0 && (
+                      <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, fontFamily: 'monospace' }}>
+                        Recebido: {dinheiro(totalRec)}
+                      </span>
+                    )}
+                  </div>
+                  {/* barra de progresso */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, height: 5, borderRadius: 99, background: '#e2e8f0', overflow: 'hidden', maxWidth: 220 }}>
+                      <div style={{
+                        height: '100%', width: `${pct}%`, borderRadius: 99,
+                        background: pct === 100 ? 'linear-gradient(90deg,#16a34a,#22c55e)' : 'linear-gradient(90deg,#2563eb,#60a5fa)',
+                        transition: 'width 0.4s ease',
+                        boxShadow: pct > 0 ? '0 0 6px rgba(37,99,235,0.25)' : 'none',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: pct === 100 ? '#16a34a' : '#64748b' }}>{pct}%</span>
+                  </div>
+                </div>
+
+                {/* valor + seta */}
+                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div>
+                    <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'block' }}>Total</span>
+                    <strong style={{ fontFamily: 'monospace', fontSize: 15, color: '#0f172a' }}>{dinheiro(num(pedido.valorTotal))}</strong>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal de detalhe */}
+      {pedidoDetalhe && (
+        <PedidoDetalheModal
+          pedido={pedidoDetalhe}
+          onClose={() => setPedidoDetalhe(null)}
+          onRegistrar={() => { setPedidoDetalhe(null); onRegistrar(pedidoDetalhe); }}
+          saving={saving}
+        />
+      )}
+    </section>
+  );
+}
+
 export function ComprasPage() {
   const { entityId, session } = useTenant();
   const [solicitacoes, setSolicitacoes] = useState<CompraSolicitacao[]>([]);
@@ -98,6 +512,14 @@ export function ComprasPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [documentoOpen, setDocumentoOpen] = useState(false);
+  const [baixaOpen, setBaixaOpen] = useState(false);
+  const [baixaAba, setBaixaAba] = useState<'total' | string>('total');
+  // itemId → qtd recebida (aba Total)
+  const [baixaQtd, setBaixaQtd] = useState<Record<string, string>>({});
+  // servicoSlug → itemId → qtd distribuída (abas de serviço)
+  const [baixaDist, setBaixaDist] = useState<Record<string, Record<string, string>>>({});
+  const [baixaResponsavel, setBaixaResponsavel] = useState(session.name);
+  const [baixaObservacoes, setBaixaObservacoes] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -156,39 +578,77 @@ export function ComprasPage() {
     }
   };
 
-  const registrarEntrega = async () => {
-    if (!pedidoAtual) return;
-    const item = pedidoAtual.itens.find((pedidoItem) => num(pedidoItem.quantidadePendente) > 0);
-    if (!item) {
-      setError('Este pedido não possui item pendente.');
-      return;
-    }
-    const quantidade = window.prompt(`Quantidade entregue para ${item.descricao}`, item.quantidadePendente);
-    if (!quantidade) return;
-    const responsavel = window.prompt('Responsável pelo recebimento', session.name) ?? session.name;
-    setSaving(true);
-    setError('');
-    try {
-      await tenantApi.compras.createRecebimento(entityId, pedidoAtual.id, {
-        pedidoCompraItemId: item.id,
-        quantidade,
-        recebidoEm: new Date().toISOString().slice(0, 10),
-        responsavel,
-      });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao registrar entrega');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const abrirDocumentoPedido = () => {
     if (!pedidoAtual) {
       setError('Gere um pedido antes de emitir o documento.');
       return;
     }
     setDocumentoOpen(true);
+  };
+
+  const abrirBaixa = () => {
+    if (!pedidoAtual) return;
+    // aba total: preenche com o pendente de cada item
+    const qtd: Record<string, string> = {};
+    pedidoAtual.itens.forEach((item) => {
+      qtd[item.id] = num(item.quantidadePendente) > 0
+        ? num(item.quantidadePendente).toFixed(2)
+        : '0';
+    });
+    // distribuição por serviço: proporcional ao que cada serviço pediu
+    const dist: Record<string, Record<string, string>> = {};
+    pedidoAtual.itens.forEach((item) => {
+      const pendente = num(item.quantidadePendente);
+      const totalPedido = num(item.quantidadeTotal);
+      item.origens.forEach((origem) => {
+        if (!dist[origem.servicoSlug]) dist[origem.servicoSlug] = {};
+        const prop = totalPedido > 0 ? num(origem.quantidade) / totalPedido : 1 / item.origens.length;
+        dist[origem.servicoSlug][item.id] = (prop * pendente).toFixed(2);
+      });
+    });
+    setBaixaQtd(qtd);
+    setBaixaDist(dist);
+    setBaixaAba('total');
+    setBaixaResponsavel(session.name);
+    setBaixaObservacoes('');
+    setBaixaOpen(true);
+    setError('');
+  };
+
+  const confirmarBaixa = async () => {
+    if (!pedidoAtual) return;
+    const linhas = Object.entries(baixaQtd).filter(([, v]) => num(v) > 0);
+    if (linhas.length === 0) {
+      setError('Informe ao menos uma quantidade a receber.');
+      return;
+    }
+    for (const [itemId, qtd] of linhas) {
+      const item = pedidoAtual.itens.find((i) => i.id === itemId);
+      if (item && num(qtd) > num(item.quantidadePendente) + 0.001) {
+        setError(`Quantidade de "${item.descricao}" excede o saldo pendente.`);
+        return;
+      }
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const hoje = new Date().toISOString().slice(0, 10);
+      for (const [itemId, qtd] of linhas) {
+        await tenantApi.compras.createRecebimento(entityId, pedidoAtual.id, {
+          pedidoCompraItemId: itemId,
+          quantidade: num(qtd).toFixed(4),
+          recebidoEm: hoje,
+          responsavel: baixaResponsavel,
+          observacoes: baixaObservacoes || null,
+        });
+      }
+      setBaixaOpen(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao registrar entrega');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const baixarCsvPedido = () => {
@@ -510,53 +970,11 @@ export function ComprasPage() {
         </section>
       </div>
 
-      <section className="tn-panel cp-panel cp-receipt-panel">
-        <div className="tn-panel-head">
-          <div className="tn-panel-head-left">
-            <span>Baixa de entrega</span>
-            <h3>Recebimento parcial com origem por servico</h3>
-          </div>
-          <button type="button" className="tn-btn-blue" onClick={() => void registrarEntrega()} disabled={!pedidoAtual || saving}>
-            <Truck size={14} />
-            Registrar entrega
-          </button>
-        </div>
-        <div className="cp-receipt-grid">
-          {(pedidoAtual?.itens ?? []).slice(0, 3).map((item) => {
-            const percentual = num(item.quantidadeTotal) ? Math.min(100, Math.round((num(item.quantidadeRecebida) / num(item.quantidadeTotal)) * 100)) : 0;
-            return (
-              <article key={item.id} className="cp-receipt-card">
-                <div className="cp-receipt-card-head">
-                  <PackageCheck size={18} />
-                  <span>{percentual}% recebido</span>
-                </div>
-                <strong>{item.descricao}</strong>
-                <div className="cp-progress">
-                  <i style={{ width: `${percentual}%` }} />
-                </div>
-                <div className="cp-receipt-numbers">
-                  <span>Pedido: {Number(item.quantidadeTotal).toLocaleString('pt-BR')}</span>
-                  <span>Entregue: {Number(item.quantidadeRecebida).toLocaleString('pt-BR')}</span>
-                  <span>Pendente: {Number(item.quantidadePendente).toLocaleString('pt-BR')}</span>
-                </div>
-                <div className="cp-origin-stack">
-                  {item.origens.map((origem) => (
-                    <span key={origem.id}>
-                      {origem.servicoNome}
-                      <strong>{Number(origem.quantidade).toLocaleString('pt-BR')}</strong>
-                    </span>
-                  ))}
-                </div>
-              </article>
-            );
-          })}
-          {!pedidoAtual ? (
-            <div className="tn-empty cp-empty-state">
-              <strong>Gere um pedido para registrar entregas</strong>
-            </div>
-          ) : null}
-        </div>
-      </section>
+      <RecebimentoPanel
+        pedidos={pedidos}
+        onRegistrar={(pedido) => { void pedido; abrirBaixa(); }}
+        saving={saving}
+      />
 
       {documentoOpen && pedidoAtual ? (
         <div className="cp-doc-backdrop">
@@ -630,6 +1048,385 @@ export function ComprasPage() {
           </div>
         </div>
       ) : null}
+
+      {baixaOpen && pedidoAtual ? (() => {
+        const todosItens = pedidoAtual.itens;
+        // serviços únicos que originaram o pedido
+        const servicosUnicos = Array.from(
+          new Map(
+            todosItens.flatMap((i) => i.origens.map((o) => [o.servicoSlug, { slug: o.servicoSlug, nome: o.servicoNome }]))
+          ).values()
+        );
+
+        // totais da aba Total
+        const totalValorBaixa = todosItens.reduce((s, item) => {
+          return s + num(baixaQtd[item.id] ?? '0') * num(item.valorUnitario);
+        }, 0);
+        const algumExcede = todosItens.some(
+          (item) => num(baixaQtd[item.id] ?? '0') > num(item.quantidadePendente) + 0.001,
+        );
+        const algumPreenchido = todosItens.some((item) => num(baixaQtd[item.id] ?? '0') > 0);
+
+        // validação das abas de serviço: para cada item, soma da distribuição deve = qtd recebida
+        const errosDistribuicao: Record<string, string> = {};
+        if (baixaAba !== 'total') {
+          todosItens.forEach((item) => {
+            const recebido = num(baixaQtd[item.id] ?? '0');
+            if (recebido <= 0) return;
+            const somaServicos = servicosUnicos.reduce((s, sv) => {
+              const temOrigem = item.origens.some((o) => o.servicoSlug === sv.slug);
+              if (!temOrigem) return s;
+              return s + num(baixaDist[sv.slug]?.[item.id] ?? '0');
+            }, 0);
+            const diff = Math.abs(somaServicos - recebido);
+            if (diff > 0.01) {
+              errosDistribuicao[item.id] = `${somaServicos.toFixed(2)} ≠ ${recebido.toFixed(2)}`;
+            }
+          });
+        }
+        const distribuicaoOk = Object.keys(errosDistribuicao).length === 0;
+        const podeSalvar = algumPreenchido && !algumExcede && distribuicaoOk;
+
+        return (
+          <div className="cp-baixa-backdrop" onClick={() => setBaixaOpen(false)}>
+            <div
+              className="cp-baixa-modal"
+              style={{ maxWidth: 940, width: '100%', height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ── Cabeçalho ── */}
+              <div className="cp-baixa-head">
+                <div className="cp-baixa-icon"><Truck size={20} /></div>
+                <div>
+                  <span>Baixa de entrega — {pedidoAtual.numero}</span>
+                  <h3>Recebimento e distribuição por serviço</h3>
+                </div>
+                <button type="button" className="sv-modal-close" onClick={() => setBaixaOpen(false)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* ── Abas ── */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #f1f5f9', padding: '0 20px', background: '#fafbfc', flexShrink: 0 }}>
+                {/* aba Total */}
+                <button
+                  type="button"
+                  onClick={() => setBaixaAba('total')}
+                  style={{
+                    padding: '12px 20px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                    border: 'none', background: 'none', borderBottom: `3px solid ${baixaAba === 'total' ? '#2563eb' : 'transparent'}`,
+                    color: baixaAba === 'total' ? '#2563eb' : '#64748b',
+                    display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.15s',
+                    marginBottom: -2,
+                  }}
+                >
+                  <PackageCheck size={14} />
+                  Total recebido
+                  {algumPreenchido && (
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 7px', borderRadius: 99, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                      {dinheiro(totalValorBaixa)}
+                    </span>
+                  )}
+                  {algumExcede && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />}
+                </button>
+
+                {/* aba por serviço */}
+                {servicosUnicos.map((sv) => {
+                  const servico = getServico(sv.slug);
+                  const isActive = baixaAba === sv.slug;
+                  const temErro = !distribuicaoOk && Object.keys(errosDistribuicao).some((itemId) =>
+                    todosItens.find((i) => i.id === itemId)?.origens.some((o) => o.servicoSlug === sv.slug)
+                  );
+                  return (
+                    <button
+                      key={sv.slug}
+                      type="button"
+                      onClick={() => setBaixaAba(sv.slug)}
+                      style={{
+                        padding: '12px 18px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                        border: 'none', background: 'none',
+                        borderBottom: `3px solid ${isActive ? (servico.cor ?? '#2563eb') : 'transparent'}`,
+                        color: isActive ? (servico.cor ?? '#2563eb') : '#64748b',
+                        display: 'flex', alignItems: 'center', gap: 7, transition: 'all 0.15s',
+                        marginBottom: -2,
+                      }}
+                    >
+                      <span style={{ fontSize: 15 }}>{servico.icon}</span>
+                      {sv.nome}
+                      {temErro && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ── Conteúdo das abas ── */}
+              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
+
+                {/* ════ ABA TOTAL ════ */}
+                {baixaAba === 'total' && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: '35%' }} />
+                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '10%' }} />
+                      <col style={{ width: '15%' }} />
+                      <col style={{ width: '12%' }} />
+                    </colgroup>
+                    <thead>
+                      <tr style={{ background: '#fafbfc', borderBottom: '2px solid #f1f5f9' }}>
+                        {['Item', 'Unid.', 'Pedido', 'Entregue', 'Pendente', 'Recebido agora', 'Subtotal'].map((h, i) => (
+                          <th key={i} style={{ padding: '9px 10px', textAlign: i >= 1 ? 'center' : 'left', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {todosItens.map((item, idx) => {
+                        const qtdStr = baixaQtd[item.id] ?? '0';
+                        const qtdVal = num(qtdStr);
+                        const pendente = num(item.quantidadePendente);
+                        const recebida = num(item.quantidadeRecebida);
+                        const excede = qtdVal > pendente + 0.001;
+                        const naoTemPendente = pendente <= 0;
+                        return (
+                          <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: excede ? '#fef9f9' : naoTemPendente ? '#f8faf8' : idx % 2 === 0 ? '#fff' : '#fafbfc', opacity: naoTemPendente ? 0.5 : 1 }}>
+                            <td style={{ padding: '10px 10px' }}>
+                              <strong style={{ color: '#0f172a', fontSize: 12, display: 'block' }}>{item.descricao}</strong>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 3 }}>
+                                {item.origens.map((o) => {
+                                  const sv = getServico(o.servicoSlug);
+                                  return (
+                                    <span key={o.id} style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 99, background: `${sv.cor ?? '#2563eb'}12`, color: sv.cor ?? '#2563eb', border: `1px solid ${sv.cor ?? '#2563eb'}25` }}>
+                                      {o.servicoNome}: {Number(o.quantidade).toLocaleString('pt-BR')}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', padding: '2px 6px', borderRadius: 99 }}>{item.unidadeMedida}</span>
+                            </td>
+                            <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 700, color: '#334155', fontFamily: 'monospace', fontSize: 12 }}>
+                              {Number(item.quantidadeTotal).toLocaleString('pt-BR')}
+                            </td>
+                            <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 700, fontFamily: 'monospace', fontSize: 12, color: recebida > 0 ? '#16a34a' : '#94a3b8' }}>
+                              {recebida.toLocaleString('pt-BR')}
+                            </td>
+                            <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 700, fontFamily: 'monospace', fontSize: 12, color: pendente > 0 ? '#ea580c' : '#16a34a' }}>
+                              {pendente.toLocaleString('pt-BR')}
+                            </td>
+                            <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                              {naoTemPendente ? (
+                                <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 700 }}>✓ Completo</span>
+                              ) : (
+                                <>
+                                  <input
+                                    type="number" min="0" max={pendente} step="0.01"
+                                    value={qtdStr === '0' ? '' : qtdStr}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const novo = e.target.value || '0';
+                                      setBaixaQtd((prev) => ({ ...prev, [item.id]: novo }));
+                                      const novoNum = num(novo);
+                                      const totalPedido = num(item.quantidadeTotal);
+                                      setBaixaDist((prev) => {
+                                        const next = { ...prev };
+                                        item.origens.forEach((o) => {
+                                          if (!next[o.servicoSlug]) next[o.servicoSlug] = {};
+                                          const prop = totalPedido > 0 ? num(o.quantidade) / totalPedido : 1 / item.origens.length;
+                                          next[o.servicoSlug] = { ...next[o.servicoSlug], [item.id]: (prop * novoNum).toFixed(2) };
+                                        });
+                                        return next;
+                                      });
+                                    }}
+                                    style={{ width: '100%', padding: '6px 8px', fontSize: 13, fontWeight: 800, border: `2px solid ${excede ? '#fca5a5' : qtdVal > 0 ? '#86efac' : '#e2e8f0'}`, borderRadius: 7, outline: 'none', background: excede ? '#fff5f5' : '#fff', color: excede ? '#dc2626' : '#0f172a', fontFamily: 'monospace', textAlign: 'center', boxSizing: 'border-box' }}
+                                  />
+                                  {excede && <span style={{ fontSize: 9, color: '#dc2626', fontWeight: 700 }}>máx {pendente.toLocaleString('pt-BR')}</span>}
+                                </>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800, fontFamily: 'monospace', fontSize: 12, color: qtdVal > 0 ? '#16a34a' : '#cbd5e1' }}>
+                              {qtdVal > 0 ? dinheiro(qtdVal * num(item.valorUnitario)) : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                        <td colSpan={6} style={{ padding: '10px 10px', fontWeight: 800, fontSize: 12, color: '#0f172a', textAlign: 'right' }}>Total desta baixa</td>
+                        <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800, fontSize: 14, fontFamily: 'monospace', color: totalValorBaixa > 0 ? '#16a34a' : '#94a3b8' }}>
+                          {totalValorBaixa > 0 ? dinheiro(totalValorBaixa) : '—'}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+
+                {/* ════ ABA DE SERVIÇO ════ */}
+                {baixaAba !== 'total' && (() => {
+                  const sv = servicosUnicos.find((s) => s.slug === baixaAba);
+                  if (!sv) return null;
+                  const servico = getServico(sv.slug);
+                  const itensDoServico = todosItens.filter((item) => item.origens.some((o) => o.servicoSlug === sv.slug));
+                  const totalRecebidoServico = itensDoServico.reduce((s, item) => s + num(baixaDist[sv.slug]?.[item.id] ?? '0') * num(item.valorUnitario), 0);
+
+                  return (
+                    <>
+                      {/* mini header */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: `${servico.cor ?? '#2563eb'}08`, borderBottom: '1px solid #f1f5f9' }}>
+                        <span style={{ fontSize: 20 }}>{servico.icon}</span>
+                        <div>
+                          <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: servico.cor ?? '#2563eb', margin: 0 }}>Distribuição</p>
+                          <strong style={{ fontSize: 13, color: '#0f172a' }}>{sv.nome}</strong>
+                        </div>
+                        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>Total serviço</span>
+                          <strong style={{ fontSize: 15, fontFamily: 'monospace', color: servico.cor ?? '#2563eb' }}>{dinheiro(totalRecebidoServico)}</strong>
+                        </div>
+                      </div>
+
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
+                        <colgroup>
+                          <col style={{ width: '32%' }} />
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '12%' }} />
+                          <col style={{ width: '22%' }} />
+                          <col style={{ width: '14%' }} />
+                        </colgroup>
+                        <thead>
+                          <tr style={{ background: '#fafbfc', borderBottom: '2px solid #f1f5f9' }}>
+                            {['Item', 'Unid.', 'Solicitado', 'Recebido total', 'Qtd. p/ este serviço', 'Subtotal'].map((h, i) => (
+                              <th key={i} style={{ padding: '9px 8px', textAlign: i >= 1 ? 'center' : 'left', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#94a3b8' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {itensDoServico.map((item, idx) => {
+                            const origem = item.origens.find((o) => o.servicoSlug === sv.slug);
+                            const qtdSolicitada = num(origem?.quantidade ?? '0');
+                            const qtdTotalRecebida = num(baixaQtd[item.id] ?? '0');
+                            const qtdDistStr = baixaDist[sv.slug]?.[item.id] ?? '0';
+                            const qtdDist = num(qtdDistStr);
+                            const somaOutros = servicosUnicos.filter((s) => s.slug !== sv.slug).reduce((s, other) => s + num(baixaDist[other.slug]?.[item.id] ?? '0'), 0);
+                            const maxParaEste = Math.max(0, qtdTotalRecebida - somaOutros);
+                            const excede = qtdDist > maxParaEste + 0.001;
+                            const temErro = !!errosDistribuicao[item.id];
+                            return (
+                              <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9', background: excede ? '#fef9f9' : idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                                <td style={{ padding: '10px 8px' }}>
+                                  <strong style={{ color: '#0f172a', fontSize: 12 }}>{item.descricao}</strong>
+                                  {temErro && <div style={{ marginTop: 2 }}><span style={{ fontSize: 9, fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '1px 5px', borderRadius: 99 }}>Soma ≠ {errosDistribuicao[item.id]}</span></div>}
+                                </td>
+                                <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', padding: '2px 6px', borderRadius: 99 }}>{item.unidadeMedida}</span>
+                                </td>
+                                <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 700, fontFamily: 'monospace', color: servico.cor ?? '#2563eb' }}>
+                                  {qtdSolicitada.toLocaleString('pt-BR')}
+                                </td>
+                                <td style={{ padding: '10px 6px', textAlign: 'center' }}>
+                                  <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'monospace', padding: '2px 8px', borderRadius: 7, background: qtdTotalRecebida > 0 ? '#f0fdf4' : '#f8fafc', color: qtdTotalRecebida > 0 ? '#16a34a' : '#94a3b8', border: `1.5px solid ${qtdTotalRecebida > 0 ? '#bbf7d0' : '#e2e8f0'}` }}>
+                                    {qtdTotalRecebida.toLocaleString('pt-BR')}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '5px 8px' }}>
+                                  {qtdTotalRecebida <= 0 ? (
+                                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, display: 'block', textAlign: 'center' }}>Sem recebimento</span>
+                                  ) : (
+                                    <>
+                                      <input
+                                        type="number" min="0" step="0.01"
+                                        value={qtdDistStr === '0' ? '' : qtdDistStr}
+                                        placeholder="0"
+                                        onChange={(e) => setBaixaDist((prev) => ({ ...prev, [sv.slug]: { ...prev[sv.slug], [item.id]: e.target.value || '0' } }))}
+                                        style={{ width: '100%', padding: '6px 8px', fontSize: 13, fontWeight: 800, border: `2px solid ${excede || temErro ? '#fca5a5' : qtdDist > 0 ? `${servico.cor ?? '#2563eb'}60` : '#e2e8f0'}`, borderRadius: 7, outline: 'none', background: excede ? '#fff5f5' : '#fff', color: excede ? '#dc2626' : '#0f172a', fontFamily: 'monospace', textAlign: 'center', boxSizing: 'border-box' }}
+                                      />
+                                      <div style={{ display: 'flex', gap: 3, marginTop: 3, justifyContent: 'center' }}>
+                                        <button type="button" onClick={() => setBaixaDist((prev) => ({ ...prev, [sv.slug]: { ...prev[sv.slug], [item.id]: maxParaEste.toFixed(2) } }))} style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, border: `1px solid ${servico.cor ?? '#2563eb'}40`, background: `${servico.cor ?? '#2563eb'}08`, color: servico.cor ?? '#2563eb', cursor: 'pointer' }}>
+                                          Max {maxParaEste.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+                                        </button>
+                                        <button type="button" onClick={() => setBaixaDist((prev) => ({ ...prev, [sv.slug]: { ...prev[sv.slug], [item.id]: '0' } }))} style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer' }}>
+                                          Zerar
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </td>
+                                <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800, fontFamily: 'monospace', fontSize: 12, color: qtdDist > 0 ? '#0f172a' : '#cbd5e1' }}>
+                                  {qtdDist > 0 ? dinheiro(qtdDist * num(item.valorUnitario)) : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                            <td colSpan={5} style={{ padding: '10px 8px', fontWeight: 800, fontSize: 12, color: '#0f172a', textAlign: 'right' }}>Total para {sv.nome}</td>
+                            <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800, fontSize: 14, fontFamily: 'monospace', color: totalRecebidoServico > 0 ? (servico.cor ?? '#16a34a') : '#94a3b8' }}>
+                              {totalRecebidoServico > 0 ? dinheiro(totalRecebidoServico) : '—'}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* ── Rodapé: campos + validação + ações ── */}
+              <div style={{ borderTop: '2px solid #f1f5f9', flexShrink: 0 }}>
+
+                <div className="cp-baixa-form">
+                  <label>
+                    <span>Responsável pelo recebimento</span>
+                    <input type="text" value={baixaResponsavel} onChange={(e) => setBaixaResponsavel(e.target.value)} />
+                  </label>
+                  <label className="is-wide">
+                    <span>Observações (NF, conferente, etc.)</span>
+                    <textarea value={baixaObservacoes} onChange={(e) => setBaixaObservacoes(e.target.value)}
+                      placeholder="Ex: NF 12345, entrega parcial, conferência do almoxarifado..." />
+                  </label>
+                </div>
+
+                {algumExcede && (
+                  <div className="tn-alert" style={{ margin: '0 20px 10px' }}>
+                    Quantidade recebida excede o saldo pendente em um ou mais itens.
+                  </div>
+                )}
+                {algumPreenchido && !distribuicaoOk && (
+                  <div className="tn-alert" style={{ margin: '0 20px 10px' }}>
+                    A soma da distribuição por serviço não bate com o total recebido. Ajuste nas abas de serviço.
+                  </div>
+                )}
+
+                <div className="cp-baixa-actions">
+                  <button type="button" className="tn-btn-secondary" onClick={() => setBaixaOpen(false)}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="tn-btn-blue"
+                    disabled={saving || !podeSalvar}
+                    onClick={() => void confirmarBaixa()}
+                  >
+                    <Truck size={14} />
+                    {saving
+                      ? 'Registrando...'
+                      : podeSalvar
+                        ? `Confirmar entrega — ${dinheiro(totalValorBaixa)}`
+                        : 'Distribua por serviço para confirmar'
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }

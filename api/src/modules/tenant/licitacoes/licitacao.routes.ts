@@ -23,13 +23,16 @@ import { importColumnsRequestSchema } from './item.schema.js';
 import {
   createLicitacaoSchema,
   updateItemStatusSchema,
+  updateLicitacaoSchema,
   updateLicitacaoStatusSchema,
 } from './licitacao.schema.js';
 import {
   createLicitacao,
   deactivateLicitacao,
+  deleteLicitacao,
   getLicitacaoById,
   listLicitacoes,
+  updateLicitacao,
 } from './licitacao.service.js';
 
 const listQuerySchema = z.object({
@@ -140,6 +143,46 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
           id,
         );
         return reply.send(licitacao);
+      } catch (error) {
+        return handleAppError(reply, error);
+      }
+    },
+  );
+
+  fastify.put(
+    '/licitacoes/:id',
+    { preHandler: canManage },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+        const body = updateLicitacaoSchema.parse(request.body);
+        const licitacao = await updateLicitacao(
+          fastify.prisma,
+          request.user.sub,
+          request.user.entityId!,
+          id,
+          body,
+        );
+        return reply.send(licitacao);
+      } catch (error) {
+        return handleAppError(reply, error);
+      }
+    },
+  );
+
+  fastify.delete(
+    '/licitacoes/:id',
+    { preHandler: canManage },
+    async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+        await deleteLicitacao(
+          fastify.prisma,
+          request.user.sub,
+          request.user.entityId!,
+          id,
+        );
+        return reply.code(204).send();
       } catch (error) {
         return handleAppError(reply, error);
       }

@@ -90,6 +90,7 @@ export function CentroCustoDetailPage() {
       identificacao: linked.identificacao,
       objeto: '—',
       status: linked.status as Licitacao['status'],
+      fornecedor: null,
       createdAt: centro.createdAt,
       createdBy: centro.createdBy,
       activeItemCount: 0,

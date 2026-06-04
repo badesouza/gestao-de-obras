@@ -1,7 +1,7 @@
 import type { LicitacaoStatus, PrismaClient } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
-import type { CreateLicitacaoRequest } from './licitacao.schema.js';
+import type { CreateLicitacaoRequest, UpdateLicitacaoRequest } from './licitacao.schema.js';
 
 interface UserRef {
   id: string;
@@ -200,6 +200,75 @@ export async function getLicitacaoById(
     where: { licitacaoId, status: 'ACTIVE' },
   });
   return toLicitacaoDto(licitacao, activeItemCount);
+}
+
+/** Updates identificacao, objeto and optionally fornecedor of a licitacao */
+export async function updateLicitacao(
+  prisma: PrismaClient,
+  actorId: string,
+  entityId: string,
+  licitacaoId: string,
+  input: UpdateLicitacaoRequest,
+) {
+  await assertEntityActive(prisma, entityId);
+  const existing = await getLicitacaoForEntity(prisma, entityId, licitacaoId);
+
+  if (existing.identificacao !== input.identificacao) {
+    const duplicate = await prisma.licitacao.findFirst({
+      where: { entityId, identificacao: input.identificacao, NOT: { id: licitacaoId } },
+    });
+    if (duplicate) {
+      throw new AppError(409, 'IDENTIFICACAO_DUPLICATE', 'Já existe licitação com esta identificação nesta entidade');
+    }
+  }
+
+  const updated = await prisma.licitacao.update({
+    where: { id: licitacaoId },
+    data: {
+      identificacao: input.identificacao,
+      objeto: input.objeto,
+      fornecedorId: input.fornecedorId ?? null,
+      updatedAt: new Date(),
+    },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      fornecedor: { select: { id: true, razaoSocial: true, cnpj: true } },
+    },
+  });
+
+  await writeTenantAudit(prisma, {
+    entityId,
+    userId: actorId,
+    action: 'LICITACAO_UPDATED',
+    resource: 'licitacao',
+    previousValue: { identificacao: existing.identificacao, objeto: existing.objeto },
+    newValue: { identificacao: updated.identificacao, objeto: updated.objeto },
+  });
+
+  const activeItemCount = await prisma.licitacaoItem.count({ where: { licitacaoId, status: 'ACTIVE' } });
+  return toLicitacaoDto(updated, activeItemCount);
+}
+
+/** Hard-deletes a licitacao and its items */
+export async function deleteLicitacao(
+  prisma: PrismaClient,
+  actorId: string,
+  entityId: string,
+  licitacaoId: string,
+) {
+  await assertEntityActive(prisma, entityId);
+  const licitacao = await getLicitacaoForEntity(prisma, entityId, licitacaoId);
+
+  await prisma.licitacaoItem.deleteMany({ where: { licitacaoId } });
+  await prisma.licitacao.delete({ where: { id: licitacaoId } });
+
+  await writeTenantAudit(prisma, {
+    entityId,
+    userId: actorId,
+    action: 'LICITACAO_DELETED',
+    resource: 'licitacao',
+    previousValue: { id: licitacaoId, identificacao: licitacao.identificacao },
+  });
 }
 
 /** Deactivates a licitacao (idempotent) */

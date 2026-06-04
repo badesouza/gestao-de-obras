@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { tenantApi, type Licitacao } from '../../lib/api-client';
 import { useTenant, useTenantPermission } from '../TenantContext';
@@ -7,6 +8,112 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+/* ── Modal de edição de licitação ────────────────────────────── */
+function EditLicitacaoModal({ licitacao, entityId, onClose, onSaved }: {
+  licitacao: Licitacao;
+  entityId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [identificacao, setIdentificacao] = useState(licitacao.identificacao);
+  const [objeto, setObjeto] = useState(licitacao.objeto ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!identificacao.trim() || objeto.trim().length < 3) return;
+    setSaving(true);
+    setError('');
+    try {
+      await tenantApi.licitacoes.update(entityId, licitacao.id, {
+        identificacao: identificacao.trim(),
+        objeto: objeto.trim(),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar');
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = (filled: boolean): React.CSSProperties => ({
+    width: '100%', padding: '10px 12px', fontSize: 13, fontWeight: 500,
+    color: '#0f172a', border: `1.5px solid ${filled ? '#2563eb60' : '#e2e8f0'}`,
+    borderRadius: 10, outline: 'none', background: '#fafafa',
+    boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border-color 0.15s',
+  });
+
+  return createPortal(
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2563eb', marginBottom: 2 }}>Editar licitação</p>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: 0 }}>Atualizar dados</h3>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, borderRadius: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Identificação <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <input type="text" value={identificacao} onChange={e => setIdentificacao(e.target.value)} required placeholder="Ex.: 001/2025" style={fieldStyle(!!identificacao)}
+              onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px #2563eb15'; }}
+              onBlur={e => { e.target.style.borderColor = identificacao ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Objeto <span style={{ color: '#dc2626' }}>*</span>
+            </span>
+            <textarea value={objeto} onChange={e => setObjeto(e.target.value)} required rows={3} placeholder="Descrição do objeto licitado"
+              style={{ ...fieldStyle(!!objeto), resize: 'vertical', lineHeight: 1.5 }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.boxShadow = '0 0 0 3px #2563eb15'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = objeto ? '#2563eb60' : '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; }} />
+          </label>
+
+          {error && (
+            <div className="tn-alert" style={{ marginTop: 0 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+            <button type="button" onClick={onClose} className="tn-btn-secondary">Cancelar</button>
+            <button type="submit" disabled={saving} className="tn-btn-blue" style={{ height: 38, fontSize: 13, flex: 1, opacity: saving ? 0.7 : 1 }}>
+              {saving ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                  Salvando…
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Salvar alterações
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ── Página principal ─────────────────────────────────────────── */
 export function LicitacaoListPage() {
   const { entityId } = useTenant();
   const canManage = useTenantPermission('licitacoes.manage');
@@ -14,22 +121,39 @@ export function LicitacaoListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [hovRow, setHovRow] = useState<string | null>(null);
+  const [editingLic, setEditingLic] = useState<Licitacao | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Licitacao | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const result = await tenantApi.licitacoes.list(entityId, new URLSearchParams());
-        setLicitacoes(result.items);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao carregar');
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
-  }, [entityId]);
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await tenantApi.licitacoes.list(entityId, new URLSearchParams());
+      setLicitacoes(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, [entityId]);
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await tenantApi.licitacoes.delete(entityId, confirmDelete.id);
+      setConfirmDelete(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const filtered = licitacoes.filter(l =>
     !search ||
@@ -42,6 +166,7 @@ export function LicitacaoListPage() {
 
   return (
     <div className="tn-page">
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Hero */}
       <div className="tn-hero-light" style={{ borderLeftColor: '#2563eb' }}>
@@ -136,7 +261,6 @@ export function LicitacaoListPage() {
             <span>Processos licitatórios</span>
             <h3>Todas as licitações</h3>
           </div>
-          {/* busca */}
           <div style={{ position: 'relative' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"
               style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
@@ -186,22 +310,24 @@ export function LicitacaoListPage() {
           <div style={{ padding: '4px 0' }}>
             {filtered.map((lic, idx) => {
               const active = lic.status === 'ACTIVE';
+              const isHov = hovRow === lic.id;
               return (
-                <Link
+                <div
                   key={lic.id}
-                  to={`/t/${entityId}/licitacoes/${lic.id}`}
-                  style={{ textDecoration: 'none', display: 'block' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    padding: '16px 20px',
+                    borderBottom: idx < filtered.length - 1 ? '1px solid #f8fafc' : 'none',
+                    transition: 'background 0.12s',
+                    background: isHov ? '#f8fafc' : 'transparent',
+                  }}
+                  onMouseEnter={() => setHovRow(lic.id)}
+                  onMouseLeave={() => setHovRow(null)}
                 >
-                  <div
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 16,
-                      padding: '16px 20px',
-                      borderBottom: idx < filtered.length - 1 ? '1px solid #f8fafc' : 'none',
-                      transition: 'background 0.12s',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  {/* Área clicável que leva para o detalhe */}
+                  <Link
+                    to={`/t/${entityId}/licitacoes/${lic.id}`}
+                    style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 0 }}
                   >
                     {/* ícone */}
                     <div style={{
@@ -259,18 +385,90 @@ export function LicitacaoListPage() {
                         </span>
                       </div>
                     </div>
+                  </Link>
 
-                    {/* seta */}
+                  {/* botões de ação */}
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                    {canManage && (
+                      <>
+                        <button
+                          type="button"
+                          title="Editar licitação"
+                          onClick={e => { e.stopPropagation(); setEditingLic(lic); }}
+                          className="tn-icon-btn"
+                          style={{ opacity: isHov ? 1 : 0, transition: 'opacity 0.15s' }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          title="Excluir licitação"
+                          onClick={e => { e.stopPropagation(); setConfirmDelete(lic); }}
+                          className="tn-icon-btn sv-btn-excluir"
+                          style={{ opacity: isHov ? 1 : 0, transition: 'opacity 0.15s' }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14H6L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4h6v2"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2.5">
                       <polyline points="9 18 15 12 9 6"/>
                     </svg>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Modal editar */}
+      {editingLic && (
+        <EditLicitacaoModal
+          licitacao={editingLic}
+          entityId={entityId}
+          onClose={() => setEditingLic(null)}
+          onSaved={() => { setEditingLic(null); void load(); }}
+        />
+      )}
+
+      {/* Modal confirmar exclusão */}
+      {confirmDelete && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setConfirmDelete(null)}
+        >
+          <div
+            style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>Excluir licitação?</h3>
+              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                A licitação <strong style={{ color: '#0f172a' }}>{confirmDelete.identificacao}</strong> e todos os seus itens serão removidos permanentemente. Esta ação não pode ser desfeita.
+              </p>
+              <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 4 }}>
+                <button type="button" onClick={() => setConfirmDelete(null)} className="tn-btn-secondary" style={{ flex: 1 }}>Cancelar</button>
+                <button type="button" onClick={() => void handleDelete()} disabled={deleting}
+                  style={{ flex: 1, height: 38, fontSize: 13, fontWeight: 700, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: deleting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  {deleting ? 'Excluindo…' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
