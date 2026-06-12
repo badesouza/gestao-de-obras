@@ -152,7 +152,6 @@ function firstPropId(propMap: PropMap, names: string[]) {
 function computeSheetMetrics(rows: RegistroDiarioRow[], propMap: PropMap, config: ServicoConfig) {
   const bairroId = firstPropId(propMap, ['Bairro / Localidade', 'Praça / Jardim / Local', 'Praca / Jardim / Local', 'Rota / Local']);
   const tipoId = firstPropId(propMap, ['Tipo de Resíduo', 'Tipo de Residuo', 'Tipo de Serviço', 'Tipo de Servico']);
-  const fotoId = firstPropId(propMap, ['Foto Registrada?']);
   const irregularId = firstPropId(propMap, ['Descarte Irregular?']);
   const horasId = firstPropId(propMap, ['Horas Trabalhadas', 'Horas Trabalhadas Tapa']);
   const producaoId = firstPropId(propMap, [
@@ -171,7 +170,6 @@ function computeSheetMetrics(rows: RegistroDiarioRow[], propMap: PropMap, config
     'Volume Coletado (mÂ³)',
   ]);
 
-  let comFoto = 0;
   let irregulares = 0;
   let horas = 0;
   let producao = 0;
@@ -183,12 +181,10 @@ function computeSheetMetrics(rows: RegistroDiarioRow[], propMap: PropMap, config
     const tipo = tipoId ? textValue(row.values[tipoId]).trim() : '';
     const rowProducao = producaoId ? numberValue(row.values[producaoId]) : 0;
     const rowHoras = horasId ? numberValue(row.values[horasId]) : 0;
-    const rowFoto = fotoId ? booleanValue(row.values[fotoId]) : false;
     const rowIrregular = irregularId ? booleanValue(row.values[irregularId]) : false;
 
     producao += rowProducao;
     horas += rowHoras;
-    if (rowFoto) comFoto += 1;
     if (rowIrregular) irregulares += 1;
 
     if (bairro) {
@@ -228,14 +224,12 @@ function computeSheetMetrics(rows: RegistroDiarioRow[], propMap: PropMap, config
     producao,
     horas,
     produtividade: horas > 0 ? producao / horas : 0,
-    comFoto,
     irregulares,
     mediaProducao: rows.length > 0 ? producao / rows.length : 0,
     mediaHoras: rows.length > 0 ? horas / rows.length : 0,
     bairros: Array.from(bairros.values()).sort((a, b) => b.registros - a.registros),
     tipos: tipoList,
     hasHoras: Boolean(horasId),
-    hasFoto: Boolean(fotoId),
     hasIrregular: Boolean(irregularId),
     hasProducao: Boolean(producaoId) || config.slug !== '',
   };
@@ -1340,7 +1334,7 @@ export function ServicoAnalytics({ entityId, centroId, config, year, month }: Pr
   }, [centroId, entityId, month, year]);
 
   const labelMes = useMemo(() => monthName(year, month), [month, year]);
-  const summary = data?.resumo ?? { total: 0, concluidos: 0, taxaConclusao: 0, totalArea: 0 };
+  const summary = data?.resumo ?? { total: 0, concluidos: 0, taxaConclusao: 0, totalArea: 0, comFoto: 0 };
   const openItems = Math.max(summary.total - summary.concluidos, 0);
   const badge = performanceBadge(summary.taxaConclusao);
   const activeDays = data?.producaoDiaria.filter((item: ProductionPoint) => item.total > 0).length ?? 0;
@@ -1456,9 +1450,9 @@ export function ServicoAnalytics({ entityId, centroId, config, year, month }: Pr
                   Registros com foto
                 </p>
                 <div className="mt-2 flex items-end justify-between gap-3">
-                  <strong className="text-xl font-black text-slate-950">{formatMetric(sheet.comFoto)}</strong>
+                  <strong className="text-xl font-black text-slate-950">{formatMetric(summary.comFoto)}</strong>
                   <span className="rounded-full bg-blue-50 px-2 py-1 font-mono text-[10px] font-black text-blue-700">
-                    evidencias
+                    evidências
                   </span>
                 </div>
               </div>

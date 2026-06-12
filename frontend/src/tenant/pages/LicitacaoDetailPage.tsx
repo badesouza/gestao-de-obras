@@ -3,11 +3,15 @@ import { createPortal } from 'react-dom';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, tenantApi, type Licitacao, type LicitacaoItem } from '../../lib/api-client';
 import { ColumnsImportPanel } from '../components/ColumnsImportPanel';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { ImportInstructions, useImportTemplateDownload } from '../components/ImportInstructions';
 import { SpreadsheetImportPanel } from '../components/SpreadsheetImportPanel';
 import { useTenant, useTenantPermission } from '../TenantContext';
+import { ToastContainer } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 
 type ImportTab = 'spreadsheet' | 'columns';
+const ITEMS_PAGE_SIZE = 12;
 
 function formatValor(value: string | null): string {
   if (!value) return '—';
@@ -23,6 +27,12 @@ function formatQuantidade(value: string | null): string {
   return num.toLocaleString('pt-BR', { maximumFractionDigits: 4 });
 }
 
+function toNumber(value: string | null | undefined): number {
+  if (!value) return 0;
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const active = status === 'ACTIVE';
   return (
@@ -35,6 +45,33 @@ function StatusBadge({ status }: { status: string }) {
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? '#16a34a' : '#94a3b8', display: 'inline-block' }} />
       {active ? 'Ativo' : 'Inativo'}
+    </span>
+  );
+}
+
+function SaldoValor({ value, unidade, tone = 'default' }: { value: string | null; unidade: string; tone?: 'default' | 'ok' | 'warn' | 'muted' }) {
+  const color = tone === 'ok' ? '#15803d' : tone === 'warn' ? '#b45309' : tone === 'muted' ? '#94a3b8' : '#334155';
+  const background = tone === 'ok' ? '#f0fdf4' : tone === 'warn' ? '#fffbeb' : tone === 'muted' ? '#f8fafc' : '#f8fafc';
+  const border = tone === 'ok' ? '#bbf7d0' : tone === 'warn' ? '#fde68a' : '#e2e8f0';
+
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 74,
+      minHeight: 26,
+      padding: '2px 8px',
+      borderRadius: 8,
+      border: `1px solid ${border}`,
+      background,
+      color,
+      fontFamily: 'var(--tn-mono)',
+      fontSize: 11,
+      fontWeight: 850,
+      whiteSpace: 'nowrap',
+    }}>
+      {value === null ? 'Livre' : `${formatQuantidade(value)} ${unidade}`}
     </span>
   );
 }
@@ -182,9 +219,12 @@ export function LicitacaoDetailPage() {
   const canImport = useTenantPermission('licitacoes.items.import');
   const canDeactivate = useTenantPermission('licitacoes.items.deactivate');
   const downloadTemplate = useImportTemplateDownload();
+  const { toasts, showToast, closeToast } = useToast();
 
   const [licitacao, setLicitacao] = useState<Licitacao | null>(null);
   const [items, setItems] = useState<LicitacaoItem[]>([]);
+  const [itemsTotal, setItemsTotal] = useState(0);
+  const [itemsPage, setItemsPage] = useState(1);
   const [search, setSearch] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [importTab, setImportTab] = useState<ImportTab>('spreadsheet');
@@ -194,6 +234,7 @@ export function LicitacaoDetailPage() {
   const [editingItem, setEditingItem] = useState<LicitacaoItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<LicitacaoItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -202,23 +243,31 @@ export function LicitacaoDetailPage() {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (includeInactive) params.set('includeInactive', 'true');
+      params.set('page', String(itemsPage));
+      params.set('pageSize', String(ITEMS_PAGE_SIZE));
       const [lic, itemsResult] = await Promise.all([
         tenantApi.licitacoes.get(entityId, licitacaoId),
         tenantApi.licitacoes.listItems(entityId, licitacaoId, params),
       ]);
       setLicitacao(lic);
       setItems(itemsResult.items);
+      setItemsTotal(itemsResult.total);
+      const nextTotalPages = Math.max(1, Math.ceil(itemsResult.total / ITEMS_PAGE_SIZE));
+      if (itemsPage > nextTotalPages) setItemsPage(nextTotalPages);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar');
     } finally {
       setLoading(false);
     }
-  }, [entityId, licitacaoId, search, includeInactive]);
+  }, [entityId, licitacaoId, search, includeInactive, itemsPage]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => { setItemsPage(1); }, [search, includeInactive]);
 
-  const handleDeactivateLicitacao = async () => {
-    if (!window.confirm('Desativar esta licitação?')) return;
+  const handleDeactivateLicitacao = () => setConfirmDeactivate(true);
+
+  const doDeactivateLicitacao = async () => {
+    setConfirmDeactivate(false);
     try {
       const updated = await tenantApi.licitacoes.deactivate(entityId, licitacaoId);
       setLicitacao(updated);
@@ -239,9 +288,11 @@ export function LicitacaoDetailPage() {
   const handleDeleteItem = async () => {
     if (!confirmDelete) return;
     setDeleting(true);
+    const desc = confirmDelete.descricao;
     try {
       await tenantApi.licitacoes.deleteItem(entityId, licitacaoId, confirmDelete.id);
       setConfirmDelete(null);
+      showToast(`Item "${desc}" excluído com sucesso.`);
       await loadData();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erro ao excluir item');
@@ -271,8 +322,12 @@ export function LicitacaoDetailPage() {
   }
 
   const isActive = licitacao.status === 'ACTIVE';
+  const totalPages = Math.max(1, Math.ceil(itemsTotal / ITEMS_PAGE_SIZE));
+  const pageStart = itemsTotal === 0 ? 0 : (itemsPage - 1) * ITEMS_PAGE_SIZE + 1;
+  const pageEnd = Math.min(itemsTotal, itemsPage * ITEMS_PAGE_SIZE);
 
   return (
+    <>
     <div className="tn-page">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
@@ -359,6 +414,9 @@ export function LicitacaoDetailPage() {
               <input type="checkbox" checked={includeInactive} onChange={e => setIncludeInactive(e.target.checked)} style={{ accentColor: '#2563eb', width: 14, height: 14 }} />
               Incluir inativos
             </label>
+            <span style={{ minWidth: 78, textAlign: 'right', fontFamily: 'var(--tn-mono)', fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+              {itemsTotal} itens
+            </span>
           </div>
         </div>
 
@@ -379,8 +437,8 @@ export function LicitacaoDetailPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  {['Categoria', 'Descrição', 'Unidade', 'Quantidade', 'Valor unit.', 'Status', ''].map((h, i) => (
-                    <th key={i} style={{ padding: '10px 16px', textAlign: i >= 2 ? 'center' : 'left', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', background: '#fafbfc', borderBottom: '1px solid #f1f5f9' }}>{h}</th>
+                  {['Categoria', 'Descrição', 'Un.', 'Licitado', 'Reservado', 'Recebido', 'Disponível', 'Valor unit.', 'Status', ''].map((h, i) => (
+                    <th key={i} style={{ padding: '10px 12px', textAlign: i >= 2 ? 'center' : 'left', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', background: '#fafbfc', borderBottom: '1px solid #f1f5f9' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -393,22 +451,35 @@ export function LicitacaoDetailPage() {
                       onMouseEnter={() => setHovRow(item.id)}
                       onMouseLeave={() => setHovRow(null)}
                       style={{ borderBottom: '1px solid #f8fafc', background: isHov ? '#f8fafc' : 'transparent', opacity: active ? 1 : 0.55, transition: 'background 0.12s' }}>
-                      <td style={{ padding: '11px 16px' }}>
+                      <td style={{ padding: '11px 12px' }}>
                         {item.categoria
                           ? <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', background: '#eff6ff', borderRadius: 99, padding: '2px 8px', border: '1px solid #bfdbfe' }}>{item.categoria}</span>
                           : <span style={{ color: '#e2e8f0' }}>—</span>}
                       </td>
-                      <td style={{ padding: '11px 16px', color: '#1e293b', fontWeight: 500 }}>{item.descricao}</td>
-                      <td style={{ padding: '11px 16px', textAlign: 'center' }}>
+                      <td style={{ padding: '11px 12px', color: '#1e293b', fontWeight: 500, minWidth: 260 }}>{item.descricao}</td>
+                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', borderRadius: 99, padding: '2px 8px', border: '1px solid #e9d5ff' }}>{item.unidadeMedida}</span>
                       </td>
-                      <td style={{ padding: '11px 16px', textAlign: 'center', fontWeight: 700, color: '#334155', fontFamily: 'monospace', fontSize: 13 }}>
-                        {formatQuantidade(item.quantidade)}
+                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
+                        <SaldoValor value={item.saldo.quantidadeLicitada} unidade={item.unidadeMedida} tone={item.saldo.controleSaldo ? 'default' : 'muted'} />
                       </td>
-                      <td style={{ padding: '11px 16px', textAlign: 'center', fontWeight: 700, color: '#16a34a', fontFamily: 'monospace', fontSize: 13 }}>
+                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
+                        <SaldoValor value={item.saldo.quantidadeReservada} unidade={item.unidadeMedida} tone={toNumber(item.saldo.quantidadeReservada) > 0 ? 'warn' : 'muted'} />
+                      </td>
+                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
+                        <SaldoValor value={item.saldo.quantidadeRecebida} unidade={item.unidadeMedida} tone={toNumber(item.saldo.quantidadeRecebida) > 0 ? 'ok' : 'muted'} />
+                      </td>
+                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
+                        <SaldoValor
+                          value={item.saldo.quantidadeDisponivel}
+                          unidade={item.unidadeMedida}
+                          tone={!item.saldo.controleSaldo ? 'muted' : toNumber(item.saldo.quantidadeDisponivel) <= 0 ? 'warn' : 'ok'}
+                        />
+                      </td>
+                      <td style={{ padding: '11px 12px', textAlign: 'center', fontWeight: 700, color: '#16a34a', fontFamily: 'monospace', fontSize: 13 }}>
                         R$ {formatValor(item.valorUnitario)}
                       </td>
-                      <td style={{ padding: '11px 16px', textAlign: 'center' }}><StatusBadge status={item.status} /></td>
+                      <td style={{ padding: '11px 12px', textAlign: 'center' }}><StatusBadge status={item.status} /></td>
 
                       {/* ações */}
                       <td style={{ padding: '11px 12px', textAlign: 'right' }}>
@@ -444,6 +515,57 @@ export function LicitacaoDetailPage() {
                 })}
               </tbody>
             </table>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '12px 16px',
+              borderTop: '1px solid #f1f5f9',
+              background: '#fafbfc',
+            }}>
+              <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
+                Mostrando <strong style={{ color: '#0f172a' }}>{pageStart}-{pageEnd}</strong> de <strong style={{ color: '#0f172a' }}>{itemsTotal}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  className="tn-btn-secondary"
+                  disabled={itemsPage <= 1 || loading}
+                  onClick={() => setItemsPage((page) => Math.max(1, page - 1))}
+                  style={{ height: 32, fontSize: 12, opacity: itemsPage <= 1 ? 0.5 : 1 }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                  Anterior
+                </button>
+                <span style={{
+                  minWidth: 76,
+                  height: 32,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 10,
+                  background: '#fff',
+                  color: '#334155',
+                  fontFamily: 'var(--tn-mono)',
+                  fontSize: 11,
+                  fontWeight: 800,
+                }}>
+                  {itemsPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="tn-btn-secondary"
+                  disabled={itemsPage >= totalPages || loading}
+                  onClick={() => setItemsPage((page) => Math.min(totalPages, page + 1))}
+                  style={{ height: 32, fontSize: 12, opacity: itemsPage >= totalPages ? 0.5 : 1 }}
+                >
+                  Proxima
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -491,7 +613,7 @@ export function LicitacaoDetailPage() {
       )}
 
       {/* Modal confirmar exclusão */}
-      {confirmDelete && (
+      {confirmDelete && createPortal(
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => setConfirmDelete(null)}
@@ -504,21 +626,33 @@ export function LicitacaoDetailPage() {
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               </div>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>Excluir item?</h3>
+              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>Remover item?</h3>
               <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                O item <strong style={{ color: '#0f172a' }}>{confirmDelete.descricao}</strong> será removido permanentemente. Esta ação não pode ser desfeita.
+                O item <strong style={{ color: '#0f172a' }}>{confirmDelete.descricao}</strong> será removido se ainda não tiver uso. Se já existir histórico, ele será apenas inativado.
               </p>
               <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 4 }}>
                 <button type="button" onClick={() => setConfirmDelete(null)} className="tn-btn-secondary" style={{ flex: 1 }}>Cancelar</button>
                 <button type="button" onClick={() => void handleDeleteItem()} disabled={deleting}
                   style={{ flex: 1, height: 38, fontSize: 13, fontWeight: 700, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: deleting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  {deleting ? 'Excluindo…' : 'Excluir'}
+                  {deleting ? 'Processando...' : 'Remover'}
                 </button>
               </div>
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
+    {confirmDeactivate && (
+      <ConfirmModal
+        title="Desativar esta licitação?"
+        message="A licitação será marcada como inativa e não poderá ser usada em novas solicitações."
+        confirmLabel="Desativar"
+        variant="warning"
+        onConfirm={() => void doDeactivateLicitacao()}
+        onCancel={() => setConfirmDeactivate(false)}
+      />
+    )}
+      <ToastContainer toasts={toasts} onClose={closeToast} />
+    </>
   );
 }

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { tenantApi, type Licitacao } from '../../lib/api-client';
 import { useTenant, useTenantPermission } from '../TenantContext';
+import { ToastContainer } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -117,6 +119,7 @@ function EditLicitacaoModal({ licitacao, entityId, onClose, onSaved }: {
 export function LicitacaoListPage() {
   const { entityId } = useTenant();
   const canManage = useTenantPermission('licitacoes.manage');
+  const { toasts, showToast, closeToast } = useToast();
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -144,9 +147,11 @@ export function LicitacaoListPage() {
   const handleDelete = async () => {
     if (!confirmDelete) return;
     setDeleting(true);
+    const nome = confirmDelete.identificacao;
     try {
       await tenantApi.licitacoes.delete(entityId, confirmDelete.id);
       setConfirmDelete(null);
+      showToast(`Licitação "${nome}" excluída com sucesso.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir');
@@ -469,6 +474,7 @@ export function LicitacaoListPage() {
           </div>
         </div>
       )}
+      <ToastContainer toasts={toasts} onClose={closeToast} />
     </div>
   );
 }

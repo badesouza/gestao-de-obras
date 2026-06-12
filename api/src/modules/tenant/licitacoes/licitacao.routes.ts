@@ -347,6 +347,20 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
         });
         if (!item) throw new AppError(404, 'NOT_FOUND', 'Item não encontrado');
 
+        const [registroUsos, solicitacaoUsos, pedidoUsos] = await Promise.all([
+          fastify.prisma.registroDiarioValorItem.count({ where: { licitacaoItemId: itemId, entityId } }),
+          fastify.prisma.solicitacaoServicoItem.count({ where: { licitacaoItemId: itemId, entityId } }),
+          fastify.prisma.pedidoCompraItem.count({ where: { licitacaoItemId: itemId, entityId } }),
+        ]);
+        if (registroUsos + solicitacaoUsos + pedidoUsos > 0) {
+          const updated = await fastify.prisma.licitacaoItem.update({
+            where: { id: itemId },
+            data: { status: 'INACTIVE' },
+            include: { createdBy: { select: { id: true, name: true } } },
+          });
+          return reply.send(updated);
+        }
+
         await fastify.prisma.licitacaoItem.delete({ where: { id: itemId } });
         return reply.code(204).send();
       } catch (error) {

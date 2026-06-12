@@ -1,4 +1,4 @@
-import type { LicitacaoStatus, PrismaClient } from '../../../../generated/prisma/index.js';
+import { Prisma, type LicitacaoStatus, type PrismaClient } from '../../../../generated/prisma/index.js';
 import { IMPORT_MAX_ROWS } from '../../../shared/constants.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
@@ -23,6 +23,13 @@ export interface LicitacaoItemDto {
   status: LicitacaoStatus;
   createdAt: string;
   createdBy: UserRef;
+  saldo: {
+    controleSaldo: boolean;
+    quantidadeLicitada: string | null;
+    quantidadeReservada: string;
+    quantidadeRecebida: string;
+    quantidadeDisponivel: string | null;
+  };
 }
 
 /** Maps item record to API DTO */
@@ -33,13 +40,24 @@ function toItemDto(
     categoria: string | null;
     descricao: string;
     unidadeMedida: string;
-    quantidade: { toString(): string } | null;
-    valorUnitario: { toString(): string } | null;
+    quantidade: Prisma.Decimal | null;
+    valorUnitario: Prisma.Decimal | null;
     status: LicitacaoStatus;
     createdAt: Date;
     createdBy: { id: string; name: string };
   },
+  saldo?: {
+    quantidadeReservada: Prisma.Decimal;
+    quantidadeRecebida: Prisma.Decimal;
+  },
 ): LicitacaoItemDto {
+  const quantidadeLicitada = item.quantidade ?? null;
+  const quantidadeReservada = saldo?.quantidadeReservada ?? new Prisma.Decimal(0);
+  const quantidadeRecebida = saldo?.quantidadeRecebida ?? new Prisma.Decimal(0);
+  const quantidadeDisponivel = quantidadeLicitada
+    ? Prisma.Decimal.max(quantidadeLicitada.minus(quantidadeReservada), 0)
+    : null;
+
   return {
     id: item.id,
     licitacaoId: item.licitacaoId,
@@ -51,7 +69,67 @@ function toItemDto(
     status: item.status,
     createdAt: item.createdAt.toISOString(),
     createdBy: { id: item.createdBy.id, name: item.createdBy.name },
+    saldo: {
+      controleSaldo: quantidadeLicitada !== null,
+      quantidadeLicitada: quantidadeLicitada?.toString() ?? null,
+      quantidadeReservada: quantidadeReservada.toString(),
+      quantidadeRecebida: quantidadeRecebida.toString(),
+      quantidadeDisponivel: quantidadeDisponivel?.toString() ?? null,
+    },
   };
+}
+
+async function getSaldoByItemId(prisma: PrismaClient, entityId: string, itemIds: string[]) {
+  const empty = new Map<string, { quantidadeReservada: Prisma.Decimal; quantidadeRecebida: Prisma.Decimal }>();
+  if (itemIds.length === 0) return empty;
+
+  const [solicitacoes, pedidos] = await Promise.all([
+    prisma.solicitacaoServicoItem.groupBy({
+      by: ['licitacaoItemId'],
+      where: {
+        entityId,
+        licitacaoItemId: { in: itemIds },
+        solicitacaoServico: { status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] } },
+      },
+      _sum: { quantidade: true },
+    }),
+    prisma.pedidoCompraItem.findMany({
+      where: {
+        entityId,
+        licitacaoItemId: { in: itemIds },
+        pedidoCompra: { status: { not: 'CANCELLED' } },
+      },
+      select: {
+        licitacaoItemId: true,
+        quantidadeTotal: true,
+        recebimentos: { select: { quantidade: true } },
+      },
+    }),
+  ]);
+
+  itemIds.forEach((id) => {
+    empty.set(id, {
+      quantidadeReservada: new Prisma.Decimal(0),
+      quantidadeRecebida: new Prisma.Decimal(0),
+    });
+  });
+
+  solicitacoes.forEach((row) => {
+    const current = empty.get(row.licitacaoItemId);
+    if (!current) return;
+    current.quantidadeReservada = current.quantidadeReservada.plus(row._sum.quantidade ?? 0);
+  });
+
+  pedidos.forEach((pedidoItem) => {
+    const current = empty.get(pedidoItem.licitacaoItemId);
+    if (!current) return;
+    current.quantidadeReservada = current.quantidadeReservada.plus(pedidoItem.quantidadeTotal);
+    current.quantidadeRecebida = current.quantidadeRecebida.plus(
+      pedidoItem.recebimentos.reduce((sum, recebimento) => sum.plus(recebimento.quantidade), new Prisma.Decimal(0)),
+    );
+  });
+
+  return empty;
 }
 
 /** Ensures licitacao is active before import */
@@ -146,8 +224,10 @@ export async function listLicitacaoItems(
     }),
   ]);
 
+  const saldoByItemId = await getSaldoByItemId(prisma, entityId, rows.map((item) => item.id));
+
   return {
-    items: rows.map(toItemDto),
+    items: rows.map((item) => toItemDto(item, saldoByItemId.get(item.id))),
     total,
     page: query.page,
     pageSize: query.pageSize,

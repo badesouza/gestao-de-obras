@@ -16,10 +16,13 @@ import {
   solicitacoesQuerySchema,
 } from './compras.schema.js';
 import {
+  cancelPedido,
   changeSolicitacaoStatus,
   createPedidoFromSolicitacoes,
   createRecebimento,
   createSolicitacao,
+  deletePedido,
+  deleteSolicitacao,
   getPedidoById,
   getSolicitacaoById,
   listPedidos,
@@ -68,6 +71,16 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
       const { id } = request.params as { id: string };
       const result = await getSolicitacaoById(fastify.prisma, request.user.entityId!, id);
       return reply.send(result);
+    } catch (error) {
+      return handleAppError(reply, error);
+    }
+  });
+
+  fastify.delete('/compras/solicitacoes/:id', { preHandler: canManage }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      await deleteSolicitacao(fastify.prisma, request.user.sub, request.user.entityId!, id);
+      return reply.code(204).send();
     } catch (error) {
       return handleAppError(reply, error);
     }
@@ -131,6 +144,26 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
       const { id } = request.params as { id: string };
       const result = await sendPedido(fastify.prisma, request.user.sub, request.user.entityId!, id);
       return reply.send(result);
+    } catch (error) {
+      return handleAppError(reply, error);
+    }
+  });
+
+  fastify.post('/compras/pedidos/:id/cancel', { preHandler: canManage }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const result = await cancelPedido(fastify.prisma, request.user.sub, request.user.entityId!, id);
+      return reply.send(result);
+    } catch (error) {
+      return handleAppError(reply, error);
+    }
+  });
+
+  fastify.delete('/compras/pedidos/:id', { preHandler: canManage }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      await deletePedido(fastify.prisma, request.user.sub, request.user.entityId!, id);
+      return reply.code(204).send();
     } catch (error) {
       return handleAppError(reply, error);
     }

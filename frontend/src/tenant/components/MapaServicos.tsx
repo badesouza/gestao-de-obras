@@ -87,15 +87,18 @@ const LEGENDA = [
 type FiltroStatus = '' | 'Concluída' | 'Em andamento' | 'Aberta' | 'Cancelada';
 type TileMode = 'street' | 'satellite';
 
-interface Props { height?: number; showFilters?: boolean; }
+interface Props { height?: number; showFilters?: boolean; fullscreenMode?: boolean; }
 
-export function MapaServicos({ height = 420, showFilters = true }: Props) {
+export function MapaServicos({ height = 420, showFilters = true, fullscreenMode = false }: Props) {
   const { entityId } = useTenant();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef       = useRef<L.Map | null>(null);
-  const layerRef     = useRef<L.LayerGroup | null>(null);
-  const streetRef    = useRef<L.TileLayer | null>(null);
-  const satelliteRef = useRef<L.TileLayer | null>(null);
+  const containerRef     = useRef<HTMLDivElement>(null);
+  const mapRef           = useRef<L.Map | null>(null);
+  const layerRef         = useRef<L.LayerGroup | null>(null);
+  const streetRef        = useRef<L.TileLayer | null>(null);
+  const satelliteRef     = useRef<L.TileLayer | null>(null);
+  const resizeFrameRef   = useRef<number | null>(null);
+  const resizeTimerRef   = useRef<number | null>(null);
+  const resizeLockRef    = useRef(false); // bloqueia ResizeObserver durante troca de fullscreen
   const [mapReady, setMapReady] = useState(false);
 
   const hoje = new Date();
@@ -109,14 +112,34 @@ export function MapaServicos({ height = 420, showFilters = true }: Props) {
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('');
   const [filtroBairro, setFiltroBairro] = useState('');
   const [filtroDia,    setFiltroDia]    = useState('');
-  const [fullscreen,   setFullscreen]   = useState(false);
 
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [fullscreen]);
+  const scheduleMapResize = useCallback((delay = 0) => {
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+      resizeFrameRef.current = null;
+    }
+    if (resizeTimerRef.current !== null) {
+      window.clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = null;
+    }
+
+    const run = () => {
+      resizeFrameRef.current = requestAnimationFrame(() => {
+        mapRef.current?.invalidateSize({ pan: false, animate: false });
+        resizeFrameRef.current = null;
+      });
+    };
+
+    if (delay > 0) {
+      resizeTimerRef.current = window.setTimeout(() => {
+        resizeTimerRef.current = null;
+        run();
+      }, delay);
+      return;
+    }
+
+    run();
+  }, []);
 
   const centros = useMemo(() => {
     const m = new Map<string, string>();
@@ -141,13 +164,14 @@ export function MapaServicos({ height = 420, showFilters = true }: Props) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const el = containerRef.current;
-    const map = L.map(el, { center: [-12.5253, -40.3083], zoom: 13, zoomControl: true });
+    const map = L.map(el, { center: [-12.5253, -40.3083], zoom: 13, zoomControl: true, zoomAnimation: false });
 
     const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19,
     });
     const satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
       attribution: '© Google', subdomains: ['mt0','mt1','mt2','mt3'], maxZoom: 21,
+      updateWhenZooming: false, keepBuffer: 4,
     });
 
     satellite.addTo(map);
@@ -156,12 +180,22 @@ export function MapaServicos({ height = 420, showFilters = true }: Props) {
     layerRef.current     = L.layerGroup().addTo(map);
     mapRef.current       = map;
 
-    const ro = new ResizeObserver(() => map.invalidateSize());
+    const ro = new ResizeObserver(() => {
+      if (!resizeLockRef.current) scheduleMapResize(40);
+    });
     ro.observe(el);
-    setTimeout(() => { map.invalidateSize(); setMapReady(true); }, 200);
+    setTimeout(() => { map.invalidateSize({ pan: false, animate: false }); setMapReady(true); }, 200);
 
-    return () => { ro.disconnect(); map.remove(); mapRef.current = null; layerRef.current = null; setMapReady(false); };
-  }, []);
+    return () => {
+      ro.disconnect();
+      if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
+      if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
+      map.remove();
+      mapRef.current = null;
+      layerRef.current = null;
+      setMapReady(false);
+    };
+  }, [scheduleMapResize]);
 
   /* trocar tile ao mudar modo */
   useEffect(() => {
@@ -262,7 +296,7 @@ export function MapaServicos({ height = 420, showFilters = true }: Props) {
   const temFiltro = filtroCC || filtroStatus || filtroBairro || filtroDia;
 
   return (
-    <div className={`sv-mapa-layout${fullscreen ? ' is-fullscreen' : ''}`}>
+    <div className={`sv-mapa-layout${fullscreenMode ? ' is-fullscreen' : ''}`}>
 
       {/* ── Coluna principal: controles + mapa ── */}
       <div className="sv-mapa-main">
@@ -347,28 +381,34 @@ export function MapaServicos({ height = 420, showFilters = true }: Props) {
         )}
 
         {/* Mapa */}
-        <div className="sv-mapa-container" style={{ position: 'relative' }}>
-          <div ref={containerRef} className="sv-mapa-leaflet" style={{ minHeight: fullscreen ? 0 : height, width: '100%' }} />
+        <div className="sv-mapa-container" style={{ position: 'relative', flex: fullscreenMode ? 1 : undefined, display: fullscreenMode ? 'flex' : undefined, flexDirection: fullscreenMode ? 'column' : undefined }}>
+          <div ref={containerRef} className="sv-mapa-leaflet" style={{ minHeight: fullscreenMode ? 0 : height, flex: fullscreenMode ? 1 : undefined, width: '100%' }} />
 
-          {/* Botão fullscreen */}
-          <button
-            type="button"
-            className="sv-mapa-fs-btn"
-            onClick={() => { setFullscreen(f => !f); setTimeout(() => mapRef.current?.invalidateSize(), 50); }}
-            title={fullscreen ? 'Sair da tela cheia (Esc)' : 'Expandir mapa'}
-          >
-            {fullscreen ? (
+          {/* Botão abrir em nova aba / fechar */}
+          {fullscreenMode ? (
+            <button
+              type="button"
+              className="sv-mapa-fs-btn"
+              onClick={() => window.close()}
+              title="Fechar"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <path d="M8 3v3a2 2 0 01-2 2H3"/><path d="M21 8h-3a2 2 0 01-2-2V3"/>
-                <path d="M3 16h3a2 2 0 012 2v3"/><path d="M16 21v-3a2 2 0 012-2h3"/>
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
-            ) : (
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="sv-mapa-fs-btn"
+              onClick={() => window.open(`/t/${entityId}/mapa`, '_blank')}
+              title="Abrir mapa em tela cheia"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
                 <path d="M8 3H5a2 2 0 00-2 2v3"/><path d="M21 8V5a2 2 0 00-2-2h-3"/>
                 <path d="M3 16v3a2 2 0 002 2h3"/><path d="M16 21h3a2 2 0 002-2v-3"/>
               </svg>
-            )}
-          </button>
+            </button>
+          )}
 
           {mapReady && !loading && pinsFiltrados.length === 0 && (
             <div className="sv-mapa-empty">

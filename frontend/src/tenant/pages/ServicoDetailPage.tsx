@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { tenantApi, mapaApi, type CentroCustoDetail, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
+import { ToastContainer } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { SERVICOS_CONFIG, CENTRO_IDS, type ServicoConfig } from './servico-config';
 import { ServicoInstrucoesDrawer } from '../components/ServicoInstrucoesDrawer';
 import { NovaOcorrenciaModal } from '../components/NovaOcorrenciaModal';
@@ -53,6 +55,7 @@ export function ServicoDetailPage() {
   const config: ServicoConfig | undefined = SERVICOS_CONFIG[slug ?? ''];
   const centroId = CENTRO_IDS[slug ?? ''];
 
+  const { toasts, showToast, closeToast } = useToast();
   const [centro, setCentro] = useState<CentroCustoDetail | null>(null);
   const [rows, setRows] = useState<RegistroDiarioRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +163,7 @@ export function ServicoDetailPage() {
     try {
       await tenantApi.centrosCusto.deleteRegistro(entityId, centroId, id);
       setConfirmDelete(null);
+      showToast('Ocorrência excluída com sucesso.');
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao excluir');
@@ -683,6 +687,7 @@ export function ServicoDetailPage() {
         onClose={() => setAjudaOpen(false)}
       />
 
+      <ToastContainer toasts={toasts} onClose={closeToast} />
     </div>
   );
 }

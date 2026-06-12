@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   Boxes,
@@ -8,12 +9,16 @@ import {
   Plus,
   Send,
   ShoppingCart,
+  Trash2,
 } from 'lucide-react';
 import { tenantApi, type Licitacao, type LicitacaoItem } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import type { ServicoConfig } from '../pages/servico-config';
 import { dinheiro, formatarData } from './compras-data';
 import type { CompraSolicitacao, SolicitacaoServicoStatus } from '../../lib/api-client';
+import { ConfirmModal } from './ConfirmModal';
+import { ToastContainer } from './Toast';
+import { useToast } from '../hooks/useToast';
 
 interface ServicoSolicitacoesPanelProps {
   config: ServicoConfig;
@@ -27,6 +32,16 @@ const STATUS_LABEL: Record<SolicitacaoServicoStatus, string> = {
   CANCELLED: 'Cancelada',
   CONSOLIDATED: 'Consolidada',
 };
+
+interface DraftSolicitacaoItem {
+  licitacaoItemId: string;
+  descricao: string;
+  unidadeMedida: string;
+  valorUnitario: string | null;
+  quantidade: string;
+  controleSaldo: boolean;
+  quantidadeDisponivel: string | null;
+}
 
 function statusClass(status: SolicitacaoServicoStatus): string {
   if (status === 'APPROVED') return 'dot-green';
@@ -42,6 +57,113 @@ function toNumber(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function ItemSearchSelect({
+  items,
+  value,
+  onChange,
+  disabled,
+}: {
+  items: LicitacaoItem[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const [listStyle, setListStyle] = useState<React.CSSProperties>({});
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = items.find((item) => item.id === value);
+
+  const filtered = search.trim()
+    ? items.filter((item) => item.descricao.toLowerCase().includes(search.toLowerCase()))
+    : items;
+
+  useLayoutEffect(() => {
+    if (!open || !wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    setListStyle({
+      position: 'fixed',
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    });
+  }, [open]);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const handleSelect = (id: string) => {
+    onChange(id);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const list = open && !disabled
+    ? createPortal(
+        <div className="cp-item-search-list" style={listStyle}>
+          {filtered.length === 0 ? (
+            <div className="cp-item-search-empty">Nenhum item encontrado</div>
+          ) : (
+            filtered.map((item) => (
+              <div
+                key={item.id}
+                className={`cp-item-search-option${item.id === value ? ' is-selected' : ''}`}
+                onMouseDown={() => handleSelect(item.id)}
+              >
+                <strong>{item.descricao}</strong>
+                <small>
+                  {item.saldo.controleSaldo
+                    ? `Disponivel ${Number(item.saldo.quantidadeDisponivel ?? 0).toLocaleString('pt-BR')} ${item.unidadeMedida} - reservado ${Number(item.saldo.quantidadeReservada).toLocaleString('pt-BR')}`
+                    : 'Sem controle de saldo por quantidade'}
+                </small>
+              </div>
+            ))
+          )}
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <div ref={wrapperRef} className="cp-item-search-wrap">
+      <div
+        className={`cp-item-search-trigger${open ? ' is-open' : ''}${disabled ? ' is-disabled' : ''}`}
+        onClick={() => { if (!disabled) { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0); } }}
+      >
+        {open ? (
+          <input
+            ref={inputRef}
+            className="cp-item-search-input"
+            placeholder="Buscar item..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            autoFocus
+          />
+        ) : (
+          <span className={selected ? '' : 'cp-item-placeholder'}>
+            {selected ? selected.descricao : (disabled ? 'Nenhum item disponível' : 'Selecione um item...')}
+          </span>
+        )}
+        <svg className="cp-item-search-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      {list}
+    </div>
+  );
+}
+
 function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; onSaved: () => void }) {
   const { entityId } = useTenant();
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
@@ -49,6 +171,7 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
   const [licitacaoId, setLicitacaoId] = useState('');
   const [itemId, setItemId] = useState('');
   const [quantidade, setQuantidade] = useState('1');
+  const [draftItems, setDraftItems] = useState<DraftSolicitacaoItem[]>([]);
   const [prioridade, setPrioridade] = useState<'Alta' | 'Media' | 'Baixa'>('Media');
   const [justificativa, setJustificativa] = useState(`Reposicao de materiais para execucao do servico de ${config.nome}.`);
   const [loadingLic, setLoadingLic] = useState(true);
@@ -103,14 +226,74 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
     return () => { alive = false; };
   }, [entityId, licitacaoId]);
 
+  useEffect(() => {
+    setDraftItems([]);
+  }, [licitacaoId]);
+
   const selectedItem = items.find((item) => item.id === itemId);
   const quantidadeNum = Math.max(0, toNumber(quantidade));
   const valorUnitario = toNumber(selectedItem?.valorUnitario);
   const valorTotal = quantidadeNum * valorUnitario;
+  const quantidadeJaNoRascunho = draftItems
+    .filter((item) => item.licitacaoItemId === selectedItem?.id)
+    .reduce((sum, item) => sum + toNumber(item.quantidade), 0);
+  const disponivelSelecionado = selectedItem?.saldo.controleSaldo
+    ? toNumber(selectedItem.saldo.quantidadeDisponivel)
+    : null;
+  const excedeSaldoSelecionado = disponivelSelecionado !== null
+    && quantidadeJaNoRascunho + quantidadeNum > disponivelSelecionado + 0.0001;
+  const draftTotal = draftItems.reduce(
+    (sum, item) => sum + toNumber(item.quantidade) * toNumber(item.valorUnitario),
+    0,
+  );
+
+  const handleAddItem = () => {
+    if (!selectedItem || quantidadeNum <= 0) {
+      setError('Selecione um item e uma quantidade maior que zero.');
+      return;
+    }
+    if (excedeSaldoSelecionado) {
+      setError(`Quantidade excede o saldo disponivel da licitacao. Disponivel: ${disponivelSelecionado?.toLocaleString('pt-BR')} ${selectedItem.unidadeMedida}.`);
+      return;
+    }
+
+    setDraftItems((current) => {
+      const existing = current.find((item) => item.licitacaoItemId === selectedItem.id);
+      if (existing) {
+        return current.map((item) => {
+          if (item.licitacaoItemId !== selectedItem.id) return item;
+          const nextQuantidade = toNumber(item.quantidade) + quantidadeNum;
+          return { ...item, quantidade: String(nextQuantidade) };
+        });
+      }
+      return [
+        ...current,
+        {
+          licitacaoItemId: selectedItem.id,
+          descricao: selectedItem.descricao,
+          unidadeMedida: selectedItem.unidadeMedida,
+          valorUnitario: selectedItem.valorUnitario,
+          quantidade,
+          controleSaldo: selectedItem.saldo.controleSaldo,
+          quantidadeDisponivel: selectedItem.saldo.quantidadeDisponivel,
+        },
+      ];
+    });
+    setError('');
+  };
 
   const handleSave = async (submit: boolean) => {
-    if (!licitacaoId || !itemId || quantidadeNum <= 0) {
-      setError('Selecione licitacao, item e uma quantidade maior que zero.');
+    if (!licitacaoId || draftItems.length === 0) {
+      setError('Adicione pelo menos um item antes de salvar a solicitacao.');
+      return;
+    }
+    const itemExcedido = draftItems.find((item) => (
+      item.controleSaldo
+      && item.quantidadeDisponivel !== null
+      && toNumber(item.quantidade) > toNumber(item.quantidadeDisponivel) + 0.0001
+    ));
+    if (itemExcedido) {
+      setError(`O item "${itemExcedido.descricao}" excede o saldo disponivel da licitacao.`);
       return;
     }
     setSaving(submit ? 'submit' : 'draft');
@@ -123,7 +306,10 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
         prioridade,
         justificativa,
         submit,
-        itens: [{ licitacaoItemId: itemId, quantidade }],
+        itens: draftItems.map((item) => ({
+          licitacaoItemId: item.licitacaoItemId,
+          quantidade: item.quantidade,
+        })),
       });
       onSaved();
     } catch (err) {
@@ -169,29 +355,28 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
             <option>Baixa</option>
           </select>
         </label>
-        <label className="is-wide">
-          <span>Justificativa</span>
-          <textarea value={justificativa} onChange={(event) => setJustificativa(event.target.value)} />
-        </label>
       </div>
       {error ? <div className="tn-alert cp-draft-alert">{error}</div> : null}
       <div className="cp-item-builder">
         <div>
           <span>Item da licitacao</span>
-          <select
-            value={itemId}
-            onChange={(event) => setItemId(event.target.value)}
-            disabled={loadingItems || items.length === 0}
-            className="cp-item-select"
-          >
-            {loadingItems ? <option>Carregando itens...</option> : null}
-            {!loadingItems && items.length === 0 ? <option>Nenhum item ativo nesta licitacao</option> : null}
-            {items.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.descricao}
-              </option>
-            ))}
-          </select>
+          {loadingItems ? (
+            <div className="cp-item-search-loading">Carregando itens...</div>
+          ) : (
+            <ItemSearchSelect
+              items={items}
+              value={itemId}
+              onChange={setItemId}
+              disabled={items.length === 0}
+            />
+          )}
+          {selectedItem ? (
+            <small>
+              {selectedItem.saldo.controleSaldo
+                ? `Licitado ${Number(selectedItem.saldo.quantidadeLicitada ?? 0).toLocaleString('pt-BR')} ${selectedItem.unidadeMedida} - reservado ${Number(selectedItem.saldo.quantidadeReservada).toLocaleString('pt-BR')} - disponivel ${Number(selectedItem.saldo.quantidadeDisponivel ?? 0).toLocaleString('pt-BR')}`
+                : 'Item sem controle de saldo por quantidade na licitacao'}
+            </small>
+          ) : null}
         </div>
         <div>
           <span>Qtd.</span>
@@ -199,19 +384,62 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
             className="cp-qty-input"
             type="number"
             min="0"
+            max={disponivelSelecionado ?? undefined}
             step="0.01"
             value={quantidade}
             onChange={(event) => setQuantidade(event.target.value)}
           />
+          {excedeSaldoSelecionado ? <small style={{ color: '#b45309' }}>Excede o saldo disponivel</small> : null}
         </div>
         <div>
           <span>Total</span>
           <strong>{dinheiro(valorTotal)}</strong>
           {selectedItem ? <small>{selectedItem.unidadeMedida} x {dinheiro(valorUnitario)}</small> : null}
         </div>
-        <button type="button" className="tn-icon-btn" title="Adicionar item">
-          <Plus size={14} />
+        <button
+          type="button"
+          className="cp-btn-add-item"
+          title="Adicionar item"
+          disabled={loadingItems || !selectedItem || quantidadeNum <= 0 || excedeSaldoSelecionado}
+          onClick={handleAddItem}
+        >
+          <Plus size={16} />
+          Adicionar
         </button>
+      </div>
+      {draftItems.length > 0 ? (
+        <div className="cp-draft-items">
+          {draftItems.map((item) => {
+            const itemTotal = toNumber(item.quantidade) * toNumber(item.valorUnitario);
+            return (
+              <div key={item.licitacaoItemId} className="cp-draft-item">
+                <div>
+                  <strong>{item.descricao}</strong>
+                  <span>{Number(item.quantidade).toLocaleString('pt-BR')} {item.unidadeMedida} x {dinheiro(toNumber(item.valorUnitario))}</span>
+                </div>
+                <strong>{dinheiro(itemTotal)}</strong>
+                <button
+                  type="button"
+                  className="tn-icon-btn sv-btn-excluir"
+                  title="Remover item"
+                  onClick={() => setDraftItems((current) => current.filter((draftItem) => draftItem.licitacaoItemId !== item.licitacaoItemId))}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            );
+          })}
+          <div className="cp-draft-total">
+            <span>Total da solicitacao</span>
+            <strong>{dinheiro(draftTotal)}</strong>
+          </div>
+        </div>
+      ) : null}
+      <div className="cp-form-grid cp-justificativa-grid">
+        <label className="is-wide">
+          <span>Justificativa</span>
+          <textarea value={justificativa} onChange={(event) => setJustificativa(event.target.value)} />
+        </label>
       </div>
       <div className="cp-service-draft-actions">
         <button type="button" className="tn-btn-secondary" disabled={saving !== null} onClick={() => void handleSave(false)}>
@@ -230,7 +458,7 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
 function SolicitacaoCard({ solicitacao, config, onAction }: {
   solicitacao: CompraSolicitacao;
   config: ServicoConfig;
-  onAction: (id: string, action: 'submit' | 'approve' | 'reject' | 'cancel') => void;
+  onAction: (id: string, action: 'submit' | 'approve' | 'reject' | 'cancel' | 'delete') => void;
 }) {
   return (
     <article className="cp-request-card" style={{ '--cp-accent': config.cor } as React.CSSProperties}>
@@ -265,29 +493,40 @@ function SolicitacaoCard({ solicitacao, config, onAction }: {
         <span>Total estimado</span>
         <strong>{dinheiro(Number(solicitacao.valorTotal))}</strong>
       </div>
-      {solicitacao.status !== 'CONSOLIDATED' && solicitacao.status !== 'CANCELLED' ? (
-        <div className="cp-service-draft-actions">
-          {solicitacao.status === 'DRAFT' ? (
-            <button type="button" className="tn-btn-secondary" onClick={() => onAction(solicitacao.id, 'submit')}>Enviar</button>
-          ) : null}
-          {solicitacao.status !== 'APPROVED' ? (
-            <button type="button" className="tn-btn-blue" onClick={() => onAction(solicitacao.id, 'approve')}>Aprovar</button>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="cp-service-draft-actions">
+        {solicitacao.status !== 'CANCELLED' ? (
+          <>
+            {solicitacao.status === 'DRAFT' ? (
+              <button type="button" className="tn-btn-secondary" onClick={() => onAction(solicitacao.id, 'submit')}>Enviar</button>
+            ) : null}
+            {solicitacao.status !== 'APPROVED' && solicitacao.status !== 'CONSOLIDATED' ? (
+              <button type="button" className="tn-btn-blue" onClick={() => onAction(solicitacao.id, 'approve')}>Aprovar</button>
+            ) : null}
+            {solicitacao.status !== 'CONSOLIDATED' ? (
+              <button type="button" className="tn-btn-secondary" onClick={() => onAction(solicitacao.id, 'cancel')}>Cancelar</button>
+            ) : null}
+          </>
+        ) : null}
+        <button type="button" className="tn-btn-secondary" onClick={() => onAction(solicitacao.id, 'delete')}>
+          <Trash2 size={13} />
+          Excluir
+        </button>
+      </div>
     </article>
   );
 }
 
 export function ServicoSolicitacoesPanel({ config }: ServicoSolicitacoesPanelProps) {
   const { entityId } = useTenant();
+  const { toasts, showToast, closeToast } = useToast();
   const [modo, setModo] = useState<'lista' | 'nova'>('lista');
   const [solicitacoes, setSolicitacoes] = useState<CompraSolicitacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirm, setConfirm] = useState<{ title: string; message?: string; onConfirm: () => void } | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ servicoSlug: config.slug, pageSize: '100' });
@@ -306,16 +545,36 @@ export function ServicoSolicitacoesPanel({ config }: ServicoSolicitacoesPanelPro
   const total = solicitacoes.reduce((sum, solicitacao) => sum + Number(solicitacao.valorTotal), 0);
   const itens = solicitacoes.reduce((sum, solicitacao) => sum + solicitacao.itens.length, 0);
 
-  const handleAction = async (id: string, action: 'submit' | 'approve' | 'reject' | 'cancel') => {
-    try {
-      await tenantApi.compras.changeSolicitacaoStatus(entityId, id, action);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar solicitacao');
+  const handleAction = (id: string, action: 'submit' | 'approve' | 'reject' | 'cancel' | 'delete') => {
+    if (action === 'delete') {
+      setConfirm({
+        title: 'Excluir solicitação?',
+        message: 'Esta ação removerá a solicitação e tudo que estiver ligado a ela.',
+        onConfirm: async () => {
+          setConfirm(null);
+          try {
+            await tenantApi.compras.deleteSolicitacao(entityId, id);
+            await load(true);
+            showToast('Solicitação excluída com sucesso.');
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Erro ao excluir solicitação');
+          }
+        },
+      });
+      return;
     }
+    void (async () => {
+      try {
+        await tenantApi.compras.changeSolicitacaoStatus(entityId, id, action);
+        await load(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao atualizar solicitação');
+      }
+    })();
   };
 
   return (
+    <>
     <section className="cp-service-panel" style={{ '--cp-accent': config.cor } as React.CSSProperties}>
       <div className="cp-service-hero">
         <div className="cp-service-hero-pulse" />
@@ -394,5 +653,16 @@ export function ServicoSolicitacoesPanel({ config }: ServicoSolicitacoesPanelPro
         </div>
       )}
     </section>
+    {confirm && (
+      <ConfirmModal
+        title={confirm.title}
+        message={confirm.message}
+        confirmLabel="Excluir"
+        onConfirm={confirm.onConfirm}
+        onCancel={() => setConfirm(null)}
+      />
+    )}
+    <ToastContainer toasts={toasts} onClose={closeToast} />
+    </>
   );
 }

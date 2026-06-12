@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { ToastContainer } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import {
   cadastrosAuxiliaresApi,
   equipeApi,
@@ -56,6 +58,7 @@ function EquipeDetalhe({
 
   const [confirmDelOp, setConfirmDelOp] = useState<Operador | null>(null);
   const [error, setError] = useState('');
+  const { toasts: toastsEq, showToast: showToastEq, closeToast: closeToastEq } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,9 +115,11 @@ function EquipeDetalhe({
 
   const handleDelOp = async (op: Operador) => {
     setSavingOp(true);
+    const nome = op.nome;
     try {
       await equipeApi.deleteOperador(entityId, op.id);
       setConfirmDelOp(null);
+      showToastEq(`Operador "${nome}" excluído com sucesso.`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao excluir');
@@ -413,6 +418,7 @@ function EquipeDetalhe({
           </div>
         </div>
       )}
+      <ToastContainer toasts={toastsEq} onClose={closeToastEq} />
     </div>
   );
 }
@@ -575,6 +581,7 @@ function AbaEnderecos({ entityId }: { entityId: string }) {
   const [confirmDelete, setConfirmDelete] = useState<EnderecoDescoberto | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const { toasts, showToast, closeToast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -592,9 +599,11 @@ function AbaEnderecos({ entityId }: { entityId: string }) {
 
   const handleDelete = async (item: EnderecoDescoberto) => {
     setDeleting(true);
+    const logr = item.logradouro;
     try {
       await enderecosDescobertoApi.delete(entityId, item.id);
       setConfirmDelete(null);
+      showToast(`Endereço "${logr}" excluído com sucesso.`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao excluir');
@@ -748,6 +757,7 @@ function AbaEnderecos({ entityId }: { entityId: string }) {
           </div>
         </div>
       )}
+      <ToastContainer toasts={toasts} onClose={closeToast} />
     </div>
   );
 }
@@ -755,6 +765,7 @@ function AbaEnderecos({ entityId }: { entityId: string }) {
 /* ── Página principal ───────────────────────────────────────────── */
 export function CadastrosAuxiliaresPage() {
   const { entityId } = useTenant();
+  const { toasts: toastsCad, showToast: showToastCad, closeToast: closeToastCad } = useToast();
   const [abaAtiva, setAbaAtiva] = useState<AbaAtiva>('BAIRRO');
   const [items, setItems] = useState<CadastroAuxiliar[]>([]);
   const [loading, setLoading] = useState(true);
@@ -819,9 +830,11 @@ export function CadastrosAuxiliaresPage() {
 
   const handleDelete = async (item: CadastroAuxiliar) => {
     setSaving(true);
+    const nome = item.nome;
     try {
       await cadastrosAuxiliaresApi.delete(entityId, item.id);
       setConfirmDelete(null);
+      showToastCad(`"${nome}" excluído com sucesso.`);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao excluir');
@@ -1034,6 +1047,7 @@ export function CadastrosAuxiliaresPage() {
           </div>
         </div>
       )}
+      <ToastContainer toasts={toastsCad} onClose={closeToastCad} />
     </div>
   );
 }

@@ -355,6 +355,13 @@ export interface LicitacaoItem {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: string;
   createdBy: UserRef;
+  saldo: {
+    controleSaldo: boolean;
+    quantidadeLicitada: string | null;
+    quantidadeReservada: string;
+    quantidadeRecebida: string;
+    quantidadeDisponivel: string | null;
+  };
 }
 
 export type SolicitacaoServicoStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CONSOLIDATED';
@@ -380,6 +387,7 @@ export interface CompraSolicitacao {
   itens: Array<{
     id: string;
     licitacaoItemId: string;
+    categoria: string | null;
     descricao: string;
     unidadeMedida: string;
     valorUnitario: string;
@@ -404,6 +412,7 @@ export interface PedidoCompra {
   itens: Array<{
     id: string;
     licitacaoItemId: string;
+    categoria: string | null;
     licitacao: { id: string; identificacao: string; objeto: string };
     descricao: string;
     unidadeMedida: string;
@@ -706,6 +715,10 @@ export const tenantApi = {
       tenantRequest<CompraSolicitacao>(entityId, `/api/tenant/v1/compras/solicitacoes/${solicitacaoId}/${action}`, {
         method: 'POST',
       }),
+    deleteSolicitacao: (entityId: string, solicitacaoId: string) =>
+      tenantRequest<void>(entityId, `/api/tenant/v1/compras/solicitacoes/${solicitacaoId}`, {
+        method: 'DELETE',
+      }),
     listPedidos: (entityId: string, params: URLSearchParams) =>
       tenantRequest<{ items: PedidoCompra[]; total: number; page: number; pageSize: number }>(
         entityId,
@@ -718,6 +731,10 @@ export const tenantApi = {
       }),
     sendPedido: (entityId: string, pedidoId: string) =>
       tenantRequest<PedidoCompra>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}/send`, { method: 'POST' }),
+    cancelPedido: (entityId: string, pedidoId: string) =>
+      tenantRequest<PedidoCompra>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}/cancel`, { method: 'POST' }),
+    deletePedido: (entityId: string, pedidoId: string) =>
+      tenantRequest<void>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}`, { method: 'DELETE' }),
     createRecebimento: (entityId: string, pedidoId: string, body: {
       pedidoCompraItemId: string;
       quantidade: string;
@@ -829,7 +846,7 @@ export const tenantApi = {
       ),
     analytics: (entityId: string, centroId: string, year: number, month: number) =>
       tenantRequest<{
-        resumo: { total: number; concluidos: number; taxaConclusao: number; totalArea: number };
+        resumo: { total: number; concluidos: number; taxaConclusao: number; totalArea: number; comFoto: number };
         producaoDiaria: { data: string; total: number; concluidos: number; area: number }[];
         porBairro:  { name: string; value: number }[];
         porStatus:  { name: string; value: number }[];
@@ -982,6 +999,15 @@ export const mapaApi = {
     tenantRequest<void>(entityId, `/api/tenant/v1/mapa/midias/${midiaId}`, { method: 'DELETE' }),
   midiaUrl: (_entityId: string, midiaId: string) =>
     `/api/tenant/v1/mapa/midias/${midiaId}`,
+  fetchMidiaBlob: async (entityId: string, midiaId: string): Promise<string> => {
+    const token = getTenantToken(entityId);
+    const headers = new Headers({ 'X-Tenant-Id': entityId });
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`/api/tenant/v1/mapa/midias/${midiaId}`, { headers });
+    if (!res.ok) throw new Error('Falha ao carregar mídia');
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
 };
 
 export interface LiderRef {

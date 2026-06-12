@@ -25,6 +25,7 @@ import { ServicosPage } from './tenant/pages/ServicosPage';
 import { ServicoDetailPage } from './tenant/pages/ServicoDetailPage';
 import { CadastrosAuxiliaresPage } from './tenant/pages/CadastrosAuxiliaresPage';
 import { ComprasPage } from './tenant/pages/ComprasPage';
+import { MapaFullPage } from './tenant/pages/MapaFullPage';
 
 /** Application router root */
 function App() {
@@ -43,6 +44,7 @@ function App() {
 
         <Route path="/t/:id/login" element={<TenantLoginPage />} />
         <Route path="/t/:id/forbidden" element={<TenantForbiddenPage />} />
+        <Route path="/t/:id/mapa" element={<MapaFullPage />} />
         <Route path="/t/:id" element={<TenantGuard />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<TenantDashboardPage />} />

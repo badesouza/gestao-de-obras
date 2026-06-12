@@ -435,6 +435,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
                 propriedade: { select: { nome: true } },
               },
             },
+            _count: { select: { midias: true } },
           },
           orderBy: { data: 'asc' },
         });
@@ -455,6 +456,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
 
         let totalArea = 0;
         let totalConcluidos = 0;
+        let comFoto = 0;
 
         registros.forEach(reg => {
           /* @db.Date + parseDateOnly usa Date.UTC → ISO sempre tem dia correto em UTC */
@@ -499,6 +501,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
           }
 
           totalArea += area;
+          if (reg._count.midias > 0) comFoto++;
           if (bairro) porBairro[bairro] = (porBairro[bairro] ?? 0) + 1;
           if (status) porStatus[status] = (porStatus[status] ?? 0) + 1;
           if (tipo)   porTipo[tipo]     = (porTipo[tipo] ?? 0) + 1;
@@ -529,6 +532,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
             concluidos: totalConcluidos,
             taxaConclusao: registros.length > 0 ? Math.round((totalConcluidos / registros.length) * 100) : 0,
             totalArea: Math.round(totalArea * 10) / 10,
+            comFoto,
           },
           producaoDiaria: Object.values(porDia),
           porBairro:  toArr(porBairro),

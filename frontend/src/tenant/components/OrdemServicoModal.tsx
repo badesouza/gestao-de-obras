@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import { useTenant } from '../TenantContext';
-import { tenantApi } from '../../lib/api-client';
+import { tenantApi, mapaApi } from '../../lib/api-client';
 import type { RegistroDiarioRow, PropriedadeConfig } from '../../lib/api-client';
 import type { ServicoConfig } from '../pages/servico-config';
 
@@ -11,6 +11,19 @@ interface Props {
   config: ServicoConfig;
   propConfigs: PropriedadeConfig[];
   onClose: () => void;
+}
+
+interface Midia {
+  id: string;
+  tipo: string;
+  nomeArquivo: string;
+  mimeType: string;
+  tamanhoBytes: number;
+  createdAt: string;
+}
+
+interface MidiaComUrl extends Midia {
+  objectUrl: string;
 }
 
 function formatDataBr(iso: string) {
@@ -23,9 +36,38 @@ function gerarNumeroOS(id: string, data: string): string {
   return `OS-${ano}-${id.slice(0, 6).toUpperCase()}`;
 }
 
+/* Extrai campos estruturados da string de observações concatenadas pelo ModalConclusao.
+   Formato esperado: "<obs>\nVistoria: <data> | Fiscal: <nome> | Qualidade: <q>"
+   Retorna os campos separados + o texto livre sem a linha de vistoria. */
+function parseObservacoes(obs: string | undefined) {
+  if (!obs) return { texto: '', dataVistoria: '', fiscal: '', qualidade: '' };
+
+  const linhas = obs.split('\n');
+  const idxVistoria = linhas.findIndex(l => l.startsWith('Vistoria:'));
+
+  let dataVistoria = '';
+  let fiscal = '';
+  let qualidade = '';
+  let texto = obs;
+
+  if (idxVistoria !== -1) {
+    const linha = linhas[idxVistoria];
+    const partes = linha.split('|').map(p => p.trim());
+    for (const parte of partes) {
+      if (parte.startsWith('Vistoria:')) dataVistoria = parte.replace('Vistoria:', '').trim();
+      if (parte.startsWith('Fiscal:'))   fiscal       = parte.replace('Fiscal:', '').trim();
+      if (parte.startsWith('Qualidade:')) qualidade   = parte.replace('Qualidade:', '').trim();
+    }
+    texto = linhas.filter((_, i) => i !== idxVistoria).join('\n').trim();
+  }
+
+  return { texto, dataVistoria, fiscal, qualidade };
+}
+
 export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) {
   const { entityId, session } = useTenant();
   const [coatOfArmsUrl, setCoatOfArmsUrl] = useState<string | null>(null);
+  const [midias, setMidias] = useState<MidiaComUrl[]>([]);
   const mapDiv = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
 
@@ -35,6 +77,33 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
       setCoatOfArmsUrl(d.entity.coatOfArmsUrl ?? null);
     }).catch(() => {});
   }, [entityId]);
+
+  /* buscar fotos/vídeos da vistoria e gerar object URLs autenticadas */
+  useEffect(() => {
+    let cancelled = false;
+    const urls: string[] = [];
+
+    mapaApi.listMidias(entityId, row.id).then(async res => {
+      const lista = res.midias ?? [];
+      const comUrls = await Promise.all(
+        lista.map(async m => {
+          try {
+            const objectUrl = await mapaApi.fetchMidiaBlob(entityId, m.id);
+            urls.push(objectUrl);
+            return { ...m, objectUrl };
+          } catch {
+            return { ...m, objectUrl: '' };
+          }
+        })
+      );
+      if (!cancelled) setMidias(comUrls);
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      urls.forEach(u => URL.revokeObjectURL(u));
+    };
+  }, [entityId, row.id]);
 
   /* mini-mapa da OS — somente leitura */
   useEffect(() => {
@@ -78,17 +147,24 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
 
   const getCellText = (propId: string) => row.values[propId]?.text ?? '—';
 
-  /* campos relevantes para exibir na OS (exceto foto e observações) */
+  /* campos relevantes para exibir na OS (exceto observações) */
   const camposOS = propConfigs.filter(pc =>
-    !['Foto Registrada?', 'Observações'].includes(pc.propriedade.nome)
+    !['Observações'].includes(pc.propriedade.nome)
   );
 
   const observacoesPid = propConfigs.find(pc => pc.propriedade.nome === 'Observações')?.propriedadeId;
-  const observacoes = observacoesPid ? row.values[observacoesPid]?.text : '';
+  const obsRaw = observacoesPid ? row.values[observacoesPid]?.text : '';
+  const { texto: obsTexto, dataVistoria, fiscal, qualidade } = parseObservacoes(obsRaw);
+
+  const fotos  = midias.filter(m => m.tipo === 'foto' || m.mimeType.startsWith('image/'));
+  const videos = midias.filter(m => m.tipo === 'video' || m.mimeType.startsWith('video/'));
 
   const numeroOS = gerarNumeroOS(row.id, row.data);
   const municipio = session.entity.municipalityName ?? '';
   const uf = session.entity.uf ?? '';
+
+  /* verifica se já passou pela vistoria de conclusão */
+  const temVistoria = Boolean(dataVistoria || fiscal || qualidade);
 
   return createPortal(
     <div className="os-backdrop" onClick={onClose}>
@@ -180,15 +256,107 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
             </div>
           )}
 
-          {/* Observações */}
-          {observacoes && (
+          {/* Observações do solicitante */}
+          {obsTexto && (
             <div className="os-section">
               <div className="os-section-title">Observações</div>
-              <div className="os-obs">{observacoes}</div>
+              <div className="os-obs">{obsTexto}</div>
             </div>
           )}
 
           <div className="os-divider" />
+
+          {/* Vistoria de Conclusão — só aparece se já foi realizada */}
+          {temVistoria ? (
+            <div className="os-section os-vistoria">
+              <div className="os-section-title os-section-title--green">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ display: 'inline', marginRight: 6 }}>
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Vistoria de Conclusão
+              </div>
+              <div className="os-grid">
+                {dataVistoria && (
+                  <div className="os-field">
+                    <span className="os-field-label">Data da vistoria</span>
+                    <span className="os-field-value">{dataVistoria}</span>
+                  </div>
+                )}
+                {fiscal && (
+                  <div className="os-field">
+                    <span className="os-field-label">Fiscal responsável</span>
+                    <span className="os-field-value">{fiscal}</span>
+                  </div>
+                )}
+                {qualidade && (
+                  <div className="os-field">
+                    <span className="os-field-label">Qualidade da execução</span>
+                    <span className="os-field-value">{qualidade}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Levantamento fotográfico */}
+              {fotos.length > 0 && (
+                <div className="os-fotos-section">
+                  <div className="os-fotos-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    Levantamento Fotográfico ({fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'})
+                  </div>
+                  <div className="os-fotos-grid">
+                    {fotos.map(f => (
+                      <div key={f.id} className="os-foto-item">
+                        {f.objectUrl ? (
+                          <img src={f.objectUrl} alt={f.nomeArquivo} className="os-foto-img" />
+                        ) : (
+                          <div className="os-foto-img os-foto-erro">—</div>
+                        )}
+                        <span className="os-foto-nome">{f.nomeArquivo}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {videos.length > 0 && (
+                <div className="os-fotos-section">
+                  <div className="os-fotos-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                    </svg>
+                    Vídeos ({videos.length})
+                  </div>
+                  <div className="os-fotos-lista">
+                    {videos.map(v => (
+                      <span key={v.id} className="os-video-nome">{v.nomeArquivo}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Bloco para preenchimento manual — se ainda não foi vistoriado */
+            <div className="os-section os-resultado">
+              <div className="os-section-title">Resultado da Execução (preenchido pelo fiscal)</div>
+              <div className="os-resultado-grid">
+                <div className="os-field">
+                  <span className="os-field-label">Status final</span>
+                  <div className="os-field-blank" />
+                </div>
+                <div className="os-field">
+                  <span className="os-field-label">Qualidade</span>
+                  <div className="os-field-blank" />
+                </div>
+                <div className="os-field os-field-full">
+                  <span className="os-field-label">Observações do fiscal</span>
+                  <div className="os-field-blank os-field-blank-tall" />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Assinaturas */}
           <div className="os-assinaturas">
@@ -206,25 +374,6 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
               <div className="os-assinatura-linha" />
               <div className="os-assinatura-label">Aprovação / Chefia</div>
               <div className="os-assinatura-data">Data: ____/____/________</div>
-            </div>
-          </div>
-
-          {/* Resultado da execução (campo para preencher a mão) */}
-          <div className="os-section os-resultado">
-            <div className="os-section-title">Resultado da Execução (preenchido pelo fiscal)</div>
-            <div className="os-resultado-grid">
-              <div className="os-field">
-                <span className="os-field-label">Status final</span>
-                <div className="os-field-blank" />
-              </div>
-              <div className="os-field">
-                <span className="os-field-label">Qualidade</span>
-                <div className="os-field-blank" />
-              </div>
-              <div className="os-field os-field-full">
-                <span className="os-field-label">Observações do fiscal</span>
-                <div className="os-field-blank os-field-blank-tall" />
-              </div>
             </div>
           </div>
 

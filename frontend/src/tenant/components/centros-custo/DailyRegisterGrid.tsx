@@ -8,6 +8,9 @@ import {
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { DailyRegisterCellEditor, formatCellDisplay } from './DailyRegisterCellEditors';
+import { ConfirmModal } from '../ConfirmModal';
+import { ToastContainer } from '../Toast';
+import { useToast } from '../../hooks/useToast';
 
 interface DailyRegisterGridProps {
   entityId: string;
@@ -62,12 +65,14 @@ export function DailyRegisterGrid({
   );
   const inactiveCount = configs.filter((c) => !c.active).length;
 
+  const { toasts, showToast, closeToast } = useToast();
   const [gridRows, setGridRows] = useState<GridRow[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState<Record<string, RowSnapshot>>({});
   const [pendingDeletes, setPendingDeletes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [confirm, setConfirm] = useState<{ title: string; message?: string; confirmLabel?: string; onConfirm: () => void } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,15 +131,23 @@ export function DailyRegisterGrid({
       return;
     }
     if (!row.id) return;
-    if (!window.confirm('Excluir esta linha? A exclusão será confirmada ao salvar.')) return;
-    setPendingDeletes((prev) => (prev.includes(row.id!) ? prev : [...prev, row.id!]));
-    setGridRows((prev) => prev.filter((r) => r.key !== row.key));
+    setConfirm({
+      title: 'Excluir esta linha?',
+      message: 'A exclusão será confirmada ao salvar o grid.',
+      confirmLabel: 'Excluir',
+      onConfirm: () => {
+        setConfirm(null);
+        setPendingDeletes((prev) => (prev.includes(row.id!) ? prev : [...prev, row.id!]));
+        setGridRows((prev) => prev.filter((r) => r.key !== row.key));
+      },
+    });
   };
 
   const saveAll = async () => {
     if (!isDirty) return;
     setSaving(true);
     setError('');
+    const deletedCount = pendingDeletes.length;
     try {
       for (const registroId of pendingDeletes) {
         await tenantApi.centrosCusto.deleteRegistro(entityId, centroId, registroId);
@@ -157,6 +170,9 @@ export function DailyRegisterGrid({
         });
       }
 
+      if (deletedCount > 0) {
+        showToast(deletedCount === 1 ? 'Registro excluído com sucesso.' : `${deletedCount} registros excluídos com sucesso.`);
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar registros');
@@ -167,13 +183,21 @@ export function DailyRegisterGrid({
 
   const discardChanges = () => {
     if (!isDirty) return;
-    if (!window.confirm('Descartar todas as alterações não salvas?')) return;
-    void load();
+    setConfirm({
+      title: 'Descartar alterações?',
+      message: 'Todas as alterações não salvas serão perdidas.',
+      confirmLabel: 'Descartar',
+      onConfirm: () => {
+        setConfirm(null);
+        void load();
+      },
+    });
   };
 
   if (loading) return <p className="text-sm text-[var(--color-muted)]">Carregando registros…</p>;
 
   return (
+    <>
     <div className="space-y-4">
       {activeConfigs.length === 0 ? (
         <Card className="border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -327,5 +351,16 @@ export function DailyRegisterGrid({
         </table>
       </div>
     </div>
+    {confirm && (
+      <ConfirmModal
+        title={confirm.title}
+        message={confirm.message}
+        confirmLabel={confirm.confirmLabel ?? 'Confirmar'}
+        onConfirm={confirm.onConfirm}
+        onCancel={() => setConfirm(null)}
+      />
+    )}
+    <ToastContainer toasts={toasts} onClose={closeToast} />
+    </>
   );
 }

@@ -31,7 +31,10 @@ const pedidoInclude = {
 const solicitacaoInclude = {
   licitacao: { select: { id: true, identificacao: true } },
   createdBy: { select: { id: true, name: true } },
-  itens: { orderBy: { createdAt: 'asc' as const } },
+  itens: {
+    include: { licitacaoItem: { select: { categoria: true } } },
+    orderBy: { createdAt: 'asc' as const },
+  },
 };
 
 function decimal(value: string | number | Prisma.Decimal) {
@@ -40,6 +43,70 @@ function decimal(value: string | number | Prisma.Decimal) {
 
 function toDecimalString(value: { toString(): string }) {
   return value.toString();
+}
+
+async function assertSaldoDisponivel(
+  tx: Tx,
+  entityId: string,
+  itemIds: string[],
+  licitacaoItems: Array<{ id: string; descricao: string; quantidade: Prisma.Decimal | null }>,
+  requestedByItemId: Map<string, Prisma.Decimal>,
+) {
+  const controlledItems = licitacaoItems.filter((item) => item.quantidade !== null);
+  if (controlledItems.length === 0) return;
+
+  const [solicitacoes, pedidos] = await Promise.all([
+    tx.solicitacaoServicoItem.groupBy({
+      by: ['licitacaoItemId'],
+      where: {
+        entityId,
+        licitacaoItemId: { in: itemIds },
+        solicitacaoServico: { status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED'] } },
+      },
+      _sum: { quantidade: true },
+    }),
+    tx.pedidoCompraItem.findMany({
+      where: {
+        entityId,
+        licitacaoItemId: { in: itemIds },
+        pedidoCompra: { status: { not: 'CANCELLED' } },
+      },
+      select: {
+        licitacaoItemId: true,
+        quantidadeTotal: true,
+      },
+    }),
+  ]);
+
+  const reservedByItemId = new Map<string, Prisma.Decimal>();
+  itemIds.forEach((id) => reservedByItemId.set(id, new Prisma.Decimal(0)));
+
+  solicitacoes.forEach((row) => {
+    const current = reservedByItemId.get(row.licitacaoItemId) ?? new Prisma.Decimal(0);
+    reservedByItemId.set(row.licitacaoItemId, current.plus(row._sum.quantidade ?? 0));
+  });
+
+  pedidos.forEach((item) => {
+    const current = reservedByItemId.get(item.licitacaoItemId) ?? new Prisma.Decimal(0);
+    reservedByItemId.set(item.licitacaoItemId, current.plus(item.quantidadeTotal));
+  });
+
+  const exceeded = controlledItems.find((item) => {
+    const requested = requestedByItemId.get(item.id) ?? new Prisma.Decimal(0);
+    const reserved = reservedByItemId.get(item.id) ?? new Prisma.Decimal(0);
+    const available = item.quantidade!.minus(reserved);
+    return requested.gt(Prisma.Decimal.max(available, 0));
+  });
+
+  if (exceeded) {
+    const reserved = reservedByItemId.get(exceeded.id) ?? new Prisma.Decimal(0);
+    const available = Prisma.Decimal.max(exceeded.quantidade!.minus(reserved), 0);
+    throw new AppError(
+      409,
+      'SALDO_INSUFICIENTE',
+      `Saldo insuficiente para o item "${exceeded.descricao}". Disponivel: ${available.toString()}.`,
+    );
+  }
 }
 
 function toSolicitacaoDto(solicitacao: Awaited<ReturnType<typeof getSolicitacaoById>>) {
@@ -67,6 +134,7 @@ function toSolicitacaoDto(solicitacao: Awaited<ReturnType<typeof getSolicitacaoB
     itens: solicitacao.itens.map((item) => ({
       id: item.id,
       licitacaoItemId: item.licitacaoItemId,
+      categoria: item.licitacaoItem.categoria,
       descricao: item.descricaoSnapshot,
       unidadeMedida: item.unidadeMedidaSnapshot,
       valorUnitario: toDecimalString(item.valorUnitarioSnapshot),
@@ -102,6 +170,7 @@ function toPedidoDto(pedido: Awaited<ReturnType<typeof getPedidoById>>) {
     return {
       id: item.id,
       licitacaoItemId: item.licitacaoItemId,
+      categoria: item.licitacaoItem.categoria,
       descricao: item.descricaoSnapshot,
       unidadeMedida: item.unidadeMedidaSnapshot,
       valorUnitario: toDecimalString(item.valorUnitarioSnapshot),
@@ -225,6 +294,13 @@ export async function createSolicitacao(
       throw new AppError(422, 'ITEM_INVALIDO', 'Um ou mais itens não pertencem à licitação selecionada');
     }
     const itemMap = new Map(licitacaoItems.map((item) => [item.id, item]));
+    const requestedByItemId = new Map<string, Prisma.Decimal>();
+    body.itens.forEach((input) => {
+      const current = requestedByItemId.get(input.licitacaoItemId) ?? new Prisma.Decimal(0);
+      requestedByItemId.set(input.licitacaoItemId, current.plus(decimal(input.quantidade)));
+    });
+    await assertSaldoDisponivel(tx, entityId, itemIds, licitacaoItems, requestedByItemId);
+
     const now = new Date();
     const numero = await nextNumero(tx, entityId, 'SS', 'solicitacao');
     const created = await tx.solicitacaoServico.create({
@@ -327,6 +403,35 @@ export async function changeSolicitacaoStatus(
     return updated;
   });
   return toSolicitacaoDto(solicitacao);
+}
+
+export async function deleteSolicitacao(
+  prisma: PrismaClient,
+  actorId: string,
+  entityId: string,
+  id: string,
+) {
+  await prisma.$transaction(async (tx) => {
+    const current = await getSolicitacaoById(tx, entityId, id);
+    const linkedOrigins = await tx.pedidoCompraItemOrigem.findMany({
+      where: { solicitacaoServicoId: id, entityId },
+      select: { pedidoCompraItem: { select: { pedidoCompraId: true } } },
+    });
+    const pedidoIds = Array.from(new Set(linkedOrigins.map((origin) => origin.pedidoCompraItem.pedidoCompraId)));
+
+    if (pedidoIds.length > 0) {
+      await tx.pedidoCompra.deleteMany({ where: { id: { in: pedidoIds }, entityId } });
+    }
+
+    await tx.solicitacaoServico.delete({ where: { id } });
+    await writeTenantAudit(tx, {
+      entityId,
+      userId: actorId,
+      action: 'SOLICITACAO_SERVICO_DELETED',
+      resource: 'solicitacao_servico',
+      previousValue: { id, numero: current.numero, status: current.status, pedidoIdsRemovidos: pedidoIds },
+    });
+  });
 }
 
 export async function getPedidoById(prisma: PrismaClient | Tx, entityId: string, id: string) {
@@ -501,6 +606,66 @@ export async function sendPedido(prisma: PrismaClient, actorId: string, entityId
     return updated;
   });
   return toPedidoDto(pedido);
+}
+
+async function restoreSolicitacoesFromPedido(tx: Tx, entityId: string, pedido: Awaited<ReturnType<typeof getPedidoById>>) {
+  const solicitacaoIds = Array.from(new Set(
+    pedido.itens.flatMap((item) => item.origens.map((origem) => origem.solicitacaoServicoId)),
+  ));
+  if (solicitacaoIds.length === 0) return;
+  await tx.solicitacaoServico.updateMany({
+    where: { id: { in: solicitacaoIds }, entityId, status: 'CONSOLIDATED' },
+    data: { status: 'APPROVED' },
+  });
+}
+
+export async function cancelPedido(
+  prisma: PrismaClient,
+  actorId: string,
+  entityId: string,
+  id: string,
+) {
+  const pedido = await prisma.$transaction(async (tx) => {
+    const current = await getPedidoById(tx, entityId, id);
+    if (current.status === 'CANCELLED') return current;
+    await restoreSolicitacoesFromPedido(tx, entityId, current);
+
+    const updated = await tx.pedidoCompra.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: pedidoInclude,
+    });
+    await writeTenantAudit(tx, {
+      entityId,
+      userId: actorId,
+      action: 'PEDIDO_COMPRA_CANCELLED',
+      resource: 'pedido_compra',
+      previousValue: { id, status: current.status },
+      newValue: { id, status: updated.status },
+    });
+    return updated;
+  });
+  return toPedidoDto(pedido);
+}
+
+export async function deletePedido(
+  prisma: PrismaClient,
+  actorId: string,
+  entityId: string,
+  id: string,
+) {
+  await prisma.$transaction(async (tx) => {
+    const current = await getPedidoById(tx, entityId, id);
+    await restoreSolicitacoesFromPedido(tx, entityId, current);
+    await tx.pedidoCompra.delete({ where: { id } });
+    await writeTenantAudit(tx, {
+      entityId,
+      userId: actorId,
+      action: 'PEDIDO_COMPRA_DELETED',
+      resource: 'pedido_compra',
+      previousValue: { id, numero: current.numero, status: current.status },
+    });
+  });
 }
 
 export async function createRecebimento(

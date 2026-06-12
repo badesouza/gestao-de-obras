@@ -1,21 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowRight,
+  BarChart3,
   Boxes,
+  CalendarDays,
   CheckCircle2,
   ClipboardCheck,
   Download,
   FileSpreadsheet,
   FileText,
+  Layers3,
   PackageCheck,
   PackageSearch,
   Send,
   ShoppingCart,
+  Target,
+  TrendingUp,
+  Trash2,
   Truck,
 } from 'lucide-react';
 import { tenantApi, type CompraSolicitacao, type PedidoCompra } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { dinheiro, formatarData, getServico } from '../components/compras-data';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { ToastContainer } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 
 function statusPedidoLabel(status: string): string {
   if (status === 'PARTIAL') return 'Parcialmente atendido';
@@ -89,6 +99,492 @@ function consolidarPreview(solicitacoes: CompraSolicitacao[]) {
   return Array.from(mapa.values());
 }
 
+function pct(recebido: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((recebido / total) * 100));
+}
+
+function mesCurto(iso: string | null | undefined): string {
+  const data = iso ? new Date(iso) : new Date();
+  return data.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+}
+
+function diasEntre(inicio: string | null | undefined, fim: string | null | undefined): number | null {
+  if (!inicio || !fim) return null;
+  const start = new Date(inicio).getTime();
+  const end = new Date(fim).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+  return Math.max(0, Math.round((end - start) / 86400000));
+}
+
+function AnaliseCompras({
+  solicitacoes,
+  pedidos,
+}: {
+  solicitacoes: CompraSolicitacao[];
+  pedidos: PedidoCompra[];
+}) {
+  const analytics = useMemo(() => {
+    const totalPedidos = pedidos.reduce((sum, pedido) => sum + num(pedido.valorTotal), 0);
+    const totalRecebido = pedidos.reduce(
+      (sum, pedido) => sum + pedido.itens.reduce(
+        (itemSum, item) => itemSum + num(item.quantidadeRecebida) * num(item.valorUnitario),
+        0,
+      ),
+      0,
+    );
+    const totalPendente = pedidos.reduce(
+      (sum, pedido) => sum + pedido.itens.reduce(
+        (itemSum, item) => itemSum + num(item.quantidadePendente) * num(item.valorUnitario),
+        0,
+      ),
+      0,
+    );
+    const statusCount = pedidos.reduce<Record<string, number>>((acc, pedido) => {
+      acc[pedido.status] = (acc[pedido.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    const servicos = new Map<string, {
+      slug: string;
+      nome: string;
+      valorPedido: number;
+      valorRecebido: number;
+      valorPendente: number;
+      itens: number;
+      pedidos: Set<string>;
+    }>();
+    const categorias = new Map<string, {
+      nome: string;
+      valorPedido: number;
+      valorRecebido: number;
+      valorPendente: number;
+      itens: number;
+    }>();
+    const periodos = new Map<string, {
+      label: string;
+      sortKey: string;
+      valorPedido: number;
+      valorRecebido: number;
+      valorPendente: number;
+      pedidos: number;
+    }>();
+    const licitacoes = new Map<string, {
+      nome: string;
+      objeto: string;
+      valorPedido: number;
+      valorRecebido: number;
+      pedidos: Set<string>;
+    }>();
+    const ciclosRecebimento: number[] = [];
+
+    pedidos.forEach((pedido) => {
+      const dataBase = pedido.sentAt ?? pedido.createdAt;
+      const periodoKey = dataBase.slice(0, 7);
+      const periodo = periodos.get(periodoKey) ?? {
+        label: mesCurto(dataBase),
+        sortKey: periodoKey,
+        valorPedido: 0,
+        valorRecebido: 0,
+        valorPendente: 0,
+        pedidos: 0,
+      };
+      periodo.valorPedido += num(pedido.valorTotal);
+      periodo.pedidos += 1;
+      periodos.set(periodoKey, periodo);
+
+      pedido.itens.forEach((item) => {
+        const quantidadeTotal = num(item.quantidadeTotal);
+        const quantidadeRecebida = num(item.quantidadeRecebida);
+        const valorRecebidoItem = quantidadeRecebida * num(item.valorUnitario);
+        const valorPendenteItem = num(item.quantidadePendente) * num(item.valorUnitario);
+        periodo.valorRecebido += valorRecebidoItem;
+        periodo.valorPendente += valorPendenteItem;
+
+        const categoriaNome = item.categoria || 'Sem categoria';
+        const categoria = categorias.get(categoriaNome) ?? {
+          nome: categoriaNome,
+          valorPedido: 0,
+          valorRecebido: 0,
+          valorPendente: 0,
+          itens: 0,
+        };
+        categoria.valorPedido += num(item.valorTotal);
+        categoria.valorRecebido += valorRecebidoItem;
+        categoria.valorPendente += valorPendenteItem;
+        categoria.itens += 1;
+        categorias.set(categoriaNome, categoria);
+
+        const licitacaoNome = item.licitacao?.identificacao ?? 'Licitacao nao informada';
+        const licitacao = licitacoes.get(licitacaoNome) ?? {
+          nome: licitacaoNome,
+          objeto: item.licitacao?.objeto ?? '',
+          valorPedido: 0,
+          valorRecebido: 0,
+          pedidos: new Set<string>(),
+        };
+        licitacao.valorPedido += num(item.valorTotal);
+        licitacao.valorRecebido += valorRecebidoItem;
+        licitacao.pedidos.add(pedido.id);
+        licitacoes.set(licitacaoNome, licitacao);
+
+        item.recebimentos.forEach((recebimento) => {
+          const dias = diasEntre(dataBase, recebimento.recebidoEm);
+          if (dias !== null) ciclosRecebimento.push(dias);
+        });
+
+        item.origens.forEach((origem) => {
+          const atual = servicos.get(origem.servicoSlug) ?? {
+            slug: origem.servicoSlug,
+            nome: origem.servicoNome,
+            valorPedido: 0,
+            valorRecebido: 0,
+            valorPendente: 0,
+            itens: 0,
+            pedidos: new Set<string>(),
+          };
+          const proporcao = quantidadeTotal > 0 ? num(origem.quantidade) / quantidadeTotal : 0;
+          const valorPedido = num(origem.valorTotal) || num(origem.quantidade) * num(item.valorUnitario);
+          const valorRecebido = quantidadeRecebida * proporcao * num(item.valorUnitario);
+          atual.valorPedido += valorPedido;
+          atual.valorRecebido += valorRecebido;
+          atual.valorPendente += Math.max(valorPedido - valorRecebido, 0);
+          atual.itens += 1;
+          atual.pedidos.add(pedido.id);
+          servicos.set(origem.servicoSlug, atual);
+        });
+      });
+    });
+
+    solicitacoes.forEach((solicitacao) => {
+      if (servicos.has(solicitacao.servicoSlug)) return;
+      servicos.set(solicitacao.servicoSlug, {
+        slug: solicitacao.servicoSlug,
+        nome: solicitacao.servicoNome,
+        valorPedido: 0,
+        valorRecebido: 0,
+        valorPendente: 0,
+        itens: solicitacao.itens.length,
+        pedidos: new Set<string>(),
+      });
+    });
+
+    const servicosLista = Array.from(servicos.values())
+      .map((servico) => ({ ...servico, pedidos: servico.pedidos.size }))
+      .sort((a, b) => b.valorPendente - a.valorPendente || b.valorPedido - a.valorPedido);
+    const servicosExecutados = [...servicosLista].sort((a, b) => b.valorRecebido - a.valorRecebido || b.valorPedido - a.valorPedido);
+    const categoriasLista = Array.from(categorias.values()).sort((a, b) => b.valorPedido - a.valorPedido);
+    const periodosLista = Array.from(periodos.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey)).slice(-6);
+    const licitacoesLista = Array.from(licitacoes.values())
+      .map((licitacao) => ({ ...licitacao, pedidos: licitacao.pedidos.size }))
+      .sort((a, b) => b.valorPedido - a.valorPedido)
+      .slice(0, 4);
+    const curvaAbc = pedidos
+      .flatMap((pedido) => pedido.itens.map((item) => ({
+        id: item.id,
+        descricao: item.descricao,
+        categoria: item.categoria || 'Sem categoria',
+        valor: num(item.valorTotal),
+      })))
+      .sort((a, b) => b.valor - a.valor)
+      .reduce<Array<{ id: string; descricao: string; categoria: string; valor: number; acumulado: number; classe: 'A' | 'B' | 'C' }>>((acc, item) => {
+        const acumuladoAnterior = acc.at(-1)?.acumulado ?? 0;
+        const acumulado = totalPedidos > 0 ? acumuladoAnterior + (item.valor / totalPedidos) * 100 : 0;
+        acc.push({
+          ...item,
+          acumulado,
+          classe: acumulado <= 80 ? 'A' : acumulado <= 95 ? 'B' : 'C',
+        });
+        return acc;
+      }, [])
+      .slice(0, 5);
+    const itensCriticos = pedidos
+      .flatMap((pedido) => pedido.itens.map((item) => ({
+        id: item.id,
+        pedido: pedido.numero,
+        descricao: item.descricao,
+        unidade: item.unidadeMedida,
+        licitacao: licitacaoLabel(item),
+        quantidadePendente: num(item.quantidadePendente),
+        valorPendente: num(item.quantidadePendente) * num(item.valorUnitario),
+      })))
+      .filter((item) => item.quantidadePendente > 0)
+      .sort((a, b) => b.valorPendente - a.valorPendente)
+      .slice(0, 5);
+    const ultimosRecebimentos = pedidos
+      .flatMap((pedido) => pedido.itens.flatMap((item) => item.recebimentos.map((recebimento) => ({
+        id: recebimento.id,
+        pedido: pedido.numero,
+        descricao: item.descricao,
+        quantidade: num(recebimento.quantidade),
+        unidade: item.unidadeMedida,
+        valor: num(recebimento.quantidade) * num(item.valorUnitario),
+        responsavel: recebimento.responsavel,
+        recebidoEm: recebimento.recebidoEm,
+      }))))
+      .sort((a, b) => new Date(b.recebidoEm).getTime() - new Date(a.recebidoEm).getTime())
+      .slice(0, 5);
+
+    return {
+      totalPedidos,
+      totalRecebido,
+      totalPendente,
+      statusCount,
+      servicosLista,
+      servicosExecutados,
+      categoriasLista,
+      periodosLista,
+      licitacoesLista,
+      curvaAbc,
+      itensCriticos,
+      ultimosRecebimentos,
+      pctRecebido: pct(totalRecebido, totalPedidos),
+      ticketMedio: pedidos.length > 0 ? totalPedidos / pedidos.length : 0,
+      cicloMedio: ciclosRecebimento.length > 0
+        ? Math.round(ciclosRecebimento.reduce((sum, dias) => sum + dias, 0) / ciclosRecebimento.length)
+        : 0,
+    };
+  }, [pedidos, solicitacoes]);
+
+  const maiorServico = analytics.servicosLista[0];
+  const maiorCategoria = analytics.categoriasLista[0];
+  const maiorPeriodo = analytics.periodosLista.reduce(
+    (best, periodo) => (periodo.valorPedido > (best?.valorPedido ?? 0) ? periodo : best),
+    analytics.periodosLista[0],
+  );
+
+  return (
+    <section className="cp-analytics">
+      <div className="cp-kpi-grid cp-analysis-kpis">
+        <div className="cp-kpi-card tone-blue">
+          <TrendingUp size={20} />
+          <span>Compras executadas</span>
+          <strong>{dinheiro(analytics.totalRecebido)}</strong>
+          <small>{analytics.pctRecebido}% liquidado nos pedidos</small>
+        </div>
+        <div className="cp-kpi-card tone-green">
+          <Layers3 size={20} />
+          <span>Categoria lider</span>
+          <strong>{maiorCategoria ? dinheiro(maiorCategoria.valorPedido) : dinheiro(0)}</strong>
+          <small>{maiorCategoria?.nome ?? 'Sem compras categorizadas'}</small>
+        </div>
+        <div className="cp-kpi-card tone-amber">
+          <Target size={20} />
+          <span>Servico mais acionado</span>
+          <strong>{maiorServico ? dinheiro(maiorServico.valorPedido) : dinheiro(0)}</strong>
+          <small>{maiorServico?.nome ?? 'Sem servico no periodo'}</small>
+        </div>
+        <div className="cp-kpi-card tone-cyan">
+          <CalendarDays size={20} />
+          <span>Ciclo medio</span>
+          <strong>{analytics.cicloMedio} dias</strong>
+          <small>Do pedido ao recebimento registrado</small>
+        </div>
+      </div>
+
+      <section className="tn-panel cp-panel cp-tactical-panel">
+        <div className="tn-panel-head">
+          <div className="tn-panel-head-left">
+            <span>Analise tatica</span>
+            <h3>Diretriz de compras</h3>
+          </div>
+          {maiorPeriodo ? <span className="tn-chip dot-blue-p"><i />Pico: {maiorPeriodo.label}</span> : null}
+        </div>
+        <div className="cp-tactical-grid">
+          <div className="cp-tactical-block cp-evolution-block">
+            <div className="cp-block-title">
+              <span>Evolucao</span>
+              <strong>Compras por periodo</strong>
+            </div>
+            <div className="cp-evolution-chart">
+              {analytics.periodosLista.length === 0 ? (
+                <div className="tn-empty cp-empty-state"><strong>Nenhum pedido no historico</strong></div>
+              ) : analytics.periodosLista.map((periodo) => {
+                const max = Math.max(...analytics.periodosLista.map((item) => item.valorPedido), 1);
+                const height = Math.max(12, (periodo.valorPedido / max) * 100);
+                return (
+                  <div key={periodo.sortKey} className="cp-evolution-bar">
+                    <span>{dinheiro(periodo.valorPedido)}</span>
+                    <i style={{ height: `${height}%` }}><em style={{ height: `${pct(periodo.valorRecebido, periodo.valorPedido)}%` }} /></i>
+                    <b>{periodo.label}</b>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="cp-tactical-block">
+            <div className="cp-block-title">
+              <span>Categorias</span>
+              <strong>Valor contratado</strong>
+            </div>
+            <div className="cp-ranked-list">
+              {analytics.categoriasLista.length === 0 ? (
+                <div className="tn-empty cp-empty-state"><strong>Nenhuma categoria para analisar</strong></div>
+              ) : analytics.categoriasLista.slice(0, 5).map((categoria, index) => (
+                <div key={categoria.nome} className="cp-ranked-row">
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <div>
+                    <strong>{categoria.nome}</strong>
+                    <small>{categoria.itens} itens - {pct(categoria.valorRecebido, categoria.valorPedido)}% recebido</small>
+                  </div>
+                  <b>{dinheiro(categoria.valorPedido)}</b>
+                  <i><em style={{ width: `${pct(categoria.valorPedido, analytics.totalPedidos)}%` }} /></i>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="cp-tactical-block">
+            <div className="cp-block-title">
+              <span>Execucao</span>
+              <strong>Servicos por valor recebido</strong>
+            </div>
+            <div className="cp-service-bars cp-compact-bars">
+              {analytics.servicosExecutados.length === 0 ? (
+                <div className="tn-empty cp-empty-state"><strong>Nenhum valor executado</strong></div>
+              ) : analytics.servicosExecutados.slice(0, 5).map((servico) => {
+                const config = getServico(servico.slug);
+                const width = analytics.totalRecebido > 0 ? Math.max(6, (servico.valorRecebido / analytics.totalRecebido) * 100) : 0;
+                return (
+                  <div key={servico.slug} className="cp-service-bar" style={{ '--cp-accent': config.cor } as React.CSSProperties}>
+                    <div><strong>{servico.nome}</strong><span>{servico.pedidos} pedidos - {pct(servico.valorRecebido, servico.valorPedido)}% executado</span></div>
+                    <b>{dinheiro(servico.valorRecebido)}</b>
+                    <i><em style={{ width: `${width}%` }} /></i>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="cp-tactical-block">
+            <div className="cp-block-title">
+              <span>Curva ABC</span>
+              <strong>Itens que concentram valor</strong>
+            </div>
+            <div className="cp-abc-list">
+              {analytics.curvaAbc.length === 0 ? (
+                <div className="tn-empty cp-empty-state"><strong>Nenhum item consolidado</strong></div>
+              ) : analytics.curvaAbc.map((item) => (
+                <div key={item.id} className={`cp-abc-row class-${item.classe.toLowerCase()}`}>
+                  <span>{item.classe}</span>
+                  <div><strong>{item.descricao}</strong><small>{item.categoria} - {Math.round(item.acumulado)}% acumulado</small></div>
+                  <b>{dinheiro(item.valor)}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="cp-analysis-grid">
+        <section className="tn-panel cp-panel cp-analysis-progress">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left">
+              <span>Acompanhamento operacional</span>
+              <h3>Recebimento dos pedidos</h3>
+            </div>
+            <span className="tn-chip dot-blue-p"><i />{analytics.pctRecebido}% recebido</span>
+          </div>
+          <div className="cp-analysis-meter">
+            <div><span>Pedido</span><strong>{dinheiro(analytics.totalPedidos)}</strong></div>
+            <div><span>Recebido</span><strong className="is-ok">{dinheiro(analytics.totalRecebido)}</strong></div>
+            <div><span>Pendente</span><strong className="is-pending">{dinheiro(analytics.totalPendente)}</strong></div>
+          </div>
+          <div className="cp-analysis-progressbar" aria-label="Progresso financeiro recebido">
+            <i style={{ width: `${analytics.pctRecebido}%` }} />
+          </div>
+          <div className="cp-status-strip">
+            {(['DRAFT', 'SENT', 'PARTIAL', 'RECEIVED', 'CANCELLED'] as const).map((status) => (
+              <span key={status}><strong>{analytics.statusCount[status] ?? 0}</strong>{statusPedidoLabel(status)}</span>
+            ))}
+          </div>
+        </section>
+
+        <section className="tn-panel cp-panel">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left">
+              <span>Saldo operacional</span>
+              <h3>Servicos por valor pendente</h3>
+            </div>
+            {maiorServico ? <span className="tn-chip dot-gray"><i />{maiorServico.nome}</span> : null}
+          </div>
+          <div className="cp-service-bars">
+            {analytics.servicosLista.length === 0 ? (
+              <div className="tn-empty cp-empty-state"><strong>Nenhum valor para analisar</strong></div>
+            ) : analytics.servicosLista.slice(0, 6).map((servico) => {
+              const config = getServico(servico.slug);
+              const width = analytics.totalPendente > 0 ? Math.max(6, (servico.valorPendente / analytics.totalPendente) * 100) : 0;
+              return (
+                <div key={servico.slug} className="cp-service-bar" style={{ '--cp-accent': config.cor } as React.CSSProperties}>
+                  <div><strong>{servico.nome}</strong><span>{servico.itens} itens - {servico.pedidos} pedidos</span></div>
+                  <b>{dinheiro(servico.valorPendente)}</b>
+                  <i><em style={{ width: `${width}%` }} /></i>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      <div className="cp-analysis-grid">
+        <section className="tn-panel cp-panel">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left"><span>Itens criticos</span><h3>Maiores saldos em aberto</h3></div>
+          </div>
+          <div className="cp-analysis-table">
+            {analytics.itensCriticos.length === 0 ? (
+              <div className="tn-empty cp-empty-state"><strong>Nenhum item pendente</strong></div>
+            ) : analytics.itensCriticos.map((item) => (
+              <div key={item.id} className="cp-analysis-row">
+                <div><strong>{item.descricao}</strong><small>{item.pedido} - {item.licitacao}</small></div>
+                <span>{item.quantidadePendente.toLocaleString('pt-BR')} {item.unidade}</span>
+                <b>{dinheiro(item.valorPendente)}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="tn-panel cp-panel">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left"><span>Contratos e licitacoes</span><h3>Concentracao de compras</h3></div>
+          </div>
+          <div className="cp-analysis-table">
+            {analytics.licitacoesLista.length === 0 ? (
+              <div className="tn-empty cp-empty-state"><strong>Nenhuma licitacao vinculada</strong></div>
+            ) : analytics.licitacoesLista.map((licitacao) => (
+              <div key={licitacao.nome} className="cp-analysis-row">
+                <div><strong>{licitacao.nome}</strong><small>{licitacao.objeto || `${licitacao.pedidos} pedidos vinculados`}</small></div>
+                <span>{pct(licitacao.valorRecebido, licitacao.valorPedido)}% recebido</span>
+                <b>{dinheiro(licitacao.valorPedido)}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="cp-analysis-grid">
+
+        <section className="tn-panel cp-panel">
+          <div className="tn-panel-head">
+            <div className="tn-panel-head-left"><span>Ultimas baixas</span><h3>Recebimentos registrados</h3></div>
+          </div>
+          <div className="cp-analysis-table">
+            {analytics.ultimosRecebimentos.length === 0 ? (
+              <div className="tn-empty cp-empty-state"><strong>Nenhuma baixa registrada</strong></div>
+            ) : analytics.ultimosRecebimentos.map((recebimento) => (
+              <div key={recebimento.id} className="cp-analysis-row">
+                <div><strong>{recebimento.descricao}</strong><small>{recebimento.pedido} - {recebimento.responsavel} - {formatarData(recebimento.recebidoEm)}</small></div>
+                <span>{recebimento.quantidade.toLocaleString('pt-BR')} {recebimento.unidade}</span>
+                <b className="is-ok">{dinheiro(recebimento.valor)}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────
    Modal de detalhe de pedido
 ───────────────────────────────────────────────────────────── */
@@ -126,11 +622,10 @@ function PedidoDetalheModal({
     ? Math.min(100, Math.round((num(pedido.quantidadeRecebida) / num(pedido.quantidadeTotal)) * 100))
     : 0;
 
-  return (
+  return createPortal(
     <div className="cp-baixa-backdrop" onClick={onClose}>
       <div
-        className="cp-baixa-modal"
-        style={{ maxWidth: 860, width: '100%', height: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        className="cp-baixa-modal cp-pedido-detail-modal"
         onClick={(e) => e.stopPropagation()}
       >
         {/* cabeçalho */}
@@ -197,7 +692,7 @@ function PedidoDetalheModal({
         </div>
 
         {/* conteúdo */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div className="cp-pedido-modal-body">
 
           {/* ABA ITENS */}
           {aba === 'itens' && (
@@ -338,7 +833,7 @@ function PedidoDetalheModal({
         </div>
 
         {/* rodapé */}
-        <div style={{ padding: '14px 20px', borderTop: '2px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafbfc', flexShrink: 0 }}>
+        <div className="cp-pedido-modal-footer">
           <div style={{ display: 'flex', gap: 16 }}>
             <div>
               <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'block' }}>Recebido</span>
@@ -360,7 +855,8 @@ function PedidoDetalheModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -370,10 +866,14 @@ function PedidoDetalheModal({
 function RecebimentoPanel({
   pedidos,
   onRegistrar,
+  onCancel,
+  onDelete,
   saving,
 }: {
   pedidos: PedidoCompra[];
   onRegistrar: (pedido: PedidoCompra) => void;
+  onCancel: (pedido: PedidoCompra) => void;
+  onDelete: (pedido: PedidoCompra) => void;
   saving: boolean;
 }) {
   const [pedidoDetalhe, setPedidoDetalhe] = useState<PedidoCompra | null>(null);
@@ -475,11 +975,30 @@ function RecebimentoPanel({
                 </div>
 
                 {/* valor + seta */}
-                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div>
                     <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', display: 'block' }}>Total</span>
                     <strong style={{ fontFamily: 'monospace', fontSize: 15, color: '#0f172a' }}>{dinheiro(num(pedido.valorTotal))}</strong>
                   </div>
+                  {pedido.status !== 'CANCELLED' ? (
+                    <button
+                      type="button"
+                      className="tn-btn-secondary"
+                      disabled={saving}
+                      onClick={(event) => { event.stopPropagation(); onCancel(pedido); }}
+                    >
+                      Cancelar
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="tn-icon-btn sv-btn-excluir"
+                    title="Excluir pedido"
+                    disabled={saving}
+                    onClick={(event) => { event.stopPropagation(); onDelete(pedido); }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2.5">
                     <polyline points="9 18 15 12 9 6"/>
                   </svg>
@@ -505,6 +1024,7 @@ function RecebimentoPanel({
 
 export function ComprasPage() {
   const { entityId, session } = useTenant();
+  const { toasts, showToast, closeToast } = useToast();
   const [solicitacoes, setSolicitacoes] = useState<CompraSolicitacao[]>([]);
   const [pedidos, setPedidos] = useState<PedidoCompra[]>([]);
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
@@ -513,6 +1033,7 @@ export function ComprasPage() {
   const [error, setError] = useState('');
   const [documentoOpen, setDocumentoOpen] = useState(false);
   const [baixaOpen, setBaixaOpen] = useState(false);
+  const [pedidoBaixa, setPedidoBaixa] = useState<PedidoCompra | null>(null);
   const [baixaAba, setBaixaAba] = useState<'total' | string>('total');
   // itemId → qtd recebida (aba Total)
   const [baixaQtd, setBaixaQtd] = useState<Record<string, string>>({});
@@ -520,6 +1041,8 @@ export function ComprasPage() {
   const [baixaDist, setBaixaDist] = useState<Record<string, Record<string, string>>>({});
   const [baixaResponsavel, setBaixaResponsavel] = useState(session.name);
   const [baixaObservacoes, setBaixaObservacoes] = useState('');
+  const [comprasAba, setComprasAba] = useState<'operacao' | 'analise'>('operacao');
+  const [confirm, setConfirm] = useState<{ title: string; message?: string; confirmLabel?: string; onConfirm: () => void } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -548,6 +1071,7 @@ export function ComprasPage() {
   const selecionadasDetalhe = solicitacoes.filter((solicitacao) => selecionadas.includes(solicitacao.id));
   const preview = useMemo(() => consolidarPreview(selecionadasDetalhe), [selecionadasDetalhe]);
   const pedidoAtual = pedidos[0] ?? null;
+  const pedidoParaBaixa = pedidoBaixa ?? pedidoAtual;
   const itensExibidos = pedidoAtual?.itens ?? [];
   const valorSelecionado = selecionadasDetalhe.reduce((sum, solicitacao) => sum + num(solicitacao.valorTotal), 0);
   const totalRecebido = pedidoAtual ? pedidoAtual.itens.reduce(
@@ -586,18 +1110,19 @@ export function ComprasPage() {
     setDocumentoOpen(true);
   };
 
-  const abrirBaixa = () => {
-    if (!pedidoAtual) return;
+  const abrirBaixa = (pedido: PedidoCompra | null = pedidoAtual) => {
+    if (!pedido) return;
+    setPedidoBaixa(pedido);
     // aba total: preenche com o pendente de cada item
     const qtd: Record<string, string> = {};
-    pedidoAtual.itens.forEach((item) => {
+    pedido.itens.forEach((item) => {
       qtd[item.id] = num(item.quantidadePendente) > 0
         ? num(item.quantidadePendente).toFixed(2)
         : '0';
     });
     // distribuição por serviço: proporcional ao que cada serviço pediu
     const dist: Record<string, Record<string, string>> = {};
-    pedidoAtual.itens.forEach((item) => {
+    pedido.itens.forEach((item) => {
       const pendente = num(item.quantidadePendente);
       const totalPedido = num(item.quantidadeTotal);
       item.origens.forEach((origem) => {
@@ -616,14 +1141,14 @@ export function ComprasPage() {
   };
 
   const confirmarBaixa = async () => {
-    if (!pedidoAtual) return;
+    if (!pedidoParaBaixa) return;
     const linhas = Object.entries(baixaQtd).filter(([, v]) => num(v) > 0);
     if (linhas.length === 0) {
       setError('Informe ao menos uma quantidade a receber.');
       return;
     }
     for (const [itemId, qtd] of linhas) {
-      const item = pedidoAtual.itens.find((i) => i.id === itemId);
+      const item = pedidoParaBaixa.itens.find((i) => i.id === itemId);
       if (item && num(qtd) > num(item.quantidadePendente) + 0.001) {
         setError(`Quantidade de "${item.descricao}" excede o saldo pendente.`);
         return;
@@ -634,7 +1159,7 @@ export function ComprasPage() {
     try {
       const hoje = new Date().toISOString().slice(0, 10);
       for (const [itemId, qtd] of linhas) {
-        await tenantApi.compras.createRecebimento(entityId, pedidoAtual.id, {
+        await tenantApi.compras.createRecebimento(entityId, pedidoParaBaixa.id, {
           pedidoCompraItemId: itemId,
           quantidade: num(qtd).toFixed(4),
           recebidoEm: hoje,
@@ -643,12 +1168,56 @@ export function ComprasPage() {
         });
       }
       setBaixaOpen(false);
+      setPedidoBaixa(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao registrar entrega');
     } finally {
       setSaving(false);
     }
+  };
+
+  const cancelarPedido = (pedido: PedidoCompra) => {
+    setConfirm({
+      title: `Cancelar pedido ${pedido.numero}?`,
+      message: 'O pedido será marcado como cancelado e não poderá ser reaberto.',
+      confirmLabel: 'Cancelar pedido',
+      onConfirm: async () => {
+        setConfirm(null);
+        setSaving(true);
+        setError('');
+        try {
+          await tenantApi.compras.cancelPedido(entityId, pedido.id);
+          await load();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Erro ao cancelar pedido');
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  const excluirPedido = (pedido: PedidoCompra) => {
+    setConfirm({
+      title: `Excluir pedido ${pedido.numero}?`,
+      message: 'Esta ação é irreversível e removerá também todas as entregas registradas.',
+      confirmLabel: 'Excluir definitivamente',
+      onConfirm: async () => {
+        setConfirm(null);
+        setSaving(true);
+        setError('');
+        try {
+          await tenantApi.compras.deletePedido(entityId, pedido.id);
+          showToast(`Pedido ${pedido.numero} excluído com sucesso.`);
+          await load();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Erro ao excluir pedido');
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
   };
 
   const baixarCsvPedido = () => {
@@ -834,6 +1403,21 @@ export function ComprasPage() {
 
       {error ? <div className="tn-alert">{error}</div> : null}
 
+      <div className="cp-module-tabs" role="tablist" aria-label="Modulo de compras">
+        <button type="button" className={comprasAba === 'operacao' ? 'is-active' : ''} onClick={() => setComprasAba('operacao')}>
+          <ShoppingCart size={14} />
+          Operacao
+        </button>
+        <button type="button" className={comprasAba === 'analise' ? 'is-active' : ''} onClick={() => setComprasAba('analise')}>
+          <BarChart3 size={14} />
+          Analise
+        </button>
+      </div>
+
+      {comprasAba === 'analise' ? (
+        <AnaliseCompras solicitacoes={solicitacoes} pedidos={pedidos} />
+      ) : (
+        <>
       <div className="cp-kpi-grid">
         <div className="cp-kpi-card tone-blue">
           <FileText size={20} />
@@ -972,9 +1556,13 @@ export function ComprasPage() {
 
       <RecebimentoPanel
         pedidos={pedidos}
-        onRegistrar={(pedido) => { void pedido; abrirBaixa(); }}
+        onRegistrar={(pedido) => abrirBaixa(pedido)}
+        onCancel={(pedido) => void cancelarPedido(pedido)}
+        onDelete={(pedido) => void excluirPedido(pedido)}
         saving={saving}
       />
+        </>
+      )}
 
       {documentoOpen && pedidoAtual ? (
         <div className="cp-doc-backdrop">
@@ -1049,8 +1637,8 @@ export function ComprasPage() {
         </div>
       ) : null}
 
-      {baixaOpen && pedidoAtual ? (() => {
-        const todosItens = pedidoAtual.itens;
+      {baixaOpen && pedidoParaBaixa ? (() => {
+        const todosItens = pedidoParaBaixa.itens;
         // serviços únicos que originaram o pedido
         const servicosUnicos = Array.from(
           new Map(
@@ -1087,18 +1675,17 @@ export function ComprasPage() {
         const distribuicaoOk = Object.keys(errosDistribuicao).length === 0;
         const podeSalvar = algumPreenchido && !algumExcede && distribuicaoOk;
 
-        return (
+        return createPortal(
           <div className="cp-baixa-backdrop" onClick={() => setBaixaOpen(false)}>
             <div
-              className="cp-baixa-modal"
-              style={{ maxWidth: 940, width: '100%', height: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              className="cp-baixa-modal cp-baixa-modal-large"
               onClick={(e) => e.stopPropagation()}
             >
               {/* ── Cabeçalho ── */}
               <div className="cp-baixa-head">
                 <div className="cp-baixa-icon"><Truck size={20} /></div>
                 <div>
-                  <span>Baixa de entrega — {pedidoAtual.numero}</span>
+                  <span>Baixa de entrega — {pedidoParaBaixa.numero}</span>
                   <h3>Recebimento e distribuição por serviço</h3>
                 </div>
                 <button type="button" className="sv-modal-close" onClick={() => setBaixaOpen(false)}>
@@ -1424,9 +2011,20 @@ export function ComprasPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         );
       })() : null}
+      {confirm && (
+        <ConfirmModal
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel ?? 'Confirmar'}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      <ToastContainer toasts={toasts} onClose={closeToast} />
     </div>
   );
 }
