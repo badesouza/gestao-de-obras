@@ -18,6 +18,7 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache postgresql-client
 COPY --from=api-build /app/api/node_modules ./node_modules
 COPY --from=api-build /app/api/dist ./dist
 COPY --from=api-build /app/api/generated ./generated
