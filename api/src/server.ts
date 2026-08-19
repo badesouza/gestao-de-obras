@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import fs from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -61,6 +62,29 @@ async function start() {
   await fastify.register(registerTenantRoutes, {
     prefix: '/api/tenant/v1',
   });
+
+  const publicDir = path.join(process.cwd(), 'public');
+  if (fs.existsSync(publicDir)) {
+    await fastify.register(fastifyStatic, {
+      root: publicDir,
+      prefix: '/',
+      decorateReply: false,
+    });
+
+    fastify.setNotFoundHandler((request, reply) => {
+      const isApiOrUploadRoute =
+        request.raw.url?.startsWith('/api/') ||
+        request.raw.url?.startsWith('/uploads/') ||
+        request.raw.url === '/health';
+
+      if (request.method !== 'GET' || isApiOrUploadRoute) {
+        return reply.code(404).send({ code: 'NOT_FOUND', message: 'Not found' });
+      }
+
+      const indexHtml = fs.readFileSync(path.join(publicDir, 'index.html'));
+      return reply.type('text/html').send(indexHtml);
+    });
+  }
 
   const port = Number(process.env.PORT ?? 3000);
   await fastify.listen({ port, host: '0.0.0.0' });
