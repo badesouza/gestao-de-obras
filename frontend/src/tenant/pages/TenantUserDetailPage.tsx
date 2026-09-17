@@ -227,7 +227,7 @@ export function TenantUserDetailPage() {
           )}
 
           {/* mini stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%', maxWidth: 260 }}>
+          <div className="tn-grid-2" style={{ gap: 8, width: '100%', maxWidth: 260 }}>
             {[
               { label: 'Perfil',  value: meta.label,            color: meta.color },
               { label: 'Status',  value: isActive ? 'Ativo' : 'Inativo', color: isActive ? '#16a34a' : '#94a3b8' },
@@ -288,7 +288,7 @@ export function TenantUserDetailPage() {
             </div>
 
             <form onSubmit={handleUpdate} style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="tn-grid-2">
                 <Field label="Nome completo">
                   <input
                     value={name}

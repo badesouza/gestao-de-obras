@@ -916,3 +916,20 @@
   .pl-acc-col { display: none; }
   .pl-stats { grid-template-columns: 1fr 1fr; }
 }
+
+@media (max-width: 768px) {
+  .pl-modal { max-width: 100%; }
+  .pl-modal-backdrop { padding: 10px; }
+  .pl-panel-head { padding: 16px 18px; }
+  .pl-acc-head { padding: 13px 14px; }
+  .pl-acc-actions { margin-left: 6px; }
+}
+
+@media (max-width: 420px) {
+  .pl-form-grid,
+  .pl-form-grid .span-2,
+  .pl-form-grid .span-3,
+  .pl-form-grid .span-4,
+  .pl-form-grid .span-6 { grid-template-columns: 1fr; grid-column: 1 / -1; }
+  .pl-stats { grid-template-columns: 1fr; }
+}

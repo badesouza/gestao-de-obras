@@ -508,17 +508,17 @@ export function ServicoDetailPage() {
                     background: isConcluida ? 'var(--tn-green)' : config.cor
                   }} />
 
-                  <div className="sv-oc-col sv-oc-col-data">
+                  <div className="sv-oc-col sv-oc-col-data" data-label="Data">
                     <strong>{formatDataBr(row.data)}</strong>
                   </div>
 
                   {colsToShow.map(c => (
-                    <div key={c.id} className="sv-oc-col">
+                    <div key={c.id} className="sv-oc-col" data-label={c.nome}>
                       <span>{getCellText(row, c.id)}</span>
                     </div>
                   ))}
 
-                  <div className="sv-oc-col sv-oc-col-status">
+                  <div className="sv-oc-col sv-oc-col-status" data-label="Status">
                     <span className={`tn-chip ${chip.cls}`}>
                       <i />{chip.label || 'Aberta'}
                     </span>

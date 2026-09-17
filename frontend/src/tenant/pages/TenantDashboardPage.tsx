@@ -146,7 +146,7 @@ export function TenantDashboardPage() {
       </div>
 
       {/* ── Grid: roadmap + quick actions ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 12 }}>
+      <div className="tn-grid-sidebar">
 
         {/* Roadmap */}
         <div className="tn-panel">

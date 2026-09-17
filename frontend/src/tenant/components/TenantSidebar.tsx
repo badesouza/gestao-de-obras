@@ -128,7 +128,7 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
 
   if (mobile) {
     return (
-      <div className="tn-sidebar" style={{ width: '100%', height: '100%' }}>
+      <div className="tn-sidebar tn-sidebar-mobile">
         <div className="tn-sidebar-header">
           <div className="tn-sidebar-brand">
             <div className="tn-sidebar-avatar">{getInitials(session.entity.name)}</div>

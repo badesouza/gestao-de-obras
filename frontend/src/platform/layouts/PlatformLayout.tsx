@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { clearPlatformToken, platformApi } from '../../lib/api-client';
 
@@ -191,6 +192,22 @@ const css = `
     to   { opacity: 1; transform: translateY(0); }
   }
 
+  /* Botão de menu mobile */
+  .pf-menu-btn {
+    display: none;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: transparent;
+    cursor: pointer;
+    color: rgba(0,0,0,0.4);
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .pf-menu-btn:hover { background: #fff; color: #0a1a1a; }
+
   /* Breadcrumb */
   .pf-breadcrumb {
     display: flex;
@@ -202,6 +219,7 @@ const css = `
     letter-spacing: 0.08em;
     text-transform: lowercase;
     flex-shrink: 0;
+    min-width: 0;
   }
   .pf-breadcrumb-sep {
     opacity: 0.3;
@@ -392,18 +410,113 @@ const css = `
     padding: 32px;
   }
 
+  /* ── Drawer de navegação mobile ── */
+  .pf-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: transparent;
+    pointer-events: none;
+    transition: background 0.3s ease;
+  }
+  .pf-mobile-backdrop.is-open {
+    background: rgba(6,13,13,0.5);
+    pointer-events: auto;
+    backdrop-filter: blur(3px);
+  }
+  .pf-mobile-drawer {
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    width: 240px;
+    max-width: 84vw;
+    transform: translateX(-100%);
+    transition: transform 0.34s cubic-bezier(0.22,1,0.36,1);
+    box-shadow: 10px 0 36px rgba(0,0,0,0.25);
+  }
+  .pf-mobile-backdrop.is-open .pf-mobile-drawer { transform: translateX(0); }
+  .pf-sidebar-mobile { display: flex; position: static; height: 100%; width: 100%; }
+
   @media (max-width: 768px) {
-    .pf-sidebar { display: none; }
+    .pf-sidebar:not(.pf-sidebar-mobile) { display: none; }
+    .pf-menu-btn { display: flex; }
     .pf-content { padding: 20px 16px; }
-    .pf-topbar { padding: 0 16px; }
+    .pf-topbar { padding: 0 16px; gap: 8px; }
     .pf-topbar-search-wrap { display: none; }
     .pf-topbar-date { display: none; }
   }
+
+  @media (max-width: 768px) {
+    .pf-breadcrumb { flex-shrink: 1; min-width: 0; overflow: hidden; }
+    .pf-breadcrumb-page { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  }
+
+  @media (max-width: 480px) {
+    .pf-breadcrumb-sep { display: none; }
+    .pf-topbar-badge span:not(.pf-topbar-dot) { display: none; }
+    .pf-topbar-badge { padding: 4px 8px; }
+  }
 `;
+
+function PfSidebarContent({ isActive, onLogout, onNavigate }: {
+  isActive: (path: string) => string;
+  onLogout: () => void;
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
+      <div className="pf-sidebar-top">
+        <div className="pf-sidebar-logo">
+          <div className="pf-sidebar-icon">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path d="M10 2L2 7V18H7V13H13V18H18V7L10 2Z" fill="rgba(56,189,248,0.9)" />
+              <rect x="7" y="13" width="6" height="5" fill="rgba(56,189,248,0.3)" />
+            </svg>
+          </div>
+          <div>
+            <div className="pf-sidebar-name">Gestão de Obras</div>
+          </div>
+        </div>
+        <div className="pf-sidebar-area">Plataforma admin</div>
+      </div>
+
+      <nav className="pf-nav">
+        <div className="pf-nav-label">Gestão</div>
+        <Link to="/platform/entities" className={isActive('/platform/entities')} onClick={onNavigate}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          Entidades
+        </Link>
+      </nav>
+
+      <div className="pf-sidebar-bottom">
+        <button className="pf-logout-btn" onClick={onLogout}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sair
+        </button>
+      </div>
+    </>
+  );
+}
 
 export function PlatformLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, [mobileOpen]);
 
   const handleLogout = async () => {
     try { await platformApi.logout(); } catch { /* ignore */ }
@@ -420,49 +533,36 @@ export function PlatformLayout() {
 
       {/* Sidebar */}
       <aside className="pf-sidebar">
-        <div className="pf-sidebar-top">
-          <div className="pf-sidebar-logo">
-            <div className="pf-sidebar-icon">
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <path d="M10 2L2 7V18H7V13H13V18H18V7L10 2Z" fill="rgba(56,189,248,0.9)" />
-                <rect x="7" y="13" width="6" height="5" fill="rgba(56,189,248,0.3)" />
-              </svg>
-            </div>
-            <div>
-              <div className="pf-sidebar-name">Gestão de Obras</div>
-            </div>
-          </div>
-          <div className="pf-sidebar-area">Plataforma admin</div>
-        </div>
-
-        <nav className="pf-nav">
-          <div className="pf-nav-label">Gestão</div>
-          <Link to="/platform/entities" className={isActive('/platform/entities')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            Entidades
-          </Link>
-        </nav>
-
-        <div className="pf-sidebar-bottom">
-          <button className="pf-logout-btn" onClick={handleLogout}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-            Sair
-          </button>
-        </div>
+        <PfSidebarContent isActive={isActive} onLogout={handleLogout} />
       </aside>
+
+      {/* Drawer mobile */}
+      <div
+        className={`pf-mobile-backdrop${mobileOpen ? ' is-open' : ''}`}
+        onClick={() => setMobileOpen(false)}
+      >
+        <div className="pf-mobile-drawer" onClick={(e) => e.stopPropagation()}>
+          <aside className="pf-sidebar pf-sidebar-mobile">
+            <PfSidebarContent isActive={isActive} onLogout={handleLogout} onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      </div>
 
       {/* Main */}
       <div className="pf-main">
         <div className="pf-topbar">
 
-          {/* Esquerda — breadcrumb */}
+          {/* Esquerda — menu + breadcrumb */}
+          <button
+            type="button"
+            className="pf-menu-btn"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Menu"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
           <div className="pf-breadcrumb">
             <span>plataforma</span>
             <span className="pf-breadcrumb-sep">›</span>

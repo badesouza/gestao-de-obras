@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { clearTenantToken, tenantApi } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
@@ -30,6 +30,16 @@ export function TenantLayout({ children }: { children?: React.ReactNode }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const pageTitle = usePageTitle(entityId);
+  const location = useLocation();
+
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, [mobileOpen]);
 
   const handleLogout = async () => {
     if (!entityId) return;
@@ -41,24 +51,29 @@ export function TenantLayout({ children }: { children?: React.ReactNode }) {
   return (
     <div className="tn-shell">
       {/* Desktop sidebar */}
-      <aside className="tn-sidebar" style={{ display: undefined }}>
+      <aside className="tn-sidebar">
         <TenantSidebar />
       </aside>
 
       {/* Mobile drawer */}
-      {mobileOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
+      <div
+        className={`tn-mobile-nav-backdrop${mobileOpen ? ' is-open' : ''}`}
+        onClick={() => setMobileOpen(false)}
+      >
+        <div className="tn-mobile-nav-drawer" onClick={(e) => e.stopPropagation()}>
+          <TenantSidebar mobile onNavigate={() => setMobileOpen(false)} />
           <button
             type="button"
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'pointer' }}
+            className="tn-mobile-nav-close"
             onClick={() => setMobileOpen(false)}
             aria-label="Fechar menu"
-          />
-          <div style={{ position: 'absolute', inset: '0 auto 0 0', width: 240 }}>
-            <TenantSidebar mobile onNavigate={() => setMobileOpen(false)} />
-          </div>
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
-      )}
+      </div>
 
       <div className="tn-main">
         {/* Topbar */}

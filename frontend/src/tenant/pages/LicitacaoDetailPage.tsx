@@ -158,7 +158,7 @@ function EditItemModal({ item, licitacaoId, entityId, onClose, onSaved }: {
               onBlur={e => { e.target.style.borderColor = descricao ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
           </label>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="tn-grid-2" style={{ gap: 12 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Unidade <span style={{ color: '#dc2626' }}>*</span>
