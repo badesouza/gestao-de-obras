@@ -294,6 +294,10 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
       : null,
   );
 
+  /* fotos/vídeos anexados no cadastro — enviados ao salvar o registro */
+  const [fotosPendentes, setFotosPendentes] = useState<{ id: string; file: File; url: string; tipo: 'foto' | 'video' }[]>([]);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!miniMapDiv.current || miniMapRef.current) return;
     const map = L.map(miniMapDiv.current, {
@@ -413,6 +417,82 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
     /* sem coord cadastrada: o debounce de geocodificação vai cuidar */
   }, [bairrosCoords]);
 
+  /* usa o GPS do dispositivo para preencher coordenada, bairro e logradouro */
+  const usarLocalizacaoAtual = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      setGeoLabel('Geolocalização não suportada neste dispositivo');
+      return;
+    }
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
+
+        const bairroAtual = String(valuesRef.current['Bairro / Localidade'] ?? '').trim();
+
+        Promise.all([
+          mapaApi.reverse(entityIdRef.current, lat, lng),
+          mapaApi.bairroMaisProximo(entityIdRef.current, lat, lng),
+        ]).then(([res, proximo]) => {
+          setGeoLabel(res.label);
+          setGeoStatus('found');
+          skipGeoRef.current = true;
+
+          const logradouro = (res.logradouro ?? '').trim();
+          if (bairroAtual) {
+            if (logradouro) setValues(prev => ({ ...prev, 'Logradouro / Referência': logradouro }));
+            return;
+          }
+          const bairroReconhecido = proximo.bairro;
+          setValues(prev => ({
+            ...prev,
+            ...(bairroReconhecido ? { 'Bairro / Localidade': bairroReconhecido } : {}),
+            ...(logradouro ? { 'Logradouro / Referência': logradouro } : {}),
+          }));
+          if (bairroReconhecido) skipGeoRef.current = true;
+        }).catch(() => setGeoStatus('idle'));
+      },
+      err => {
+        setGeoStatus('error');
+        setGeoLabel(err.code === err.PERMISSION_DENIED ? 'Permissão de localização negada' : 'Não foi possível obter a localização');
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, []);
+
+  /* anexos de foto/vídeo — ficam locais até o registro ser salvo */
+  const handleSelecionarFotos = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const novas: { id: string; file: File; url: string; tipo: 'foto' | 'video' }[] = [];
+    for (const file of Array.from(files)) {
+      const isVideo = file.type.startsWith('video/');
+      const maxMB = isVideo ? 50 : 10;
+      if (file.size > maxMB * 1024 * 1024) {
+        setError(`"${file.name}" excede ${maxMB}MB.`);
+        continue;
+      }
+      novas.push({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), tipo: isVideo ? 'video' : 'foto' });
+    }
+    if (novas.length) setFotosPendentes(prev => [...prev, ...novas]);
+  }, []);
+
+  const handleRemoverFoto = useCallback((id: string) => {
+    setFotosPendentes(prev => {
+      const alvo = prev.find(f => f.id === id);
+      if (alvo) URL.revokeObjectURL(alvo.url);
+      return prev.filter(f => f.id !== id);
+    });
+  }, []);
+
+  /* revoga blob URLs ao desmontar */
+  useEffect(() => {
+    return () => { fotosPendentes.forEach(f => URL.revokeObjectURL(f.url)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const geocodificar = useCallback(async () => {
     const bairro     = String(values['Bairro / Localidade'] ?? '').trim();
     const logradouro = String(values['Logradouro / Referência'] ?? '').trim();
@@ -500,6 +580,9 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
       }
       if (coords) {
         await mapaApi.salvarCoords(entityId, registroId, coords.lat, coords.lng, geoLabel || undefined);
+      }
+      for (const foto of fotosPendentes) {
+        await mapaApi.uploadMidia(entityId, registroId, foto.file);
       }
       onSaved();
     } catch (err) {
@@ -672,6 +755,18 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
                     <span style={{ fontWeight: 400, marginLeft: 4, textTransform: 'none', letterSpacing: 0 }}>
                       — clique para ajustar o pin
                     </span>
+                    <button
+                      type="button"
+                      className="sv-geo-btn"
+                      onClick={usarLocalizacaoAtual}
+                      disabled={geoStatus === 'loading'}
+                      style={{ marginLeft: 'auto' }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+                      </svg>
+                      Usar minha localização
+                    </button>
                   </span>
                   <div className="sv-mini-mapa">
                     <div ref={miniMapDiv} style={{ height: 260, width: '100%' }} />
@@ -740,6 +835,70 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
                   )}
                 </div>
               )}
+
+              <div className="sv-modal-field sv-midia-section" style={{ gridColumn: '1 / -1' }}>
+                <span className="sv-modal-label">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                  Fotos da ocorrência
+                  <span style={{ fontWeight: 400, marginLeft: 4, textTransform: 'none', letterSpacing: 0, color: 'var(--tn-muted)' }}>
+                    — opcional, até 10MB/foto · 50MB/vídeo
+                  </span>
+                </span>
+
+                <div
+                  className="sv-midia-dropzone"
+                  onClick={() => fotoInputRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('is-drag'); }}
+                  onDragLeave={e => e.currentTarget.classList.remove('is-drag')}
+                  onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('is-drag'); handleSelecionarFotos(e.dataTransfer.files); }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span>Clique ou tire uma foto</span>
+                  <small>JPG, PNG, MP4, MOV</small>
+                  <input
+                    ref={fotoInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    style={{ display: 'none' }}
+                    onChange={e => { handleSelecionarFotos(e.target.files); e.target.value = ''; }}
+                  />
+                </div>
+
+                {fotosPendentes.length > 0 && (
+                  <div className="sv-midia-grid">
+                    {fotosPendentes.map(f => (
+                      <div key={f.id} className="sv-midia-thumb">
+                        {f.tipo === 'video' ? (
+                          <video src={f.url} className="sv-midia-preview" muted playsInline />
+                        ) : (
+                          <img src={f.url} alt={f.file.name} className="sv-midia-preview" />
+                        )}
+                        <div className="sv-midia-overlay">
+                          <button type="button" className="sv-midia-del" onClick={() => handleRemoverFoto(f.id)}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
+                        {f.tipo === 'video' && (
+                          <div className="sv-midia-badge-video">
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            Vídeo
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {camposNormais
                 .filter(c => c.nome !== 'Bairro / Localidade' && c.nome !== 'Logradouro / Referência')

@@ -2873,6 +2873,25 @@
 .sv-mini-mapa-status.is-found { color: #16a34a; }
 .sv-mini-mapa-status.is-error { color: #dc2626; }
 
+.sv-geo-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  font-family: var(--tn-font);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.sv-geo-btn:hover:not(:disabled) { background: #dbeafe; }
+.sv-geo-btn:disabled { opacity: 0.6; cursor: default; }
+
 /* Alerta de bairro divergente */
 .sv-bairro-alerta {
   display: flex;
