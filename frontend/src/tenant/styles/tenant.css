@@ -1678,6 +1678,8 @@
 .tn-chip.dot-red i   { background: #ef4444; }
 .tn-chip.dot-blue   { background: rgba(59,130,246,0.1); color: #5b8db8; border: 1px solid rgba(59,130,246,0.2); }
 .tn-chip.dot-blue i  { background: #3b82f6; }
+.tn-chip.dot-amber  { background: rgba(217,119,6,0.1); color: #b45309; border: 1px solid rgba(217,119,6,0.2); }
+.tn-chip.dot-amber i { background: #d97706; }
 
 /* ── Buttons ──────────────────────────────────────────────────────── */
 .tn-btn-primary {
@@ -4503,6 +4505,83 @@
 .sv-drawer-empty svg { opacity: 0.15; }
 .sv-drawer-empty strong { font-size: 15px; font-weight: 700; color: var(--tn-ink); }
 .sv-drawer-empty span { font-size: 13px; }
+
+/* ── Busca de endereço para pinar coordenada (endereços + localização de bairro) ── */
+.sv-coord-modal-search {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sv-coord-search-input {
+  flex: 1;
+  min-width: 160px;
+  height: 40px;
+  padding: 0 12px;
+  background: #f0f4f9;
+  border: 1px solid var(--tn-hairline);
+  border-radius: var(--tn-radius-sm);
+  font-family: var(--tn-font);
+  font-size: 13px;
+  color: var(--tn-ink);
+}
+.sv-coord-search-input:focus { outline: none; border-color: #60a5fa; background: #fff; }
+.sv-coord-search-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 16px;
+  background: #eef2f8;
+  border: 1px solid var(--tn-hairline);
+  border-radius: var(--tn-radius-sm);
+  font-family: var(--tn-font);
+  font-size: 12.5px; font-weight: 600; color: var(--tn-ink);
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s;
+}
+.sv-coord-search-btn:hover:not(:disabled) { background: #e2e8f0; }
+.sv-coord-search-btn:disabled { opacity: 0.6; cursor: default; }
+.sv-coord-hint {
+  font-size: 11.5px;
+  color: var(--tn-muted);
+  padding: 0 2px;
+}
+.sv-coord-label {
+  font-family: var(--tn-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: #16a34a;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 2px;
+}
+
+/* ── Indicador de localização definida (linhas do cadastro de bairro) ── */
+.cad-geo-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 6px;
+  color: #cbd5e1;
+  flex-shrink: 0;
+}
+.cad-geo-badge.has-coord { color: #2563eb; }
+.cad-btn-geo { color: #2563eb; }
+
+.cad-macrozona-select {
+  flex-shrink: 0;
+  height: 26px;
+  max-width: 150px;
+  padding: 0 6px;
+  background: #eef2f8;
+  border: 1px solid var(--tn-hairline);
+  border-radius: 999px;
+  font-family: var(--tn-font);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tn-ink);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s;
+}
+.cad-macrozona-select:hover { background: #e2e8f0; }
+.cad-macrozona-select:focus { border-color: #60a5fa; }
+.cad-macrozona-select:disabled { opacity: 0.6; cursor: default; }
+.cad-macrozona-select.is-empty { color: var(--tn-muted); font-weight: 500; border-style: dashed; }
 
 /* ── Aba Endereços Descobertos ───────────────────────────────── */
 .end-cadastro-form {

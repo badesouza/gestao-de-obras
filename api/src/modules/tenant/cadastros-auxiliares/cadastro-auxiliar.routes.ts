@@ -12,7 +12,7 @@ import {
   type CadastroTipo,
 } from './cadastro-auxiliar.service.js';
 
-const TIPOS_VALIDOS = ['BAIRRO', 'EQUIPE', 'VEICULO', 'EQUIPAMENTO'] as const;
+const TIPOS_VALIDOS = ['BAIRRO', 'EQUIPE', 'VEICULO', 'EQUIPAMENTO', 'MACROZONA'] as const;
 
 const createSchema = z.object({
   tipo: z.enum(TIPOS_VALIDOS),
@@ -23,6 +23,7 @@ const updateSchema = z.object({
   nome: z.string().min(1).max(150).optional(),
   ativo: z.boolean().optional(),
   ordem: z.number().int().min(0).optional(),
+  macrozonaId: z.string().uuid().nullable().optional(),
 });
 
 const listQuerySchema = z.object({

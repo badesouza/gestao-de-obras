@@ -1,6 +1,6 @@
 import type { PrismaClient } from '../../../../generated/prisma/index.js';
 
-export type CadastroTipo = 'BAIRRO' | 'EQUIPE' | 'VEICULO' | 'EQUIPAMENTO';
+export type CadastroTipo = 'BAIRRO' | 'EQUIPE' | 'VEICULO' | 'EQUIPAMENTO' | 'MACROZONA';
 
 export async function listCadastros(
   prisma: PrismaClient,
@@ -34,10 +34,18 @@ export async function updateCadastro(
   prisma: PrismaClient,
   entityId: string,
   id: string,
-  data: { nome?: string; ativo?: boolean; ordem?: number },
+  data: { nome?: string; ativo?: boolean; ordem?: number; macrozonaId?: string | null },
 ) {
   const item = await prisma.cadastroAuxiliar.findFirst({ where: { id, entityId } });
   if (!item) throw new Error('NOT_FOUND');
+
+  if (data.macrozonaId !== undefined && data.macrozonaId !== null) {
+    if (item.tipo !== 'BAIRRO') throw new Error('MACROZONA_APENAS_BAIRRO');
+    const macrozona = await prisma.cadastroAuxiliar.findFirst({
+      where: { id: data.macrozonaId, entityId, tipo: 'MACROZONA' },
+    });
+    if (!macrozona) throw new Error('MACROZONA_NOT_FOUND');
+  }
 
   return prisma.cadastroAuxiliar.update({
     where: { id },
@@ -45,6 +53,7 @@ export async function updateCadastro(
       ...(data.nome !== undefined ? { nome: data.nome.trim() } : {}),
       ...(data.ativo !== undefined ? { ativo: data.ativo } : {}),
       ...(data.ordem !== undefined ? { ordem: data.ordem } : {}),
+      ...(data.macrozonaId !== undefined ? { macrozonaId: data.macrozonaId } : {}),
     },
   });
 }

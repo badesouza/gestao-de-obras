@@ -911,7 +911,7 @@ export const tenantApi = {
   },
 };
 
-export type CadastroAuxiliarTipo = 'BAIRRO' | 'EQUIPE' | 'VEICULO' | 'EQUIPAMENTO';
+export type CadastroAuxiliarTipo = 'BAIRRO' | 'EQUIPE' | 'VEICULO' | 'EQUIPAMENTO' | 'MACROZONA';
 
 export interface CadastroAuxiliar {
   id: string;
@@ -922,6 +922,7 @@ export interface CadastroAuxiliar {
   ordem: number;
   lat?: number | null;
   lng?: number | null;
+  macrozonaId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1079,7 +1080,7 @@ export const cadastrosAuxiliaresApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  update: (entityId: string, id: string, body: { nome?: string; ativo?: boolean; ordem?: number }) =>
+  update: (entityId: string, id: string, body: { nome?: string; ativo?: boolean; ordem?: number; macrozonaId?: string | null }) =>
     tenantRequest<CadastroAuxiliar>(entityId, `/api/tenant/v1/cadastros-auxiliares/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),

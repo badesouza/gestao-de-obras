@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import L from 'leaflet';
 import { ToastContainer } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
@@ -28,6 +29,7 @@ const ICON_EQUIPES = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
 const ICON_FROTA   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
 const ICON_EQUIP   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07M8.46 8.46a5 5 0 000 7.07"/></svg>;
 const ICON_ENDERECOS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>;
+const ICON_MACROZONAS = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>;
 
 /* ── Painel de detalhe de Equipe (líder + operadores) ──────────── */
 function EquipeDetalhe({
@@ -424,6 +426,7 @@ function EquipeDetalhe({
 }
 
 const ABAS_CADASTRO: { tipo: CadastroAuxiliarTipo; label: string; icon: React.ReactNode; dica: string }[] = [
+  { tipo: 'MACROZONA',   label: 'Macrozonas',   icon: ICON_MACROZONAS, dica: 'Agrupamentos territoriais (regiões/zonas) usados para análise por área da cidade. Cadastre aqui e depois vincule os bairros a cada macrozona na aba Bairros.' },
   { tipo: 'BAIRRO',      label: 'Bairros',      icon: ICON_BAIRROS, dica: 'Bairros e localidades do município usados nos registros de serviços.' },
   { tipo: 'EQUIPE',      label: 'Equipes',       icon: ICON_EQUIPES, dica: 'Equipes de trabalho disponíveis para os serviços urbanos.' },
   { tipo: 'VEICULO',     label: 'Frota',         icon: ICON_FROTA,   dica: 'Veículos da frota municipal usados nos serviços.' },
@@ -569,6 +572,216 @@ function MapaCadastroEndereco({
         </button>
       </div>
     </div>
+  );
+}
+
+/* ── Modal para definir a localização (lat/lng) de um bairro ────── */
+function BairroLocalizacaoModal({
+  entityId,
+  bairro,
+  onSaved,
+  onClose,
+}: {
+  entityId: string;
+  bairro: CadastroAuxiliar;
+  onSaved: (item: CadastroAuxiliar) => void;
+  onClose: () => void;
+}) {
+  const mapDiv    = useRef<HTMLDivElement>(null);
+  const mapRef    = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    bairro.lat != null && bairro.lng != null ? { lat: bairro.lat, lng: bairro.lng } : null,
+  );
+  const [busca,     setBusca]     = useState('');
+  const [buscando,  setBuscando]  = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [salvando,  setSalvando]  = useState(false);
+  const [error,     setError]     = useState('');
+
+  /* posiciona/move o marcador no mapa, sem mexer no estado React */
+  const posicionarMarcador = useCallback((lat: number, lng: number) => {
+    if (!mapRef.current) return;
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+    } else {
+      markerRef.current = L.marker([lat, lng], { draggable: true }).addTo(mapRef.current);
+      markerRef.current.on('dragend', () => {
+        const p = markerRef.current!.getLatLng();
+        setCoords({ lat: p.lat, lng: p.lng });
+      });
+    }
+  }, []);
+
+  const colocarPin = useCallback((lat: number, lng: number, recentrar = false) => {
+    setCoords({ lat, lng });
+    posicionarMarcador(lat, lng);
+    if (recentrar && mapRef.current) mapRef.current.setView([lat, lng], 16);
+  }, [posicionarMarcador]);
+
+  useEffect(() => {
+    if (!mapDiv.current || mapRef.current) return;
+    const center: [number, number] = coords ? [coords.lat, coords.lng] : [-12.5253, -40.3083];
+    const map = L.map(mapDiv.current, { center, zoom: coords ? 15 : 13 });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+    map.on('click', (e: L.LeafletMouseEvent) => colocarPin(e.latlng.lat, e.latlng.lng));
+    mapRef.current = map;
+    if (coords) posicionarMarcador(coords.lat, coords.lng);
+    setTimeout(() => map.invalidateSize(), 100);
+    return () => { map.remove(); mapRef.current = null; markerRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const handleBuscar = async () => {
+    if (!busca.trim()) return;
+    setBuscando(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?` +
+        new URLSearchParams({ q: `${busca}, Brasil`, format: 'json', limit: '1', countrycodes: 'br' }),
+        { headers: { 'User-Agent': 'GestaoObras/1.0' } },
+      );
+      const data = await res.json() as Array<{ lat: string; lon: string }>;
+      if (data.length > 0) {
+        colocarPin(parseFloat(data[0].lat), parseFloat(data[0].lon), true);
+      } else {
+        setError('Endereço não encontrado.');
+      }
+    } catch {
+      setError('Erro ao buscar endereço.');
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const usarLocalizacaoAtual = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocalização não suportada neste dispositivo.');
+      return;
+    }
+    setGeoLoading(true);
+    setError('');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        colocarPin(pos.coords.latitude, pos.coords.longitude, true);
+        setGeoLoading(false);
+      },
+      err => {
+        setGeoLoading(false);
+        setError(err.code === err.PERMISSION_DENIED ? 'Permissão de localização negada.' : 'Não foi possível obter a localização.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const handleSalvar = async () => {
+    if (!coords) { setError('Marque o ponto do bairro no mapa antes de salvar.'); return; }
+    setSalvando(true);
+    setError('');
+    try {
+      const item = await cadastrosAuxiliaresApi.saveBairroCoords(entityId, bairro.id, coords.lat, coords.lng);
+      onSaved(item);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar localização.');
+      setSalvando(false);
+    }
+  };
+
+  return createPortal(
+    <div className="sv-modal-backdrop" onClick={onClose}>
+      <div className="sv-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className="sv-modal-bar" style={{ background: '#2563eb' }} />
+
+        <div className="sv-modal-head">
+          <div className="sv-modal-head-left">
+            <div className="sv-modal-eyebrow" style={{ color: '#2563eb' }}>
+              <span style={{
+                display: 'inline-flex', width: 22, height: 22, alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(37,99,235,0.12)', borderRadius: 6,
+              }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                </svg>
+              </span>
+              Localização do bairro
+            </div>
+            <h3 className="sv-modal-title">{bairro.nome}</h3>
+            <p className="sv-modal-subtitle">Marque o ponto central do bairro no mapa — usado para localizar ocorrências automaticamente.</p>
+          </div>
+          <button type="button" className="sv-modal-close" onClick={onClose}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="sv-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="sv-coord-modal-search">
+            <input
+              type="text"
+              className="sv-coord-search-input"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void handleBuscar(); } }}
+              placeholder="Buscar endereço de referência…"
+            />
+            <button type="button" className="sv-coord-search-btn" onClick={() => void handleBuscar()} disabled={buscando}>
+              {buscando ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sv-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              )}
+              Buscar
+            </button>
+            <button type="button" className="sv-geo-btn" onClick={usarLocalizacaoAtual} disabled={geoLoading}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+              </svg>
+              Usar minha localização
+            </button>
+          </div>
+
+          <p className="sv-coord-hint">Clique no mapa ou arraste o pin para ajustar a posição.</p>
+          <div ref={mapDiv} style={{ height: 300, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--tn-hairline)' }} />
+
+          {coords ? (
+            <p className="sv-coord-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Lat: {coords.lat.toFixed(5)}, Lng: {coords.lng.toFixed(5)}
+            </p>
+          ) : (
+            <p className="sv-coord-hint" style={{ color: 'var(--tn-muted)' }}>Nenhuma localização definida ainda.</p>
+          )}
+
+          {error && (
+            <div className="tn-alert">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="sv-modal-footer">
+          <button type="button" className="tn-btn-secondary" onClick={onClose}>Cancelar</button>
+          <button type="button" className="tn-btn-blue" style={{ height: 40, fontSize: 13 }} onClick={() => void handleSalvar()} disabled={salvando || !coords}>
+            {salvando ? 'Salvando…' : 'Salvar localização'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -777,6 +990,9 @@ export function CadastrosAuxiliaresPage() {
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<CadastroAuxiliar | null>(null);
   const [equipeAberta, setEquipeAberta] = useState<CadastroAuxiliar | null>(null);
+  const [bairroLocalizacao, setBairroLocalizacao] = useState<CadastroAuxiliar | null>(null);
+  const [macrozonas, setMacrozonas] = useState<CadastroAuxiliar[]>([]);
+  const [savingMacrozona, setSavingMacrozona] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (abaAtiva === 'ENDERECOS') return;
@@ -793,6 +1009,26 @@ export function CadastrosAuxiliaresPage() {
   }, [entityId, abaAtiva]);
 
   useEffect(() => { void load(); }, [load]);
+
+  /* carrega macrozonas ativas para o seletor na aba Bairros */
+  useEffect(() => {
+    if (abaAtiva !== 'BAIRRO') return;
+    cadastrosAuxiliaresApi.list(entityId, 'MACROZONA')
+      .then(res => setMacrozonas(res.items.filter(i => i.ativo)))
+      .catch(() => {});
+  }, [entityId, abaAtiva]);
+
+  const handleSetMacrozona = async (item: CadastroAuxiliar, macrozonaId: string) => {
+    setSavingMacrozona(item.id);
+    try {
+      await cadastrosAuxiliaresApi.update(entityId, item.id, { macrozonaId: macrozonaId || null });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao vincular macrozona');
+    } finally {
+      setSavingMacrozona(null);
+    }
+  };
 
   const handleAdd = async () => {
     if (!novoNome.trim()) return;
@@ -845,6 +1081,7 @@ export function CadastrosAuxiliaresPage() {
   const sort = (arr: CadastroAuxiliar[]) => [...arr].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const ativos   = sort(items.filter(i => i.ativo));
   const inativos = sort(items.filter(i => !i.ativo));
+  const comLocalizacao = ativos.filter(i => i.lat != null && i.lng != null).length;
 
   return (
     <div className="tn-page">
@@ -899,9 +1136,16 @@ export function CadastrosAuxiliaresPage() {
               <span>Cadastro</span>
               <h3>{abaInfo.label}</h3>
             </div>
-            <span className="tn-chip dot-blue">
-              <i />{ativos.length} ativo{ativos.length !== 1 ? 's' : ''}
-            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="tn-chip dot-blue">
+                <i />{ativos.length} ativo{ativos.length !== 1 ? 's' : ''}
+              </span>
+              {abaAtiva === 'BAIRRO' && (
+                <span className={`tn-chip ${comLocalizacao === ativos.length && ativos.length > 0 ? 'dot-green' : 'dot-amber'}`}>
+                  <i />{comLocalizacao} de {ativos.length} com localização
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="cad-dica">
@@ -957,7 +1201,33 @@ export function CadastrosAuxiliaresPage() {
                       autoFocus maxLength={150}
                     />
                   ) : (
-                    <span className="cad-item-nome">{item.nome}</span>
+                    <span className="cad-item-nome">
+                      {item.nome}
+                      {abaAtiva === 'BAIRRO' && (
+                        <span
+                          className={`cad-geo-badge${item.lat != null && item.lng != null ? ' has-coord' : ''}`}
+                          title={item.lat != null && item.lng != null ? 'Localização definida' : 'Sem localização definida'}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                          </svg>
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {abaAtiva === 'BAIRRO' && editId !== item.id && (
+                    <select
+                      className={`cad-macrozona-select${!item.macrozonaId ? ' is-empty' : ''}`}
+                      value={item.macrozonaId ?? ''}
+                      disabled={savingMacrozona === item.id}
+                      onChange={e => void handleSetMacrozona(item, e.target.value)}
+                      title="Macrozona"
+                    >
+                      <option value="">Sem macrozona</option>
+                      {macrozonas.map(mz => (
+                        <option key={mz.id} value={mz.id}>{mz.nome}</option>
+                      ))}
+                    </select>
                   )}
                   <div className="cad-item-actions">
                     {editId === item.id ? (
@@ -971,6 +1241,14 @@ export function CadastrosAuxiliaresPage() {
                       </>
                     ) : (
                       <>
+                        {abaAtiva === 'BAIRRO' && (
+                          <button type="button" className="tn-icon-btn cad-btn-geo" title="Definir localização"
+                            onClick={() => setBairroLocalizacao(item)}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                            </svg>
+                          </button>
+                        )}
                         {abaAtiva === 'EQUIPE' && (
                           <button type="button" className="tn-icon-btn eq-btn-config" title="Configurar equipe"
                             onClick={() => setEquipeAberta(item)}>
@@ -1024,6 +1302,19 @@ export function CadastrosAuxiliaresPage() {
           entityId={entityId}
           equipe={equipeAberta}
           onClose={() => setEquipeAberta(null)}
+        />
+      )}
+
+      {bairroLocalizacao && (
+        <BairroLocalizacaoModal
+          entityId={entityId}
+          bairro={bairroLocalizacao}
+          onClose={() => setBairroLocalizacao(null)}
+          onSaved={(item) => {
+            setItems(prev => prev.map(i => i.id === item.id ? item : i));
+            setBairroLocalizacao(null);
+            showToastCad(`Localização de "${item.nome}" salva com sucesso.`);
+          }}
         />
       )}
 

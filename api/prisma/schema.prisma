@@ -114,25 +114,30 @@ enum CadastroAuxiliarTipo {
   EQUIPE
   VEICULO
   EQUIPAMENTO
+  MACROZONA
 }
 
 model CadastroAuxiliar {
-  id        String               @id @default(uuid())
-  entityId  String               @map("entity_id")
-  tipo      CadastroAuxiliarTipo
-  nome      String               @db.VarChar(150)
-  ativo     Boolean              @default(true)
-  ordem     Int                  @default(0)
-  lat       Float?
-  lng       Float?
-  createdAt DateTime             @default(now()) @map("created_at")
-  updatedAt DateTime             @updatedAt @map("updated_at")
+  id          String               @id @default(uuid())
+  entityId    String               @map("entity_id")
+  tipo        CadastroAuxiliarTipo
+  nome        String               @db.VarChar(150)
+  ativo       Boolean              @default(true)
+  ordem       Int                  @default(0)
+  lat         Float?
+  lng         Float?
+  macrozonaId String?              @map("macrozona_id")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
 
-  entity Entity   @relation(fields: [entityId], references: [id])
-  equipe Equipe?
+  entity    Entity             @relation(fields: [entityId], references: [id])
+  equipe    Equipe?
+  macrozona CadastroAuxiliar?  @relation("BairroMacrozona", fields: [macrozonaId], references: [id])
+  bairros   CadastroAuxiliar[] @relation("BairroMacrozona")
 
   @@unique([entityId, tipo, nome])
   @@index([entityId, tipo, ativo])
+  @@index([macrozonaId])
   @@map("cadastros_auxiliares")
 }
 
