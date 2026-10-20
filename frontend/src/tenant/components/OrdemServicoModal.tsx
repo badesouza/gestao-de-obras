@@ -159,6 +159,52 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
   const fotos  = midias.filter(m => m.tipo === 'foto' || m.mimeType.startsWith('image/'));
   const videos = midias.filter(m => m.tipo === 'video' || m.mimeType.startsWith('video/'));
 
+  /* fotos e vídeos da ocorrência — no cadastro ou na vistoria */
+  const renderMidias = () => (
+    <>
+        {/* Levantamento fotográfico */}
+        {fotos.length > 0 && (
+          <div className="os-fotos-section">
+            <div className="os-fotos-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Levantamento Fotográfico ({fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'})
+            </div>
+            <div className="os-fotos-grid">
+              {fotos.map(f => (
+                <div key={f.id} className="os-foto-item">
+                  {f.objectUrl ? (
+                    <img src={f.objectUrl} alt={f.nomeArquivo} className="os-foto-img" />
+                  ) : (
+                    <div className="os-foto-img os-foto-erro">—</div>
+                  )}
+                  <span className="os-foto-nome">{f.nomeArquivo}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {videos.length > 0 && (
+          <div className="os-fotos-section">
+            <div className="os-fotos-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+              </svg>
+              Vídeos ({videos.length})
+            </div>
+            <div className="os-fotos-lista">
+              {videos.map(v => (
+                <span key={v.id} className="os-video-nome">{v.nomeArquivo}</span>
+              ))}
+            </div>
+          </div>
+        )}
+    </>
+  );
+
   const numeroOS = gerarNumeroOS(row.id, row.data);
   const municipio = session.entity.municipalityName ?? '';
   const uf = session.entity.uf ?? '';
@@ -264,6 +310,14 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
             </div>
           )}
 
+          {/* Registro fotográfico do cadastro — antes da vistoria as fotos ficam aqui */}
+          {!temVistoria && midias.length > 0 && (
+            <div className="os-section">
+              <div className="os-section-title">Registro Fotográfico</div>
+              {renderMidias()}
+            </div>
+          )}
+
           <div className="os-divider" />
 
           {/* Vistoria de Conclusão — só aparece se já foi realizada */}
@@ -296,46 +350,7 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
                 )}
               </div>
 
-              {/* Levantamento fotográfico */}
-              {fotos.length > 0 && (
-                <div className="os-fotos-section">
-                  <div className="os-fotos-label">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-                      <polyline points="21 15 16 10 5 21"/>
-                    </svg>
-                    Levantamento Fotográfico ({fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'})
-                  </div>
-                  <div className="os-fotos-grid">
-                    {fotos.map(f => (
-                      <div key={f.id} className="os-foto-item">
-                        {f.objectUrl ? (
-                          <img src={f.objectUrl} alt={f.nomeArquivo} className="os-foto-img" />
-                        ) : (
-                          <div className="os-foto-img os-foto-erro">—</div>
-                        )}
-                        <span className="os-foto-nome">{f.nomeArquivo}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {videos.length > 0 && (
-                <div className="os-fotos-section">
-                  <div className="os-fotos-label">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
-                    </svg>
-                    Vídeos ({videos.length})
-                  </div>
-                  <div className="os-fotos-lista">
-                    {videos.map(v => (
-                      <span key={v.id} className="os-video-nome">{v.nomeArquivo}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {renderMidias()}
             </div>
           ) : (
             /* Bloco para preenchimento manual — se ainda não foi vistoriado */
