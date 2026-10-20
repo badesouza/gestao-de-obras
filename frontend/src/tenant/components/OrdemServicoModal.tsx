@@ -68,6 +68,7 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
   const { entityId, session } = useTenant();
   const [coatOfArmsUrl, setCoatOfArmsUrl] = useState<string | null>(null);
   const [midias, setMidias] = useState<MidiaComUrl[]>([]);
+  const [fotoAberta, setFotoAberta] = useState<MidiaComUrl | null>(null);
   const mapDiv = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
 
@@ -140,10 +141,13 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
 
   /* fechar com ESC */
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (fotoAberta) setFotoAberta(null); else onClose();
+    };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
+  }, [onClose, fotoAberta]);
 
   const getCellText = (propId: string) => row.values[propId]?.text ?? '—';
 
@@ -176,7 +180,9 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
               {fotos.map(f => (
                 <div key={f.id} className="os-foto-item">
                   {f.objectUrl ? (
-                    <img src={f.objectUrl} alt={f.nomeArquivo} className="os-foto-img" />
+                    <button type="button" className="os-foto-btn" onClick={() => setFotoAberta(f)} title="Ver foto inteira">
+                      <img src={f.objectUrl} alt={f.nomeArquivo} className="os-foto-img" />
+                    </button>
                   ) : (
                     <div className="os-foto-img os-foto-erro">—</div>
                   )}
@@ -399,6 +405,18 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
           </div>
         </div>
       </div>
+
+      {/* foto inteira, com o carimbo */}
+      {fotoAberta && (
+        <div className="os-foto-zoom" onClick={() => setFotoAberta(null)}>
+          <img src={fotoAberta.objectUrl} alt={fotoAberta.nomeArquivo} />
+          <div className="os-foto-zoom-barra">
+            <span>{fotoAberta.nomeArquivo}</span>
+            <a href={fotoAberta.objectUrl} download={fotoAberta.nomeArquivo} onClick={e => e.stopPropagation()}>Baixar</a>
+            <button type="button">Fechar</button>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );
