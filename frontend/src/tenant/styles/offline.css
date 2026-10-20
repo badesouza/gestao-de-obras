@@ -190,3 +190,12 @@
 .off-tela img { width: 72px; height: 72px; border-radius: 18px; }
 .off-tela strong { font-size: 22px; }
 .off-tela span { max-width: 340px; color: rgba(238,243,239,0.6); font-size: 15px; line-height: 1.45; }
+
+/* versão do sistema no rodapé do menu */
+.tn-sidebar-footer { flex-wrap: wrap; }
+.tn-versao {
+  width: 100%; margin-top: 8px;
+  font-family: var(--tn-mono, monospace); font-size: 10px; letter-spacing: .06em;
+  color: rgba(255,255,255,0.35); text-align: center;
+}
+.tn-sidebar-collapsible:not(.is-expanded) .tn-versao { display: none; }

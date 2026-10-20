@@ -22,7 +22,12 @@ function serviceWorker(): Plugin {
   }
 }
 
+/* data/hora do build, mostrada no menu para conferir se o aparelho atualizou */
+const agora = new Date(Date.now() - 3 * 3600_000)
+const versaoApp = `${agora.toISOString().slice(8, 10)}/${agora.toISOString().slice(5, 7)} ${agora.toISOString().slice(11, 16)}`
+
 export default defineConfig({
+  define: { __VERSAO_APP__: JSON.stringify(versaoApp) },
   plugins: [react(), tailwindcss(), serviceWorker()],
   optimizeDeps: {
     include: ['recharts', 'recharts/es6/component/DefaultLegendContent'],

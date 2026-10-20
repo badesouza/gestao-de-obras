@@ -220,6 +220,7 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
             <div className="tn-user-role">{session.role.name}</div>
           </div>
         </div>
+        <div className="tn-versao" title="Versão do sistema neste aparelho">versão {__VERSAO_APP__}</div>
       </div>
     </div>
   );

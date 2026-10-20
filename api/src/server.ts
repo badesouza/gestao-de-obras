@@ -69,6 +69,12 @@ async function start() {
       root: publicDir,
       prefix: '/',
       decorateReply: false,
+      /* página principal, manifest e service worker sempre conferidos: versão nova chega na hora */
+      setHeaders: (res, filePath) => {
+        if (/(index\.html|sw\.js|manifest\.webmanifest)$/.test(filePath)) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
     });
 
     fastify.setNotFoundHandler((request, reply) => {
@@ -82,7 +88,7 @@ async function start() {
       }
 
       const indexHtml = fs.readFileSync(path.join(publicDir, 'index.html'));
-      return reply.type('text/html').send(indexHtml);
+      return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
     });
   }
 
