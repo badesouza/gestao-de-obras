@@ -133,6 +133,24 @@
 .off-instalar-texto strong { font-size: 15px; font-weight: 700; }
 .off-instalar-texto span { font-size: 12.5px; color: var(--off-soft); }
 
+/* versão nova */
+.off-versao {
+  width: 380px; max-width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 16px;
+  background: var(--off-bg); color: var(--off-ink);
+  border: 1px solid rgba(96,165,250,0.35);
+  box-shadow: 0 16px 40px rgba(4,10,12,0.4);
+}
+.off-versao-ponto {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  background: var(--off-cor);
+  box-shadow: 0 0 0 0 rgba(96,165,250,0.6);
+  animation: off-pulso-azul 1.8s ease-out infinite;
+}
+@keyframes off-pulso-azul { to { box-shadow: 0 0 0 9px rgba(96,165,250,0); } }
+
 /* botões */
 .off-btn-cor {
   height: 36px; padding: 0 14px; flex-shrink: 0;

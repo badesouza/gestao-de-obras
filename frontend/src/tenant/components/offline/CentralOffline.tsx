@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   EVENTO_FILA, descartarDaFila, listarFila, sincronizarFila, type EstadoEnvio, type ItemFila,
 } from '../../../lib/offline/fila';
-import { rodandoComoApp, useInstalacao, useOnline } from '../../../lib/offline/pwa';
+import { rodandoComoApp, useInstalacao, useOnline, useVersaoNova } from '../../../lib/offline/pwa';
 import '../../styles/offline.css';
 
 const CHAVE_DISPENSA = 'gdo:instalar-dispensado';
@@ -20,6 +20,7 @@ export function CentralOffline({ entityId }: { entityId: string }) {
   const navigate = useNavigate();
   const online = useOnline();
   const { podeInstalar, instalar } = useInstalacao();
+  const versaoNova = useVersaoNova();
 
   const [itens,   setItens]   = useState<ItemFila[]>([]);
   const [estado,  setEstado]  = useState<EstadoEnvio>('parado');
@@ -96,6 +97,17 @@ export function CentralOffline({ entityId }: { entityId: string }) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
           )}
           {toast.texto}
+        </div>
+      )}
+
+      {versaoNova && (
+        <div className="off-versao">
+          <span className="off-versao-ponto" />
+          <div className="off-instalar-texto">
+            <strong>Versão nova do sistema</strong>
+            <span>Termine o que está fazendo e atualize.</span>
+          </div>
+          <button type="button" className="off-btn-cor" onClick={() => window.location.reload()}>Atualizar</button>
         </div>
       )}
 

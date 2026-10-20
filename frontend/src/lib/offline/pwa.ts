@@ -23,8 +23,40 @@ export function iniciarPwa() {
     notificar();
   });
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-    window.addEventListener('load', () => { void navigator.serviceWorker.register('/sw.js'); });
+    window.addEventListener('load', () => { void registrar(); });
   }
+}
+
+/* ── atualização: versão nova publicada chega sozinha ── */
+
+let versaoNova = false;
+const abertoEm = Date.now();
+
+async function registrar() {
+  const sw = navigator.serviceWorker;
+  const tinhaVersao = !!sw.controller;
+  sw.addEventListener('controllerchange', () => {
+    if (!tinhaVersao) return; /* primeira instalação: nada a trocar */
+    /* logo ao abrir o app ninguém está preenchendo nada: atualiza direto */
+    if (Date.now() - abertoEm < 15000) { window.location.reload(); return; }
+    versaoNova = true;
+    notificar();
+  });
+  const reg = await sw.register('/sw.js');
+  const checar = () => { void reg.update().catch(() => {}); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checar(); });
+  setInterval(checar, 30 * 60 * 1000);
+}
+
+/** Há uma versão nova pronta (o app estava em uso quando ela chegou) */
+export function useVersaoNova() {
+  const [nova, setNova] = useState(versaoNova);
+  useEffect(() => {
+    const f = () => setNova(versaoNova);
+    ouvintes.add(f);
+    return () => { ouvintes.delete(f); };
+  }, []);
+  return nova;
 }
 
 export function rodandoComoApp(): boolean {
