@@ -4,6 +4,9 @@ import L from 'leaflet';
 import { tenantApi, cadastrosAuxiliaresApi, mapaApi, type CentroCustoDetail, type RegistroDiarioRow, type BairroCoord } from '../../lib/api-client';
 import { type ServicoConfig, type CampoConfig } from '../pages/servico-config';
 import { CENTRO_IDS } from '../pages/servico-config';
+import { CameraCarimbo, type LocalFoto } from './camera/CameraCarimbo';
+import { bairroMaisProximoLocal } from './camera/carimbo';
+import { adicionarNaFila, ehErroDeRede } from '../../lib/offline/fila';
 
 
 /* ── Multi-select com checkboxes ─────────────────────────────── */
@@ -295,8 +298,9 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
   );
 
   /* fotos/vídeos anexados no cadastro — enviados ao salvar o registro */
-  const [fotosPendentes, setFotosPendentes] = useState<{ id: string; file: File; url: string; tipo: 'foto' | 'video' }[]>([]);
+  const [fotosPendentes, setFotosPendentes] = useState<{ id: string; file: File; url: string; tipo: 'foto' | 'video'; carimbada?: boolean }[]>([]);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [cameraAberta, setCameraAberta] = useState(false);
 
   useEffect(() => {
     if (!miniMapDiv.current || miniMapRef.current) return;
@@ -479,6 +483,25 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
     if (novas.length) setFotosPendentes(prev => [...prev, ...novas]);
   }, []);
 
+  /* fotos da câmera de campo: já vêm carimbadas; a localização delas preenche o mapa se estiver vazio */
+  const handleFotosCamera = useCallback((files: File[], local: LocalFoto | null) => {
+    setCameraAberta(false);
+    setFotosPendentes(prev => [
+      ...prev,
+      ...files.map(file => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file), tipo: 'foto' as const, carimbada: true })),
+    ]);
+    if (!local || coords) return;
+    setCoords({ lat: local.lat, lng: local.lng });
+    setGeoLabel(`GPS das fotos · precisão de ${Math.round(local.precisao)} m`);
+    setGeoStatus('found');
+    const bairroAtual = String(valuesRef.current['Bairro / Localidade'] ?? '').trim();
+    const proximo = bairroAtual ? null : bairroMaisProximoLocal(local.lat, local.lng, bairrosCoords);
+    if (proximo) {
+      skipGeoRef.current = true;
+      setValues(prev => ({ ...prev, 'Bairro / Localidade': proximo }));
+    }
+  }, [coords, bairrosCoords]);
+
   const handleRemoverFoto = useCallback((id: string) => {
     setFotosPendentes(prev => {
       const alvo = prev.find(f => f.id === id);
@@ -528,10 +551,11 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
   useEffect(() => { firstRef.current?.focus(); }, []);
 
   useEffect(() => {
+    if (cameraAberta) return; /* a câmera trata o Esc dela */
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
+  }, [onClose, cameraAberta]);
 
   const set = (nome: string, val: string | boolean) =>
     setValues(prev => ({ ...prev, [nome]: val }));
@@ -555,6 +579,26 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
     return out;
   };
 
+  type Payload = { data: string; values: ReturnType<typeof buildCellValues> };
+  type Progresso = { registroId?: string; coordsEnviadas?: boolean; fotosEnviadas: number };
+
+  /* sem internet: guarda a ocorrência (com fotos) no aparelho; a CentralOffline envia depois */
+  const guardarNaFila = async (payload: Payload, progresso: Progresso) => {
+    const bairro = String(values['Bairro / Localidade'] ?? '').trim();
+    const logradouro = String(values['Logradouro / Referência'] ?? '').trim();
+    await adicionarNaFila({
+      entityId,
+      centroId,
+      servico: config.nome,
+      cor: config.cor,
+      payload,
+      resumo: [bairro, logradouro].filter(Boolean).join(' · '),
+      coords: coords ? { ...coords, label: geoLabel || undefined } : undefined,
+      fotos: fotosPendentes.map(f => ({ nome: f.file.name, tipo: f.file.type, blob: f.file })),
+      ...progresso,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -568,8 +612,14 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
       }
     }
     setSaving(true);
+    const payload: Payload = { data, values: buildCellValues() };
+    const progresso: Progresso = { fotosEnviadas: 0 };
     try {
-      const payload = { data, values: buildCellValues() };
+      if (!isEdit && !navigator.onLine) {
+        await guardarNaFila(payload, progresso);
+        onSaved();
+        return;
+      }
       let registroId: string;
       if (isEdit) {
         await tenantApi.centrosCusto.updateRegistro(entityId, centroId, editRow.id, payload);
@@ -577,16 +627,29 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
       } else {
         const novo = await tenantApi.centrosCusto.createRegistro(entityId, centroId, payload);
         registroId = novo.id;
+        progresso.registroId = registroId;
       }
       if (coords) {
         await mapaApi.salvarCoords(entityId, registroId, coords.lat, coords.lng, geoLabel || undefined);
+        progresso.coordsEnviadas = true;
       }
       for (const foto of fotosPendentes) {
         await mapaApi.uploadMidia(entityId, registroId, foto.file);
+        progresso.fotosEnviadas++;
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar');
+      /* sinal caiu no meio: guarda o que faltou e o envio continua sozinho depois */
+      if (!isEdit && ehErroDeRede(err)) {
+        try {
+          await guardarNaFila(payload, progresso);
+          onSaved();
+          return;
+        } catch { /* sem espaço no aparelho: mostra o erro abaixo */ }
+      }
+      setError(isEdit && ehErroDeRede(err)
+        ? 'Sem internet. Para editar uma ocorrência é preciso estar conectado.'
+        : err instanceof Error ? err.message : 'Erro ao salvar');
     } finally {
       setSaving(false);
     }
@@ -848,6 +911,29 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
                   </span>
                 </span>
 
+                <button
+                  type="button"
+                  className="sv-cam-cta"
+                  style={{ '--cam-cor': config.cor } as React.CSSProperties}
+                  onClick={() => setCameraAberta(true)}
+                >
+                  <span className="sv-cam-cta-icone">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                  </span>
+                  <span className="sv-cam-cta-texto">
+                    <strong>Tirar foto com carimbo</strong>
+                    <small>Data, hora, GPS, local e fiscal gravados na foto · funciona sem internet</small>
+                  </span>
+                  <svg className="sv-cam-cta-seta" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <div className="sv-midia-alt">ou anexe da galeria</div>
+
                 <div
                   className="sv-midia-dropzone"
                   onClick={() => fotoInputRef.current?.click()}
@@ -860,7 +946,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
                     <polyline points="17 8 12 3 7 8"/>
                     <line x1="12" y1="3" x2="12" y2="15"/>
                   </svg>
-                  <span>Clique ou tire uma foto</span>
+                  <span>Escolher arquivo</span>
                   <small>JPG, PNG, MP4, MOV</small>
                   <input
                     ref={fotoInputRef}
@@ -888,6 +974,12 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
                             </svg>
                           </button>
                         </div>
+                        {f.carimbada && (
+                          <div className="sv-midia-badge-carimbo">
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/></svg>
+                            GPS
+                          </div>
+                        )}
                         {f.tipo === 'video' && (
                           <div className="sv-midia-badge-video">
                             <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -943,6 +1035,19 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
               </button>
             </div>
           </form>
+
+          {cameraAberta && (
+            <CameraCarimbo
+              entityId={entityId}
+              servico={config.nome}
+              cor={config.cor}
+              bairro={String(values['Bairro / Localidade'] ?? '').trim()}
+              logradouro={String(values['Logradouro / Referência'] ?? '').trim()}
+              bairrosCoords={bairrosCoords}
+              onConcluir={handleFotosCamera}
+              onFechar={() => setCameraAberta(false)}
+            />
+          )}
         </div>
       </div>
 
