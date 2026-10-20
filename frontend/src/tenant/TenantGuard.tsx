@@ -7,12 +7,13 @@ import {
 } from '../lib/api-client';
 import { TenantProvider } from './TenantContext';
 import { TenantLayout } from './layouts/TenantLayout';
+import { lembrarTenant } from '../lib/offline/pwa';
 
 /** Protects tenant routes — redirects to entity login if unauthenticated */
 export function TenantGuard() {
   const { id: entityId } = useParams<{ id: string }>();
   const [state, setState] = useState<
-    'loading' | 'ok' | 'denied' | 'forbidden'
+    'loading' | 'ok' | 'denied' | 'forbidden' | 'offline'
   >('loading');
   const [session, setSession] = useState<TenantSession | null>(null);
 
@@ -37,8 +38,10 @@ export function TenantGuard() {
         }
         setSession(profile);
         setState('ok');
+        lembrarTenant(entityId);
       })
-      .catch(() => setState('denied'));
+      /* sem internet e sem dados guardados: não manda para o login à toa */
+      .catch(() => setState(navigator.onLine ? 'denied' : 'offline'));
   }, [entityId]);
 
   if (!entityId) {
@@ -49,6 +52,16 @@ export function TenantGuard() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-canvas)]">
         <p>Carregando…</p>
+      </div>
+    );
+  }
+
+  if (state === 'offline') {
+    return (
+      <div className="off-tela">
+        <img src="/icons/icon-192.png" alt="" />
+        <strong>Sem internet</strong>
+        <span>Abra o sistema uma vez com internet neste aparelho. Depois disso ele passa a funcionar mesmo sem sinal.</span>
       </div>
     );
   }

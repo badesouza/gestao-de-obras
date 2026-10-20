@@ -1,0 +1,174 @@
+/* ══════════════════════════════════════════════════════════════
+   Central offline — avisos flutuantes (fila, sem internet, instalar)
+   ══════════════════════════════════════════════════════════════ */
+.off-dock {
+  --off-bg: #0b1414;
+  --off-ink: #eef3ef;
+  --off-soft: rgba(238,243,239,0.6);
+  --off-line: rgba(238,243,239,0.1);
+  --off-cor: #60a5fa;
+  position: fixed; z-index: 1500;
+  right: 20px; bottom: max(20px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  max-width: calc(100vw - 32px);
+  font-family: var(--tn-font, 'Rajdhani', sans-serif);
+  pointer-events: none;
+}
+.off-dock > * { pointer-events: auto; animation: off-sobe .3s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes off-sobe { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+
+@media (max-width: 640px) {
+  .off-dock { left: 16px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); align-items: stretch; max-width: none; }
+}
+
+/* pílula da fila */
+.off-pilula {
+  align-self: flex-end;
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 44px; padding: 0 16px 0 6px;
+  border: 1px solid var(--off-line); border-radius: 999px;
+  background: var(--off-bg); color: var(--off-ink);
+  font-family: inherit; font-size: 14.5px; font-weight: 600;
+  box-shadow: 0 10px 30px rgba(4,10,12,0.35);
+  cursor: pointer;
+}
+.off-pilula-num {
+  min-width: 32px; height: 32px; padding: 0 8px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: #fbbf24; color: #1a1205;
+  font-family: var(--tn-mono, monospace); font-size: 13px; font-weight: 700;
+}
+.off-pilula.is-enviando .off-pilula-num { background: var(--off-cor); color: #04080a; }
+.off-pilula.is-erro .off-pilula-num { background: #f87171; color: #1f0606; }
+.off-pilula:hover { border-color: rgba(238,243,239,0.22); }
+
+.off-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.18); border-top-color: var(--off-cor);
+  animation: off-gira .8s linear infinite;
+}
+@keyframes off-gira { to { transform: rotate(360deg); } }
+
+/* sem internet */
+.off-semrede {
+  align-self: flex-end;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #1f1806; color: #fde68a;
+  border: 1px solid rgba(251,191,36,0.3);
+  font-size: 13.5px; font-weight: 600;
+  box-shadow: 0 10px 30px rgba(4,10,12,0.3);
+}
+.off-semrede-ponto {
+  width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(251,191,36,0.6);
+  animation: off-pulso 1.8s ease-out infinite;
+}
+@keyframes off-pulso { to { box-shadow: 0 0 0 9px rgba(251,191,36,0); } }
+
+/* aviso rápido */
+.off-toast {
+  align-self: flex-end;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 15px;
+  border-radius: 12px;
+  background: var(--off-bg); color: var(--off-ink);
+  border: 1px solid var(--off-line);
+  font-size: 14px; font-weight: 600;
+  box-shadow: 0 10px 30px rgba(4,10,12,0.35);
+}
+.off-toast.is-ok svg { color: #4ade80; }
+.off-toast.is-guardado svg { color: #fbbf24; }
+
+/* painel */
+.off-painel {
+  width: 380px; max-width: 100%;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--off-bg); color: var(--off-ink);
+  border: 1px solid var(--off-line);
+  box-shadow: 0 20px 50px rgba(4,10,12,0.45);
+}
+.off-painel-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.off-painel-cab strong { display: block; font-size: 17px; font-weight: 700; line-height: 1.2; }
+.off-eyebrow {
+  display: block; margin-bottom: 2px;
+  font-family: var(--tn-mono, monospace); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: #fbbf24;
+}
+.off-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.off-lista li {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid transparent;
+}
+.off-lista li.is-erro { border-color: rgba(248,113,113,0.35); background: rgba(248,113,113,0.06); }
+.off-lista-cor { width: 4px; align-self: stretch; border-radius: 2px; flex-shrink: 0; }
+.off-lista-info { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+.off-lista-info strong { font-size: 14.5px; font-weight: 700; }
+.off-lista-info span { font-size: 12.5px; color: var(--off-soft); overflow: hidden; text-overflow: ellipsis; }
+.off-lista-fotos { font-family: var(--tn-mono, monospace); font-size: 10.5px !important; }
+.off-lista-erro { color: #fca5a5 !important; }
+
+/* convite de instalação */
+.off-instalar {
+  width: 380px; max-width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 12px 12px 12px;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(96,165,250,0.22), transparent 55%),
+    var(--off-bg);
+  color: var(--off-ink);
+  border: 1px solid var(--off-line);
+  box-shadow: 0 16px 40px rgba(4,10,12,0.4);
+}
+.off-instalar-icone { width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; }
+.off-instalar-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.off-instalar-texto strong { font-size: 15px; font-weight: 700; }
+.off-instalar-texto span { font-size: 12.5px; color: var(--off-soft); }
+
+/* botões */
+.off-btn-cor {
+  height: 36px; padding: 0 14px; flex-shrink: 0;
+  border: none; border-radius: 10px;
+  background: var(--off-cor); color: #04080a;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  cursor: pointer;
+}
+.off-btn-cor:disabled { background: rgba(255,255,255,0.08); color: var(--off-soft); cursor: default; }
+.off-btn-largo { width: 100%; height: 44px; font-size: 15px; }
+.off-btn-perigo {
+  height: 30px; padding: 0 10px; flex-shrink: 0;
+  border-radius: 8px; border: 1px solid rgba(248,113,113,0.35);
+  background: transparent; color: #fca5a5;
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.off-fechar {
+  width: 28px; height: 28px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.07); color: var(--off-soft);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .off-dock > *, .off-semrede-ponto, .off-spinner { animation: none !important; }
+}
+
+/* tela de "sem internet e sem dados guardados" */
+.off-tela {
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: 24px; text-align: center;
+  background: #071010; color: #eef3ef;
+  font-family: var(--tn-font, 'Rajdhani', sans-serif);
+}
+.off-tela img { width: 72px; height: 72px; border-radius: 18px; }
+.off-tela strong { font-size: 22px; }
+.off-tela span { max-width: 340px; color: rgba(238,243,239,0.6); font-size: 15px; line-height: 1.45; }

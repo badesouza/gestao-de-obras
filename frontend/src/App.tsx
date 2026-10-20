@@ -26,6 +26,13 @@ import { ServicoDetailPage } from './tenant/pages/ServicoDetailPage';
 import { CadastrosAuxiliaresPage } from './tenant/pages/CadastrosAuxiliaresPage';
 import { ComprasPage } from './tenant/pages/ComprasPage';
 import { MapaFullPage } from './tenant/pages/MapaFullPage';
+import { ultimoTenant } from './lib/offline/pwa';
+
+/** Entrada do app instalado: abre direto na última prefeitura usada */
+function InicioApp() {
+  const id = ultimoTenant();
+  return <Navigate to={id ? `/t/${id}/servicos` : '/platform/login'} replace />;
+}
 
 /** Application router root */
 function App() {
@@ -33,6 +40,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/platform/login" replace />} />
+        <Route path="/app" element={<InicioApp />} />
         <Route path="/platform/login" element={<LoginPage />} />
         <Route path="/platform" element={<PlatformGuard />}>
           <Route index element={<Navigate to="/platform/entities" replace />} />

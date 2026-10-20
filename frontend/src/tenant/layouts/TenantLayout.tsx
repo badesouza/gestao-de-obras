@@ -5,6 +5,8 @@ import { useTenant } from '../TenantContext';
 import { TenantSidebar } from '../components/TenantSidebar';
 import { formatTodayPtBr } from '../utils/format';
 import { getInitials } from '../utils/format';
+import { CentralOffline } from '../components/offline/CentralOffline';
+import { limparDadosOffline } from '../../lib/offline/pwa';
 
 const PAGE_TITLES: Record<string, string> = {
   dashboard:       'Dashboard',
@@ -45,6 +47,7 @@ export function TenantLayout({ children }: { children?: React.ReactNode }) {
     if (!entityId) return;
     try { await tenantApi.logout(entityId); } catch { /* ignore */ }
     clearTenantToken(entityId);
+    limparDadosOffline();
     navigate(`/t/${entityId}/login`);
   };
 
@@ -166,6 +169,8 @@ export function TenantLayout({ children }: { children?: React.ReactNode }) {
           {children ?? <Outlet />}
         </div>
       </div>
+
+      {entityId && <CentralOffline entityId={entityId} />}
     </div>
   );
 }
