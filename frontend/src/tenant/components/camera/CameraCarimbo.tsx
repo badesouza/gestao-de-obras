@@ -23,6 +23,20 @@ interface Props {
 
 interface Foto { id: string; file: File; url: string }
 
+const CHAVE_COPIA = 'gdo:cam-copia-celular';
+
+/** Baixa a foto para o aparelho — no Android ela aparece na Galeria / Google Fotos (pasta Download) */
+function salvarNoCelular(file: File) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+}
+
 /** Câmera de campo: foto com carimbo de hora, GPS, local e fiscal — funciona sem internet */
 export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bairrosCoords, onConcluir, onFechar }: Props) {
   const { session } = useTenant();
@@ -46,7 +60,11 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
   const [aviso,      setAviso]      = useState('');
   const [vendo,      setVendo]      = useState<Foto | null>(null);
   const [sair,       setSair]       = useState(false);
+  const [dica,       setDica]       = useState('');
   const [rect,       setRect]       = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [copia,      setCopia]      = useState(() => {
+    try { return localStorage.getItem(CHAVE_COPIA) !== '0'; } catch { return true; }
+  });
 
   const entidade = session.entity.name;
   const fiscal   = session.name;
@@ -165,8 +183,17 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
   }, [rect, agora, gps, montarDados]);
 
   /* ── disparo ── */
-  const adicionar = (file: File) =>
+  const adicionar = (file: File) => {
     setFotos(prev => [...prev, { id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }]);
+    if (copia) salvarNoCelular(file);
+  };
+
+  const alternarCopia = () => {
+    const nova = !copia;
+    setCopia(nova);
+    try { localStorage.setItem(CHAVE_COPIA, nova ? '1' : '0'); } catch { /* sem storage */ }
+    setDica(nova ? 'Cópia no celular ligada: as fotos vão para a Galeria (pasta Download)' : 'Cópia no celular desligada: as fotos ficam só no sistema');
+  };
 
   const disparar = async () => {
     const v = videoRef.current;
@@ -225,6 +252,12 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
   });
 
   useEffect(() => {
+    if (!dica) return;
+    const t = setTimeout(() => setDica(''), 3200);
+    return () => clearTimeout(t);
+  }, [dica]);
+
+  useEffect(() => {
     if (!aviso) return;
     const t = setTimeout(() => setAviso(''), 3500);
     return () => clearTimeout(t);
@@ -252,6 +285,20 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
           <span className="cam-titulo-eyebrow">Câmera de campo</span>
           <span className="cam-titulo-nome">{servico}</span>
         </div>
+        <button
+          type="button"
+          className={`cam-icon-btn cam-copia${copia ? ' is-on' : ''}`}
+          onClick={alternarCopia}
+          aria-pressed={copia}
+          aria-label={copia ? 'Cópia no celular ligada' : 'Cópia no celular desligada'}
+          title="Guardar cópia na galeria do celular"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <rect x="5" y="2" width="14" height="20" rx="2.5"/>
+            <polyline points="9 11 12 14 15 11"/><line x1="12" y1="6" x2="12" y2="14"/>
+          </svg>
+          {copia && <span className="cam-copia-ok" aria-hidden />}
+        </button>
         <div className={`cam-gps cam-gps-n${nivel}${gpsErro ? ' is-erro' : ''}`} title={gpsErro || undefined}>
           <span className="cam-gps-barras" aria-hidden>
             <i /><i /><i />
@@ -322,6 +369,7 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
 
         {flash && <div className="cam-flash" />}
         {aviso && <div className="cam-aviso">{aviso}</div>}
+        {dica && !aviso && <div className="cam-dica">{dica}</div>}
       </div>
 
       {/* controles */}

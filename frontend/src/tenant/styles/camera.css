@@ -40,6 +40,28 @@
   cursor: pointer;
 }
 .cam-icon-btn:active { transform: scale(0.94); }
+.cam-copia { position: relative; order: 3; margin-left: 4px; color: var(--cam-soft); }
+.cam-copia.is-on { color: var(--cam-ink); border-color: color-mix(in srgb, var(--cam-cor) 55%, transparent); }
+.cam-copia-ok {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--cam-cor); box-shadow: 0 0 0 2px var(--cam-bg);
+  mask: none;
+}
+.cam-copia-ok::after {
+  content: ''; position: absolute; left: 4.5px; top: 2.5px;
+  width: 4px; height: 7px; border: solid #04080a; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.cam-gps { order: 2; }
+.cam-dica {
+  position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 9px 14px; border-radius: 10px;
+  background: rgba(11,20,20,0.92); color: var(--cam-ink);
+  border: 1px solid var(--cam-line);
+  font-size: 13px; font-weight: 600; text-align: center;
+  animation: cam-entra .2s ease-out;
+}
 .cam-titulo { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
 .cam-titulo-eyebrow {
   font-family: var(--tn-mono); font-size: 9.5px; letter-spacing: 0.18em;
