@@ -125,7 +125,7 @@ export function CentrosCustoPage() {
         <div className="so-note amber row so-rise" role="status">
           <Ic n="alerta" />
           <span style={{ flex: '1 1 360px' }}><strong>{semCentro.length} {semCentro.length === 1 ? 'serviço ainda sem' : 'serviços ainda sem'} centro de custo:</strong> {listaSem}. O que for lançado neles fica sem destino no relatório de gastos.</span>
-          <Link to={rotaTenant(entityId, 'centros-custo')} className="so-btn so-amberbtn acts">Resolver no passo 6<Ic n="seta" className="arrow" /></Link>
+          <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-amberbtn acts">Resolver no passo 6<Ic n="seta" className="arrow" /></Link>
         </div>
       )}
 
@@ -206,7 +206,7 @@ export function CentrosCustoPage() {
 
       <BarraAcoes esquerda={<><b>{itens.length}</b> centros{semCentro.length > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro.length} {semCentro.length === 1 ? 'serviço' : 'serviços'} sem centro</span></>}<Sep />passo 5 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Veículos</Link>
-        <Link to={rotaTenant(entityId, 'centros-custo')} className="so-btn so-primary">Continuar: Serviços<Ic n="seta" className="arrow" /></Link>
+        <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-primary">Continuar: Serviços<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>

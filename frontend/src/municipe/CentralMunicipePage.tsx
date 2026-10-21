@@ -8,6 +8,7 @@ import {
 import { CameraCarimbo, type LocalFoto } from '../tenant/components/camera/CameraCarimbo';
 import { bairroMaisProximoLocal } from '../tenant/components/camera/carimbo';
 import { CATEGORIAS_CIDADAO, categoriaPorSlug, corDaCategoria, iconeDaCategoria } from '../tenant/components/obras/categorias';
+import { CENTRO_IDS } from '../tenant/pages/servico-config';
 import './municipe.css';
 
 /* ── Central do Munícipe (página pública, sem login) ──────────────
@@ -128,6 +129,12 @@ export function CentralMunicipePage() {
   }, [bairrosCoords]);
 
   const cat = categoriaPorSlug(categoria);
+  /* ficha do serviço salva: some se o munícipe não pode pedir; a dica vem do "como aparece para o munícipe" */
+  const categoriasVisiveis = CATEGORIAS_CIDADAO.flatMap(c => {
+    const f = c.servicoSlug ? cfg?.servicos?.find(s => s.id === CENTRO_IDS[c.servicoSlug!]) : undefined;
+    if (f && !f.pode) return [];
+    return [{ c, dica: f?.nome ?? c.dica }];
+  });
   const cor = categoria ? corDaCategoria(categoria) : '#0B1313';
   const municipio = cfg?.entidade.municipio ? `Prefeitura de ${cfg.entidade.municipio}` : cfg?.entidade.nome ?? 'Prefeitura';
 
@@ -226,14 +233,14 @@ export function CentralMunicipePage() {
               <>
                 <h2 className="mc-h2">O que está acontecendo?</h2>
                 <div className="mc-categorias" role="radiogroup" aria-label="Tipo de problema">
-                  {CATEGORIAS_CIDADAO.map((c, i) => (
+                  {categoriasVisiveis.map(({ c, dica }, i) => (
                     <button key={c.slug} type="button" role="radio" aria-checked={categoria === c.slug}
                       className={`mc-categoria${categoria === c.slug ? ' is-escolhida' : ''}`}
                       style={{ '--cat-cor': corDaCategoria(c.slug), '--i': i } as React.CSSProperties}
                       onClick={() => { setCategoria(c.slug); setErro(''); }}>
                       <span className="mc-categoria-icone"><Icone d={iconeDaCategoria(c.slug)} /></span>
                       <strong>{c.nome}</strong>
-                      <small>{c.dica}</small>
+                      <small>{dica}</small>
                     </button>
                   ))}
                 </div>

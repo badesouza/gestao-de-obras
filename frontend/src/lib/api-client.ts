@@ -208,6 +208,8 @@ export const publicApi = {
 export interface CentralPublica {
   entidade: { id: string; nome: string; municipio: string | null; uf: string | null; brasaoUrl: string | null };
   bairros: { nome: string; lat: number | null; lng: number | null }[];
+  /** fichas de serviço já salvas: se o munícipe pode pedir e como o serviço aparece para ele */
+  servicos?: { id: string; pode: boolean; nome: string | null }[];
 }
 export interface NovaSolicitacaoMunicipe {
   categoria: string; categoriaNome: string; descricao: string;
@@ -1628,4 +1630,34 @@ export const frotaApi = {
   atualizar: (entityId: string, id: string, d: DadosFrota) => tenantRequest<{ id: string }>(entityId, `/api/tenant/v1/cadastros/frota/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
   remover: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/cadastros/frota/${id}`, { method: 'DELETE' }),
   servicosSemCentro: (entityId: string) => tenantRequest<{ servicosSemCentro: { id: string; nome: string }[] }>(entityId, '/api/tenant/v1/cadastros/centros/pendencias'),
+};
+
+/* ── Passo 6 · Serviços e ficha do serviço ── */
+export type TipoServico = 'MANUTENCAO' | 'CONSTRUCAO';
+export type TipoCampo = 'TEXTO' | 'LISTA' | 'NUMERO' | 'SIM_NAO';
+export type MomentoCampo = 'ABERTURA' | 'BAIXA';
+export interface ServicoResumo {
+  id: string; nome: string; ativo: boolean; tipoServico: TipoServico | null; cor: string | null; subtipos: number; fichaSalva: boolean;
+  municipePode: boolean | null; centro: { codigo: string; nome: string } | null; contratos: number; campos: number; pessoas: number;
+}
+export interface CampoServico { id?: string; nome: string; detalhe: string | null; tipo: TipoCampo; opcoes: string[]; momento: MomentoCampo; obrigatorio: boolean }
+export interface FichaServico {
+  id: string; nome: string; ativo: boolean; tipoServico: TipoServico | null; cor: string | null; prazoDias: number | null;
+  subtipos: string[]; municipePode: boolean | null; nomeMunicipe: string | null; fichaSalvaEm: string | null; centroDeCustoId: string | null;
+  campos: CampoServico[];
+  centros: { id: string; codigo: string; nome: string }[];
+  licitacoes: { id: string; identificacao: string; objeto: string | null; fornecedor: string | null; saldoPct: number | null; ligada: boolean; contratos: { numero: string; fornecedor: string | null; vigenciaAte: string; situacao: string }[] }[];
+  atendem: { nome: string; perfil: string; equipe: string | null; lider: boolean; exclusivo: boolean }[];
+  aprovam: string[];
+  metaDiasGeral: number;
+}
+export interface DadosFicha {
+  nome: string; ativo: boolean; tipoServico: TipoServico; cor: string | null; prazoDias: number | null; subtipos: string[];
+  municipePode: boolean; nomeMunicipe: string | null; centroDeCustoId: string | null; licitacaoIds: string[]; campos: CampoServico[];
+}
+export const servicosFichaApi = {
+  listar: (entityId: string) => tenantRequest<{ servicos: ServicoResumo[] }>(entityId, '/api/tenant/v1/cadastros/servicos'),
+  criar: (entityId: string, nome: string, tipoServico: TipoServico) => tenantRequest<{ id: string }>(entityId, '/api/tenant/v1/cadastros/servicos', { method: 'POST', body: JSON.stringify({ nome, tipoServico }) }),
+  obter: (entityId: string, id: string) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`),
+  salvar: (entityId: string, id: string, d: DadosFicha) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
 };

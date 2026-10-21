@@ -1,3 +1,4 @@
+import { servicosParaMunicipe } from '../tenant/cadastros-base/servicos-ficha.service.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../shared/errors.js';
@@ -47,10 +48,11 @@ export async function registerCentralPublicRoutes(fastify: FastifyInstance) {
         select: { id: true, name: true, status: true, municipalityName: true, uf: true, coatOfArmsUrl: true },
       });
       if (!entity || entity.status !== 'ACTIVE') throw new AppError(404, 'NOT_FOUND', 'Prefeitura não encontrada');
-      const bairros = await listarBairros(fastify.prisma, id);
+      const [bairros, servicos] = await Promise.all([listarBairros(fastify.prisma, id), servicosParaMunicipe(fastify.prisma, id)]);
       return reply.send({
         entidade: { id: entity.id, nome: entity.name, municipio: entity.municipalityName, uf: entity.uf, brasaoUrl: entity.coatOfArmsUrl },
         bairros,
+        servicos,
       });
     } catch (e) { return handleAppError(reply, e); }
   });

@@ -115,6 +115,7 @@ model Entity {
   orcamentos                    Orcamento[]
   contratos                     Contrato[]
   linksAcesso                   TenantUserLink[]
+  servicoCampos                 ServicoCampo[]
 
   @@index([status])
   @@map("entities")
@@ -443,6 +444,15 @@ model CentroCusto {
   usuarios              UsuarioServico[]
   centroDeCustoPadraoId String?                        @map("centro_de_custo_padrao_id")
   centroDeCustoPadrao   CentroDeCusto?                 @relation("ServicoCentroPadrao", fields: [centroDeCustoPadraoId], references: [id], onDelete: SetNull)
+  /** ── Ficha do serviço (passo 6). Enquanto fichaSalvaEm for nulo, valem os padrões do código ── */
+  tipoServico  String?       @map("tipo_servico") @db.VarChar(20)
+  cor          String?       @db.VarChar(9)
+  prazoDias    Int?          @map("prazo_dias")
+  subtipos     String[]      @default([])
+  municipePode Boolean?      @map("municipe_pode")
+  nomeMunicipe String?       @map("nome_municipe") @db.VarChar(200)
+  fichaSalvaEm DateTime?     @map("ficha_salva_em")
+  camposFicha  ServicoCampo[]
 
   @@unique([entityId, nome])
   @@index([entityId, status])
@@ -1159,4 +1169,29 @@ model TenantUserLink {
 
   @@index([userId, createdAt])
   @@map("tenant_user_links")
+}
+
+/**
+ * ── Campos que o fiscal preenche só neste serviço (ficha do serviço) ──
+ * Os campos de toda OS (bairro, origem, equipe, fotos…) não ficam aqui.
+ */
+model ServicoCampo {
+  id          String   @id @default(uuid())
+  entityId    String   @map("entity_id")
+  servicoId   String   @map("servico_id")
+  nome        String   @db.VarChar(120)
+  detalhe     String?  @db.VarChar(300)
+  tipo        String   @db.VarChar(20) // TEXTO | LISTA | NUMERO | SIM_NAO
+  opcoes      String[] @default([])
+  momento     String   @db.VarChar(10) // ABERTURA | BAIXA
+  obrigatorio Boolean  @default(false)
+  ordem       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  entity  Entity      @relation(fields: [entityId], references: [id])
+  servico CentroCusto @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  @@index([servicoId, ordem])
+  @@map("servico_campos")
 }

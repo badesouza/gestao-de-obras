@@ -176,7 +176,7 @@ export const PASSOS: Passo[] = [
   { n: 3, chave: 'pessoas', nome: 'Pessoas', curto: 'Pessoas', icone: 'users', rota: 'cadastros/pessoas', texto: 'Quem entra no sistema e as equipes que vão a campo.' },
   { n: 4, chave: 'veiculos', nome: 'Veículos e equipamentos', curto: 'Veículos', icone: 'truck', rota: 'cadastros/veiculos', texto: 'Opcional. Só se quiser saber qual veículo ou máquina foi usado em cada OS.' },
   { n: 5, chave: 'centros', nome: 'Centros de custo', curto: 'Centros de custo', icone: 'pie', rota: 'cadastros/centros-de-custo', texto: 'Para onde vai o gasto. Ex.: Iluminação Pública, Limpeza Urbana.' },
-  { n: 6, chave: 'servicos', nome: 'Serviços', curto: 'Serviços', icone: 'wrench', rota: 'centros-custo', texto: 'O que a secretaria faz. Cada serviço tem seu centro de custo, quem atende e o que o fiscal preenche.' },
+  { n: 6, chave: 'servicos', nome: 'Serviços', curto: 'Serviços', icone: 'wrench', rota: 'cadastros/servicos', texto: 'O que a secretaria faz. Cada serviço tem seu centro de custo, quem atende e o que o fiscal preenche.' },
 ];
 
 export const TEXTO_SITUACAO: Record<SituacaoPasso, string> = { ok: 'Pronto', warn: 'Ajustar', opt: 'Opcional' };

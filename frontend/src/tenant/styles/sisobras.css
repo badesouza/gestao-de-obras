@@ -646,3 +646,4 @@
 .so-btn:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
 .so .so-ph-body h1{color:var(--ink)}
 .so-panel .so-lbl{white-space:normal;flex-wrap:wrap;row-gap:2px}.so-panel .so-lbl .opt{white-space:normal;overflow:visible}
+.so-card[id]{scroll-margin-top:16px}

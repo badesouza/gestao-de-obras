@@ -55,7 +55,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
           select: {
             id: true, data: true, createdAt: true, updatedAt: true, lat: true, lng: true,
             etapa: true, executadoEm: true, finalizadoEm: true,
-            centroCusto: { select: { id: true, nome: true } },
+            centroCusto: { select: { id: true, nome: true, prazoDias: true } },
             createdBy: { select: { id: true, name: true } },
             valores: {
               where: { propriedade: { nome: { in: PROPS } } },
@@ -113,7 +113,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
       const doMes = ativos.filter(i => i.criadoEm >= mes0);
 
       /* ── KPIs ── */
-      const atrasados = abertos.filter(i => agora.getTime() - i.criadoEm.getTime() > DIAS_ATRASO * dia);
+      const atrasados = abertos.filter(i => agora.getTime() - i.criadoEm.getTime() > (i.servico.prazoDias ?? cfgObras.metaDias ?? DIAS_ATRASO) * dia);
       const concluidasSemana = concluidos.filter(i => i.atualizadoEm >= semana0).length;
       const concluidasSemanaAnterior = concluidos.filter(i => i.atualizadoEm >= semanaAnterior0 && i.atualizadoEm < semana0).length;
       const concluidos30 = concluidos.filter(i => i.atualizadoEm >= new Date(hoje0.getTime() - 29 * dia));

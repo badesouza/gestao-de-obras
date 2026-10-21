@@ -39,6 +39,8 @@ import { AcessosPage } from './tenant/pages/cadastros/AcessosPage';
 import { EquipesPage } from './tenant/pages/cadastros/EquipesPage';
 import { VeiculosPage } from './tenant/pages/cadastros/VeiculosPage';
 import { CentrosCustoPage } from './tenant/pages/cadastros/CentrosCustoPage';
+import { ServicosListaPage } from './tenant/pages/cadastros/ServicosListaPage';
+import { FichaServicoPage } from './tenant/pages/cadastros/FichaServicoPage';
 import { LinkAcessoPage } from './municipe/LinkAcessoPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
@@ -101,6 +103,8 @@ function App() {
             <Route path="cadastros/lugares" element={<LugaresPage />} />
             <Route path="cadastros/veiculos" element={<VeiculosPage />} />
             <Route path="cadastros/centros-de-custo" element={<CentrosCustoPage />} />
+            <Route path="cadastros/servicos" element={<ServicosListaPage />} />
+            <Route path="cadastros/servicos/:servicoId" element={<FichaServicoPage />} />
             <Route path="centros-custo" element={<CentroCustoListPage />} />
             <Route path="centros-custo/:centroId" element={<CentroCustoDetailPage />} />
           </Route>
