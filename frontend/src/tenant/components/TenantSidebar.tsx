@@ -78,7 +78,7 @@ function IconCompras() {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: 'dashboard',           label: 'Dashboard',        permission: 'dashboard.view',     icon: <IconDashboard /> },
+  { to: 'dashboard',           label: 'Sala de Situação', permission: 'dashboard.view',     icon: <IconDashboard /> },
   { to: 'cadastros-auxiliares',label: 'Cadastros',         permission: 'centros_custo.view', icon: <IconCadastros /> },
   { to: 'centros-custo',       label: 'Centro de Custos',  permission: 'centros_custo.view', icon: <IconCentrosCusto /> },
   { to: 'servicos',            label: 'Serviços Urbanos',  permission: 'centros_custo.view', icon: <IconServicos /> },

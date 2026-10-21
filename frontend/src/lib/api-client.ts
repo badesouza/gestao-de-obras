@@ -286,6 +286,33 @@ export interface TenantSession {
   permissions: string[];
 }
 
+/* ── Sala de Situação ── */
+export type Situacao = 'aberta' | 'execucao' | 'concluida' | 'cancelada';
+export interface PainelFeedItem {
+  id: string; servico: { id: string; nome: string }; bairro: string; logradouro: string; tipo: string;
+  status: string; situacao: Situacao; criadoEm: string; fiscal: string; fotoId: string | null; fotos: number;
+  lat: number | null; lng: number | null;
+}
+export interface PainelData {
+  agora: string;
+  kpis: {
+    abertas: number; emExecucao: number; atrasadas: number;
+    concluidasSemana: number; concluidasSemanaAnterior: number;
+    tempoMedioDias: number | null; metaDias: number;
+    comFotoPct: number | null; semFoto: number; registradasHoje: number; totalMes: number;
+  };
+  serie: { data: string; registradas: number; concluidas: number }[];
+  feed: PainelFeedItem[];
+  alertas: {
+    atrasadas: { total: number; itens: { id: string; servico: string; servicoId: string; bairro: string; dias: number }[] };
+    gpsLonge: { total: number; itens: { id: string; servico: string; bairro: string; distanciaM: number }[] };
+    semFoto: { total: number; itens: { id: string; servico: string; servicoId: string; bairro: string; criadoEm: string }[] };
+  };
+  porServico: { id: string; nome: string; abertas: number; execucao: number; concluidas: number; total: number }[];
+  equipes: { nome: string; hoje: number; ultimo: string | null }[];
+  fiscais: { total: number; nomes: string[] };
+}
+
 export interface TenantDashboard {
   entity: { id: string; name: string; status: string; coatOfArmsUrl: string | null; municipalityName: string | null; uf: string | null };
   stats: { usersTotal: number; usersActive: number };
@@ -578,6 +605,8 @@ export const tenantApi = {
     tenantRequest<TenantSession>(entityId, '/api/tenant/v1/auth/me'),
   dashboard: (entityId: string) =>
     tenantRequest<TenantDashboard>(entityId, '/api/tenant/v1/dashboard'),
+  painel: (entityId: string) =>
+    tenantRequest<PainelData>(entityId, '/api/tenant/v1/painel'),
   users: {
     list: (entityId: string, params: URLSearchParams) =>
       tenantRequest<{ data: TenantUser[]; pagination: { total: number } }>(

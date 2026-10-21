@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { tenantApi, mapaApi, type CentroCustoDetail, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { ToastContainer } from '../components/Toast';
@@ -63,6 +63,25 @@ export function ServicoDetailPage() {
   const [error, setError] = useState('');
   const [{ year, month }, setPeriodo] = useState(hoje);
   const [modalOpen, setModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  /* vindo da Sala de Situação com ?os=<id>: abre a ordem de serviço daquela ocorrência */
+  useEffect(() => {
+    const os = searchParams.get('os');
+    if (!os || rows.length === 0) return;
+    const alvo = rows.find(r => r.id === os);
+    if (alvo) setRowOS(alvo);
+    searchParams.delete('os');
+    setSearchParams(searchParams, { replace: true });
+  }, [rows, searchParams, setSearchParams]);
+
+  /* vindo da Sala de Situação com ?nova=1: abre o formulário direto */
+  useEffect(() => {
+    if (!centro || searchParams.get('nova') !== '1') return;
+    setModalOpen(true);
+    searchParams.delete('nova');
+    setSearchParams(searchParams, { replace: true });
+  }, [centro, searchParams, setSearchParams]);
   const [editRow, setEditRow] = useState<RegistroDiarioRow | null>(null);
   const [ajudaOpen, setAjudaOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);

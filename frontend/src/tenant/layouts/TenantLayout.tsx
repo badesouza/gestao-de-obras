@@ -9,7 +9,7 @@ import { CentralOffline } from '../components/offline/CentralOffline';
 import { limparDadosOffline } from '../../lib/offline/pwa';
 
 const PAGE_TITLES: Record<string, string> = {
-  dashboard:       'Dashboard',
+  dashboard:       'Sala de Situação',
   servicos:        'Serviços Urbanos',
   'servicos/:slug': 'Serviços Urbanos',
   compras:         'Compras',
@@ -51,8 +51,11 @@ export function TenantLayout({ children }: { children?: React.ReactNode }) {
     navigate(`/t/${entityId}/login`);
   };
 
+  const segmento = location.pathname.split(`/t/${entityId}/`)[1]?.split('/')[0];
+  const temaEscuro = segmento === 'dashboard';
+
   return (
-    <div className="tn-shell">
+    <div className={`tn-shell${temaEscuro ? ' tema-escuro' : ''}`}>
       {/* Desktop sidebar */}
       <aside className="tn-sidebar">
         <TenantSidebar />

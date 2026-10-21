@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { registerTenantAuthRoutes } from './auth/auth.routes.js';
 import { registerTenantDashboardRoutes } from './dashboard/dashboard.routes.js';
+import { registerPainelRoutes } from './dashboard/painel.routes.js';
 import { registerCentroCustoRoutes } from './centros-custo/centro-custo.routes.js';
 import { registerLicitacaoRoutes } from './licitacoes/licitacao.routes.js';
 import { registerTenantUserRoutes } from './users/user.routes.js';
@@ -15,6 +16,7 @@ import { registerFornecedorRoutes } from './fornecedores/fornecedor.routes.js';
 export async function registerTenantRoutes(fastify: FastifyInstance) {
   await registerTenantAuthRoutes(fastify);
   await registerTenantDashboardRoutes(fastify);
+  await registerPainelRoutes(fastify);
   await registerTenantUserRoutes(fastify);
   await registerLicitacaoRoutes(fastify);
   await registerCentroCustoRoutes(fastify);

@@ -9,7 +9,7 @@ import { ForbiddenPage } from './platform/pages/ForbiddenPage';
 import { TenantLoginPage } from './tenant/pages/TenantLoginPage';
 import { TenantGuard } from './tenant/TenantGuard';
 import { TenantPermissionGuard } from './tenant/TenantPermissionGuard';
-import { TenantDashboardPage } from './tenant/pages/TenantDashboardPage';
+import { SalaSituacaoPage } from './tenant/pages/SalaSituacaoPage';
 import { TenantUserListPage } from './tenant/pages/TenantUserListPage';
 import { TenantUserCreatePage } from './tenant/pages/TenantUserCreatePage';
 import { TenantUserDetailPage } from './tenant/pages/TenantUserDetailPage';
@@ -55,7 +55,7 @@ function App() {
         <Route path="/t/:id/mapa" element={<MapaFullPage />} />
         <Route path="/t/:id" element={<TenantGuard />}>
           <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<TenantDashboardPage />} />
+          <Route path="dashboard" element={<SalaSituacaoPage />} />
           <Route path="servicos" element={<ServicosPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
           <Route path="compras" element={<ComprasPage />} />
