@@ -4,6 +4,7 @@ import { AppError, handleAppError } from '../../../shared/errors.js';
 import { PERMISSION_CENTROS_CUSTO_MANAGE, PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
 import { requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
 import { atualizarCentro, criarCentro, definirServicosPadrao, listarCentros, removerCentro } from './centros-de-custo.service.js';
+import { listarVinculos, montarEstruturaSugerida, salvarVinculos } from './vinculos.service.js';
 
 function validar<T>(schema: z.ZodType<T>, dados: unknown): T {
   const r = schema.safeParse(dados);
@@ -49,6 +50,33 @@ export async function registerCentrosDeCustoRoutes(fastify: FastifyInstance) {
       return reply.send(await removerCentro(fastify.prisma, req.user.entityId!, req.user.sub, id));
     } catch (e) { return handleAppError(reply, e); }
   });
+  /* serviços urbanos × centro de custo (tela de ajuste geral). A tela manda o mapa slug → id do serviço. */
+  fastify.post('/centros-de-custo/vinculos/consulta', { preHandler: podeVer }, async (req, reply) => {
+    try {
+      const { slugs } = validar(z.object({ slugs: z.record(z.string(), z.string().uuid()) }), req.body);
+      return reply.send(await listarVinculos(fastify.prisma, req.user.entityId!, slugs));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+  fastify.put('/centros-de-custo/vinculos', { preHandler: podeGerir }, async (req, reply) => {
+    try {
+      const b = validar(z.object({
+        vinculos: z.array(z.object({ servicoId: z.string().uuid(), slug: z.string().max(80), centroDeCustoId: z.string().uuid().nullable() })).min(1).max(100),
+        aplicarAntigos: z.boolean().default(false),
+      }), req.body);
+      return reply.send(await salvarVinculos(fastify.prisma, req.user.entityId!, req.user.sub, b.vinculos, b.aplicarAntigos));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+  fastify.post('/centros-de-custo/estrutura-sugerida', { preHandler: podeGerir }, async (req, reply) => {
+    try {
+      const b = validar(z.object({
+        codigoSecretaria: z.string().trim().min(1, 'Informe o código da secretaria').max(20).regex(/^[0-9A-Za-z.\-/]+$/, 'Código: use números, letras, ponto ou traço'),
+        nomeSecretaria: z.string().trim().min(2, 'Informe o nome da secretaria').max(200),
+        responsavel: z.string().trim().max(160).optional().nullable(),
+      }), req.body);
+      return reply.code(201).send(await montarEstruturaSugerida(fastify.prisma, req.user.entityId!, req.user.sub, b));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
   fastify.put('/centros-de-custo/:id/servicos', { preHandler: podeGerir }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };

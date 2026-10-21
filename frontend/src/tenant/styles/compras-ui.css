@@ -157,3 +157,41 @@
 .cc-ativo { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--ob-muted); }
 .ob-dialogo:has(.cc-form) { width: min(640px, 100%); }
 @media (max-width: 560px) { .cc-form { grid-template-columns: 1fr; } }
+
+/* ── serviços urbanos × centro de custo ── */
+.sc-painel { padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
+.sc-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.sc-titulo { margin: 0; font-family: var(--ob-display); font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: .01em; }
+.sc-sub { margin: 2px 0 0; font-size: 13.5px; color: var(--ob-muted); }
+.sc-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 8px; }
+.sc-linha {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1.1fr); align-items: center; gap: 10px;
+  padding: 10px 10px 10px 12px; border-radius: 14px; border: 1px solid var(--ob-line); background: #FFFFFF; position: relative;
+  transition: border-color .2s, box-shadow .2s;
+}
+.sc-linha::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--serv-cor); }
+.sc-linha:hover { border-color: color-mix(in srgb, var(--serv-cor) 40%, transparent); box-shadow: 0 8px 20px -10px rgba(24,24,27,.18); }
+.sc-linha.is-sem { border-color: #FDE68A; background: linear-gradient(100deg, #FFFBEB, #FFFFFF 70%); }
+.sc-icone { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: var(--serv-cor); background: color-mix(in srgb, var(--serv-cor) 11%, #FFFFFF); }
+.sc-icone svg { width: 20px; height: 20px; }
+.sc-nome { display: flex; flex-direction: column; min-width: 0; }
+.sc-nome b { font-size: 14.5px; }
+.sc-nome small { font-size: 12px; color: #B45309; }
+.sc-nome small.is-ok { color: #15803D; }
+.sc-linha select {
+  height: 40px; border-radius: 11px; border: 1.5px solid var(--ob-line); padding: 0 8px; background: #FFFFFF; color: var(--ob-ink);
+  font: 400 13.5px var(--ob-body); min-width: 0; width: 100%;
+}
+.sc-linha select:focus { outline: none; border-color: var(--serv-cor); box-shadow: 0 0 0 3px color-mix(in srgb, var(--serv-cor) 15%, transparent); }
+.sc-rodape { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px dashed var(--ob-line); padding-top: 12px; }
+.sc-check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--ob-muted); }
+.sc-check input { width: 17px; height: 17px; accent-color: #7C3AED; }
+.sc-previa { list-style: none; margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: #FAFAF9; border: 1px solid var(--ob-line); display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: 13px; }
+.sc-previa code { font-family: var(--ob-mono); font-size: 12px; color: #7C3AED; margin-right: 6px; }
+.sc-nota { margin: 8px 0 0; font-size: 12.5px; color: var(--ob-faint); }
+@media (max-width: 560px) {
+  .sc-grade { grid-template-columns: 1fr; }
+  .sc-linha { grid-template-columns: 38px minmax(0, 1fr); }
+  .sc-linha select { grid-column: 1 / -1; }
+  .sc-previa { grid-template-columns: 1fr; }
+}

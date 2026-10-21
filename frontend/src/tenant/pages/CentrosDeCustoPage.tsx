@@ -3,6 +3,7 @@ import { ApiError, centrosDeCustoApi, type CentroDeCusto, type TipoCentroDeCusto
 import { useTenant, useTenantPermission } from '../TenantContext';
 import { Dialogo, Kpi, KpiCarregando } from '../components/obras/ui';
 import { CENTRO_IDS, SERVICOS_CONFIG } from './servico-config';
+import { ServicosCentrosPainel } from '../components/obras/ServicosCentrosPainel';
 import '../styles/compras-ui.css';
 
 /* ── Centros de custo: onde cada despesa e cada serviço é apropriado ── */
@@ -34,7 +35,7 @@ export function CentrosDeCustoPage() {
 
   const carregar = () => centrosDeCustoApi.listar(entityId).then(d => { setDados(d); setErro(''); }).catch(e => setErro(e instanceof Error ? e.message : 'Erro ao carregar'));
   useEffect(() => { void carregar(); }, [entityId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(''), 3500); return () => clearTimeout(t); }, [aviso]);
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(''), 6000); return () => clearTimeout(t); }, [aviso]);
 
   const centros = useMemo(() => dados?.itens ?? [], [dados]);
   const ativos = centros.filter(c => c.ativo);
@@ -115,6 +116,8 @@ export function CentrosDeCustoPage() {
       </section>
 
       {aviso && <div className="cp-aviso" role="status">{aviso}</div>}
+
+      {dados && <ServicosCentrosPainel entityId={entityId} centros={centros} podeGerir={podeGerir} onMudou={a => { setAviso(a); void carregar(); }} />}
 
       <section className="ob-card ob-reveal" style={{ '--i': 5 } as React.CSSProperties} aria-label="Centros de custo">
         <div className="ob-filtros">

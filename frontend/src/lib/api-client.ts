@@ -664,7 +664,17 @@ export const centrosDeCustoApi = {
   atualizar: (entityId: string, id: string, dados: DadosCentroDeCusto) => tenantRequest<CentroDeCusto>(entityId, `/api/tenant/v1/centros-de-custo/${id}`, { method: 'PUT', body: JSON.stringify(dados) }),
   remover: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/centros-de-custo/${id}`, { method: 'DELETE' }),
   definirServicos: (entityId: string, id: string, servicoIds: string[]) => tenantRequest<void>(entityId, `/api/tenant/v1/centros-de-custo/${id}/servicos`, { method: 'PUT', body: JSON.stringify({ servicoIds }) }),
+  vinculos: (entityId: string, slugs: Record<string, string>) =>
+    tenantRequest<VinculoServico[]>(entityId, '/api/tenant/v1/centros-de-custo/vinculos/consulta', { method: 'POST', body: JSON.stringify({ slugs }) }),
+  salvarVinculos: (entityId: string, vinculos: { servicoId: string; slug: string; centroDeCustoId: string | null }[], aplicarAntigos: boolean) =>
+    tenantRequest<{ ocorrencias: number; solicitacoes: number; pedidos: number; orcamentos: number }>(entityId, '/api/tenant/v1/centros-de-custo/vinculos', { method: 'PUT', body: JSON.stringify({ vinculos, aplicarAntigos }) }),
+  estruturaSugerida: (entityId: string, d: { codigoSecretaria: string; nomeSecretaria: string }) =>
+    tenantRequest<{ criados: { codigo: string; nome: string }[] }>(entityId, '/api/tenant/v1/centros-de-custo/estrutura-sugerida', { method: 'POST', body: JSON.stringify(d) }),
 };
+export interface VinculoServico {
+  servicoId: string; nome: string; ativo: boolean; slug: string | null; centroDeCustoId: string | null;
+  ocorrenciasSemCentro: number; comprasSemCentro: number;
+}
 
 /* ── Orçamentação: fotos do local + materiais dos contratos → pedido ── */
 export type OrcamentoStatus = 'RASCUNHO' | 'EM_REVISAO' | 'AGUARDANDO_APROVACAO' | 'APROVADO' | 'CONVERTIDO' | 'CANCELADO';
