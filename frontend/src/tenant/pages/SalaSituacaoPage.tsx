@@ -197,6 +197,15 @@ export function SalaSituacaoPage() {
           <div className="ob-alertas">
             {!dados ? <span className="ob-skeleton" style={{ height: 180 }} /> : (
               <>
+                {dados.pedidosMunicipeNovos > 0 && (
+                  <Link to={`${base}/central-municipe`} className="ob-alerta tom-alerta ob-alerta-link">
+                    <span className="ob-alerta-num">{dados.pedidosMunicipeNovos}</span>
+                    <div className="ob-alerta-texto">
+                      <strong>Pedidos de moradores aguardando</strong>
+                      <span>Chegaram pela Central do Munícipe, com foto e GPS. Toque para analisar.</span>
+                    </div>
+                  </Link>
+                )}
                 <div className={`ob-alerta ${dados.alertas.atrasadas.total ? 'tom-ruim' : 'is-ok'}`}>
                   <span className="ob-alerta-num">{dados.alertas.atrasadas.total}</span>
                   <div className="ob-alerta-texto">

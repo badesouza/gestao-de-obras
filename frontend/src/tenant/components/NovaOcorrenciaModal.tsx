@@ -7,6 +7,7 @@ import { CENTRO_IDS } from '../pages/servico-config';
 import { CameraCarimbo, type LocalFoto } from './camera/CameraCarimbo';
 import { bairroMaisProximoLocal } from './camera/carimbo';
 import { adicionarNaFila, ehErroDeRede } from '../../lib/offline/fila';
+import { useTenant } from '../TenantContext';
 
 
 /* ── Multi-select com checkboxes ─────────────────────────────── */
@@ -232,6 +233,7 @@ function hoje(): string {
 export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow, entityId, municipalityName, uf, onClose, onSaved }: Props) {
   const centroId = CENTRO_IDS[config.slug];
   const isEdit = !!editRow;
+  const { session } = useTenant();
 
   const [data, setData] = useState(editRow?.data ?? hoje());
   const [values, setValues] = useState<Record<string, string | boolean>>(() => {
@@ -1039,6 +1041,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
           {cameraAberta && (
             <CameraCarimbo
               entityId={entityId}
+              assinatura={{ nome: session.name, entidade: session.entity.name, usuarioId: session.id }}
               servico={config.nome}
               cor={config.cor}
               bairro={String(values['Bairro / Localidade'] ?? '').trim()}

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { handleAppError } from '../../shared/errors.js';
 import { getEntityPublicById } from '../platform/entities/entity.service.js';
 import { registerLocalitiesRoutes } from './localities.routes.js';
+import { registerCentralPublicRoutes } from '../central-municipe/central.routes.js';
 
 /** Public routes for tenant context and shared lookups (no auth) */
 export async function registerPublicRoutes(fastify: FastifyInstance) {
@@ -16,4 +17,5 @@ export async function registerPublicRoutes(fastify: FastifyInstance) {
   });
 
   await registerLocalitiesRoutes(fastify);
+  await registerCentralPublicRoutes(fastify);
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useTenant } from '../../TenantContext';
 import { type BairroCoord } from '../../../lib/api-client';
 import {
   bairroMaisProximoLocal, capturarDoVideo, carimbarArquivo, carregarBrasao,
@@ -10,8 +9,12 @@ import '../../styles/camera.css';
 
 export interface LocalFoto { lat: number; lng: number; precisao: number }
 
+/** Quem assina a foto: o fiscal logado, ou o cidadão na Central do Munícipe */
+export interface AssinaturaFoto { nome: string; entidade: string; usuarioId: string; brasaoUrl?: string | null }
+
 interface Props {
   entityId: string;
+  assinatura: AssinaturaFoto;
   servico: string;
   cor: string;
   bairro: string;
@@ -38,8 +41,7 @@ function salvarNoCelular(file: File) {
 }
 
 /** Câmera de campo: foto com carimbo de hora, GPS, local e fiscal — funciona sem internet */
-export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bairrosCoords, onConcluir, onFechar }: Props) {
-  const { session } = useTenant();
+export function CameraCarimbo({ entityId, assinatura, servico, cor, bairro, logradouro, bairrosCoords, onConcluir, onFechar }: Props) {
   const videoRef   = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const visorRef   = useRef<HTMLDivElement>(null);
@@ -66,8 +68,8 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
     try { return localStorage.getItem(CHAVE_COPIA) !== '0'; } catch { return true; }
   });
 
-  const entidade = session.entity.name;
-  const fiscal   = session.name;
+  const entidade = assinatura.entidade;
+  const fiscal   = assinatura.nome;
 
   /* bairro: o do formulário, ou o mais próximo dos cadastrados (offline) */
   const bairroFoto = bairro || (gps ? bairroMaisProximoLocal(gps.lat, gps.lng, bairrosCoords) ?? '' : '');
@@ -127,8 +129,8 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
 
   useEffect(() => {
     void prepararFontes();
-    void carregarBrasao(entityId).then(setBrasao);
-  }, [entityId]);
+    void carregarBrasao(entityId, assinatura.brasaoUrl).then(setBrasao);
+  }, [entityId, assinatura.brasaoUrl]);
 
   /* trava a rolagem da página por baixo */
   useEffect(() => {
@@ -167,8 +169,8 @@ export function CameraCarimbo({ entityId, servico, cor, bairro, logradouro, bair
     fiscal,
     entidade,
     brasao,
-    codigo: codigo ?? await gerarCodigo([local?.lat ?? null, local?.lng ?? null, quando.toISOString(), session.id, entityId]),
-  }), [bairroFoto, logradouro, servico, cor, fiscal, entidade, brasao, session.id, entityId]);
+    codigo: codigo ?? await gerarCodigo([local?.lat ?? null, local?.lng ?? null, quando.toISOString(), assinatura.usuarioId, entityId]),
+  }), [bairroFoto, logradouro, servico, cor, fiscal, entidade, brasao, assinatura.usuarioId, entityId]);
 
   /* prévia ao vivo: o mesmo desenho que vai para a foto */
   useEffect(() => {

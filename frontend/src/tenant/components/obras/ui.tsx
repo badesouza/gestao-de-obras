@@ -72,11 +72,11 @@ export function Badge({ situacao, titulo }: { situacao: Situacao; titulo?: strin
 }
 
 /** Miniatura da foto carimbada, com a hora no canto (a parte de baixo, onde fica o carimbo, aparece) */
-export function FotoThumb({ entityId, fotoId, quando, cor, icone, tamanho = 80, contagem }: {
+export function FotoThumb({ entityId, fotoId, quando, cor, icone, tamanho = 80, contagem, origem = 'registro' }: {
   entityId: string; fotoId: string | null | undefined; quando?: string; cor: string;
-  icone?: React.ReactNode; tamanho?: number; contagem?: number;
+  icone?: React.ReactNode; tamanho?: number; contagem?: number; origem?: 'registro' | 'central';
 }) {
-  const url = useFotoUrl(entityId, fotoId);
+  const url = useFotoUrl(entityId, fotoId, origem);
   return (
     <span className="ob-thumb" style={{ '--serv-cor': cor, width: tamanho, height: tamanho } as React.CSSProperties}>
       {url ? <img src={url} alt="" /> : fotoId ? <span className="ob-skeleton" /> : (

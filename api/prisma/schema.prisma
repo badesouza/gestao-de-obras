@@ -80,30 +80,32 @@ model Entity {
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
-  auditLogs      PlatformAuditLog[]
-  tenantUsers    TenantUser[]
-  tenantAudits   TenantAuditLog[]
-  licitacoes     Licitacao[]
-  licitacaoItems LicitacaoItem[]
-  centrosCusto   CentroCusto[]
-  centroCustoPropriedades CentroCustoPropriedade[]
-  registrosDiarios RegistroDiario[]
-  centroCustoLicitacoes CentroCustoLicitacao[]
+  auditLogs                     PlatformAuditLog[]
+  tenantUsers                   TenantUser[]
+  tenantAudits                  TenantAuditLog[]
+  licitacoes                    Licitacao[]
+  licitacaoItems                LicitacaoItem[]
+  centrosCusto                  CentroCusto[]
+  centroCustoPropriedades       CentroCustoPropriedade[]
+  registrosDiarios              RegistroDiario[]
+  centroCustoLicitacoes         CentroCustoLicitacao[]
   centroCustoPropriedadeConfigs CentroCustoPropriedadeConfig[]
-  registroDiarioValores RegistroDiarioValor[]
-  registroDiarioValorItens RegistroDiarioValorItem[]
-  cadastrosAuxiliares CadastroAuxiliar[]
-  enderecosDescobertos EnderecoDescoberto[]
-  registroMidias RegistroMidia[]
-  equipes Equipe[]
-  operadores Operador[]
-  solicitacoesServico SolicitacaoServico[]
-  solicitacaoServicoItens SolicitacaoServicoItem[]
-  pedidosCompra PedidoCompra[]
-  pedidoCompraItens PedidoCompraItem[]
-  pedidoCompraItemOrigens PedidoCompraItemOrigem[]
-  pedidoCompraRecebimentos PedidoCompraRecebimento[]
-  fornecedores Fornecedor[]
+  registroDiarioValores         RegistroDiarioValor[]
+  registroDiarioValorItens      RegistroDiarioValorItem[]
+  cadastrosAuxiliares           CadastroAuxiliar[]
+  enderecosDescobertos          EnderecoDescoberto[]
+  registroMidias                RegistroMidia[]
+  equipes                       Equipe[]
+  operadores                    Operador[]
+  solicitacoesServico           SolicitacaoServico[]
+  solicitacaoServicoItens       SolicitacaoServicoItem[]
+  pedidosCompra                 PedidoCompra[]
+  pedidoCompraItens             PedidoCompraItem[]
+  pedidoCompraItemOrigens       PedidoCompraItemOrigem[]
+  pedidoCompraRecebimentos      PedidoCompraRecebimento[]
+  fornecedores                  Fornecedor[]
+  sequencias                    Sequencia[]
+  solicitacoesMunicipe          SolicitacaoMunicipe[]
 
   @@index([status])
   @@map("entities")
@@ -211,31 +213,32 @@ model TenantRolePermission {
 }
 
 model TenantUser {
-  id              String           @id @default(uuid())
-  entityId        String           @map("entity_id")
-  roleId          String           @map("role_id")
-  name            String
-  email           String
-  passwordHash    String           @map("password_hash")
-  status          TenantUserStatus @default(ACTIVE)
-  isLiderEquipe   Boolean          @default(false) @map("is_lider_equipe")
-  lastLoginAt     DateTime?        @map("last_login_at")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id            String           @id @default(uuid())
+  entityId      String           @map("entity_id")
+  roleId        String           @map("role_id")
+  name          String
+  email         String
+  passwordHash  String           @map("password_hash")
+  status        TenantUserStatus @default(ACTIVE)
+  isLiderEquipe Boolean          @default(false) @map("is_lider_equipe")
+  lastLoginAt   DateTime?        @map("last_login_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
 
-  entity               Entity          @relation(fields: [entityId], references: [id])
-  role                 TenantRole      @relation(fields: [roleId], references: [id])
-  auditLogs            TenantAuditLog[]
-  licitacoesCreated    Licitacao[]     @relation("LicitacaoCreatedBy")
-  licitacaoItemsCreated LicitacaoItem[] @relation("LicitacaoItemCreatedBy")
-  centrosCustoCreated  CentroCusto[]   @relation("CentroCustoCreatedBy")
-  propriedadesCreated  CentroCustoPropriedade[] @relation("PropriedadeCreatedBy")
-  registrosDiariosCreated RegistroDiario[] @relation("RegistroDiarioCreatedBy")
-  registrosDiariosUpdated RegistroDiario[] @relation("RegistroDiarioUpdatedBy")
-  equipesLideradas Equipe[]
-  solicitacoesServicoCreated SolicitacaoServico[] @relation("SolicitacaoServicoCreatedBy")
-  pedidosCompraCreated PedidoCompra[] @relation("PedidoCompraCreatedBy")
+  entity                          Entity                    @relation(fields: [entityId], references: [id])
+  role                            TenantRole                @relation(fields: [roleId], references: [id])
+  auditLogs                       TenantAuditLog[]
+  licitacoesCreated               Licitacao[]               @relation("LicitacaoCreatedBy")
+  licitacaoItemsCreated           LicitacaoItem[]           @relation("LicitacaoItemCreatedBy")
+  centrosCustoCreated             CentroCusto[]             @relation("CentroCustoCreatedBy")
+  propriedadesCreated             CentroCustoPropriedade[]  @relation("PropriedadeCreatedBy")
+  registrosDiariosCreated         RegistroDiario[]          @relation("RegistroDiarioCreatedBy")
+  registrosDiariosUpdated         RegistroDiario[]          @relation("RegistroDiarioUpdatedBy")
+  equipesLideradas                Equipe[]
+  solicitacoesServicoCreated      SolicitacaoServico[]      @relation("SolicitacaoServicoCreatedBy")
+  pedidosCompraCreated            PedidoCompra[]            @relation("PedidoCompraCreatedBy")
   pedidoCompraRecebimentosCreated PedidoCompraRecebimento[] @relation("PedidoCompraRecebimentoCreatedBy")
+  solicitacoesMunicipeAnalisadas  SolicitacaoMunicipe[]     @relation("SolicitacaoMunicipeAnalisadaPor")
 
   @@unique([entityId, email])
   @@index([entityId])
@@ -244,12 +247,12 @@ model TenantUser {
 }
 
 model Equipe {
-  id          String    @id @default(uuid())
-  entityId    String    @map("entity_id")
-  cadastroId  String    @unique @map("cadastro_id")
-  liderUserId String?   @map("lider_user_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  entityId    String   @map("entity_id")
+  cadastroId  String   @unique @map("cadastro_id")
+  liderUserId String?  @map("lider_user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   entity     Entity           @relation(fields: [entityId], references: [id])
   cadastro   CadastroAuxiliar @relation(fields: [cadastroId], references: [id], onDelete: Cascade)
@@ -270,8 +273,8 @@ model Operador {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  entity Entity  @relation(fields: [entityId], references: [id])
-  equipe Equipe  @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id])
+  equipe Equipe @relation(fields: [equipeId], references: [id], onDelete: Cascade)
 
   @@index([equipeId, ativo])
   @@index([entityId])
@@ -328,11 +331,11 @@ model Licitacao {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  entity       Entity               @relation(fields: [entityId], references: [id])
-  createdBy    TenantUser           @relation("LicitacaoCreatedBy", fields: [createdByUserId], references: [id])
-  fornecedor   Fornecedor?          @relation(fields: [fornecedorId], references: [id])
-  items        LicitacaoItem[]
-  centrosCusto CentroCustoLicitacao[]
+  entity              Entity                 @relation(fields: [entityId], references: [id])
+  createdBy           TenantUser             @relation("LicitacaoCreatedBy", fields: [createdByUserId], references: [id])
+  fornecedor          Fornecedor?            @relation(fields: [fornecedorId], references: [id])
+  items               LicitacaoItem[]
+  centrosCusto        CentroCustoLicitacao[]
   solicitacoesServico SolicitacaoServico[]
 
   @@unique([entityId, identificacao])
@@ -354,12 +357,12 @@ model LicitacaoItem {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  licitacao Licitacao  @relation(fields: [licitacaoId], references: [id])
-  entity    Entity     @relation(fields: [entityId], references: [id])
-  createdBy TenantUser @relation("LicitacaoItemCreatedBy", fields: [createdByUserId], references: [id])
-  registroValores RegistroDiarioValorItem[]
+  licitacao               Licitacao                 @relation(fields: [licitacaoId], references: [id])
+  entity                  Entity                    @relation(fields: [entityId], references: [id])
+  createdBy               TenantUser                @relation("LicitacaoItemCreatedBy", fields: [createdByUserId], references: [id])
+  registroValores         RegistroDiarioValorItem[]
   solicitacaoServicoItens SolicitacaoServicoItem[]
-  pedidoCompraItens PedidoCompraItem[]
+  pedidoCompraItens       PedidoCompraItem[]
 
   @@index([licitacaoId, status])
   @@index([entityId, licitacaoId])
@@ -414,10 +417,10 @@ model CentroCustoPropriedade {
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
-  entity  Entity                         @relation(fields: [entityId], references: [id])
-  createdBy TenantUser                   @relation("PropriedadeCreatedBy", fields: [createdByUserId], references: [id])
-  configs CentroCustoPropriedadeConfig[]
-  valores RegistroDiarioValor[]
+  entity    Entity                         @relation(fields: [entityId], references: [id])
+  createdBy TenantUser                     @relation("PropriedadeCreatedBy", fields: [createdByUserId], references: [id])
+  configs   CentroCustoPropriedadeConfig[]
+  valores   RegistroDiarioValor[]
 
   @@unique([entityId, nome])
   @@index([entityId, status])
@@ -425,15 +428,15 @@ model CentroCustoPropriedade {
 }
 
 model CentroCustoPropriedadeConfig {
-  id              String                    @id @default(uuid())
-  centroCustoId   String                    @map("centro_custo_id")
-  propriedadeId   String                    @map("propriedade_id")
-  entityId        String                    @map("entity_id")
-  columnOrder     Int                       @map("column_order")
-  productionRole  PropriedadeProductionRole @default(NONE) @map("production_role")
-  active          Boolean                   @default(true)
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  id             String                    @id @default(uuid())
+  centroCustoId  String                    @map("centro_custo_id")
+  propriedadeId  String                    @map("propriedade_id")
+  entityId       String                    @map("entity_id")
+  columnOrder    Int                       @map("column_order")
+  productionRole PropriedadeProductionRole @default(NONE) @map("production_role")
+  active         Boolean                   @default(true)
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
 
   centroCusto CentroCusto            @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
   propriedade CentroCustoPropriedade @relation(fields: [propriedadeId], references: [id])
@@ -457,12 +460,13 @@ model RegistroDiario {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
-  centroCusto CentroCusto           @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
-  entity      Entity                @relation(fields: [entityId], references: [id])
-  createdBy   TenantUser            @relation("RegistroDiarioCreatedBy", fields: [createdByUserId], references: [id])
-  updatedBy   TenantUser?           @relation("RegistroDiarioUpdatedBy", fields: [updatedByUserId], references: [id])
-  valores     RegistroDiarioValor[]
-  midias      RegistroMidia[]
+  centroCusto         CentroCusto           @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  entity              Entity                @relation(fields: [entityId], references: [id])
+  createdBy           TenantUser            @relation("RegistroDiarioCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy           TenantUser?           @relation("RegistroDiarioUpdatedBy", fields: [updatedByUserId], references: [id])
+  valores             RegistroDiarioValor[]
+  midias              RegistroMidia[]
+  solicitacaoMunicipe SolicitacaoMunicipe?
 
   @@index([centroCustoId, data])
   @@index([entityId, centroCustoId, data])
@@ -489,32 +493,32 @@ model RegistroMidia {
 }
 
 model RegistroDiarioValor {
-  id               String   @id @default(uuid())
-  registroDiarioId String   @map("registro_diario_id")
-  propriedadeId    String   @map("propriedade_id")
-  entityId         String   @map("entity_id")
-  valorTexto       String?  @map("valor_texto") @db.VarChar(2000)
+  id               String    @id @default(uuid())
+  registroDiarioId String    @map("registro_diario_id")
+  propriedadeId    String    @map("propriedade_id")
+  entityId         String    @map("entity_id")
+  valorTexto       String?   @map("valor_texto") @db.VarChar(2000)
   valorData        DateTime? @map("valor_data") @db.Date
-  valorDecimal     Decimal? @map("valor_decimal") @db.Decimal(15, 4)
-  valorBoolean     Boolean? @map("valor_boolean")
+  valorDecimal     Decimal?  @map("valor_decimal") @db.Decimal(15, 4)
+  valorBoolean     Boolean?  @map("valor_boolean")
 
   registroDiario RegistroDiario            @relation(fields: [registroDiarioId], references: [id], onDelete: Cascade)
-  propriedade  CentroCustoPropriedade      @relation(fields: [propriedadeId], references: [id])
-  entity       Entity                      @relation(fields: [entityId], references: [id])
-  itens        RegistroDiarioValorItem[]
+  propriedade    CentroCustoPropriedade    @relation(fields: [propriedadeId], references: [id])
+  entity         Entity                    @relation(fields: [entityId], references: [id])
+  itens          RegistroDiarioValorItem[]
 
   @@unique([registroDiarioId, propriedadeId])
   @@map("registro_diario_valores")
 }
 
 model EnderecoDescoberto {
-  id          String   @id @default(uuid())
-  entityId    String   @map("entity_id")
-  bairro      String   @db.VarChar(150)
-  logradouro  String   @db.VarChar(300)
-  lat         Float
-  lng         Float
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid())
+  entityId   String   @map("entity_id")
+  bairro     String   @db.VarChar(150)
+  logradouro String   @db.VarChar(300)
+  lat        Float
+  lng        Float
+  createdAt  DateTime @default(now()) @map("created_at")
 
   entity Entity @relation(fields: [entityId], references: [id])
 
@@ -537,25 +541,25 @@ model RegistroDiarioValorItem {
 }
 
 model SolicitacaoServico {
-  id              String                    @id @default(uuid())
-  entityId        String                    @map("entity_id")
-  numero          String                    @db.VarChar(30)
-  servicoSlug     String                    @map("servico_slug") @db.VarChar(80)
-  servicoNome     String                    @map("servico_nome") @db.VarChar(160)
-  licitacaoId     String                    @map("licitacao_id")
-  status          SolicitacaoServicoStatus  @default(DRAFT)
-  prioridade      String                    @default("Media") @db.VarChar(20)
-  justificativa   String                    @db.VarChar(2000)
-  observacoes     String?                   @db.VarChar(2000)
-  createdByUserId String                    @map("created_by_user_id")
-  submittedAt     DateTime?                 @map("submitted_at")
-  approvedAt      DateTime?                 @map("approved_at")
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  id              String                   @id @default(uuid())
+  entityId        String                   @map("entity_id")
+  numero          String                   @db.VarChar(30)
+  servicoSlug     String                   @map("servico_slug") @db.VarChar(80)
+  servicoNome     String                   @map("servico_nome") @db.VarChar(160)
+  licitacaoId     String                   @map("licitacao_id")
+  status          SolicitacaoServicoStatus @default(DRAFT)
+  prioridade      String                   @default("Media") @db.VarChar(20)
+  justificativa   String                   @db.VarChar(2000)
+  observacoes     String?                  @db.VarChar(2000)
+  createdByUserId String                   @map("created_by_user_id")
+  submittedAt     DateTime?                @map("submitted_at")
+  approvedAt      DateTime?                @map("approved_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
 
   entity    Entity                   @relation(fields: [entityId], references: [id])
-  licitacao Licitacao                 @relation(fields: [licitacaoId], references: [id])
-  createdBy TenantUser                @relation("SolicitacaoServicoCreatedBy", fields: [createdByUserId], references: [id])
+  licitacao Licitacao                @relation(fields: [licitacaoId], references: [id])
+  createdBy TenantUser               @relation("SolicitacaoServicoCreatedBy", fields: [createdByUserId], references: [id])
   itens     SolicitacaoServicoItem[]
   origens   PedidoCompraItemOrigem[]
 
@@ -566,21 +570,21 @@ model SolicitacaoServico {
 }
 
 model SolicitacaoServicoItem {
-  id                      String   @id @default(uuid())
-  entityId                String   @map("entity_id")
-  solicitacaoServicoId    String   @map("solicitacao_servico_id")
-  licitacaoItemId         String   @map("licitacao_item_id")
-  descricaoSnapshot       String   @map("descricao_snapshot") @db.VarChar(500)
-  unidadeMedidaSnapshot   String   @map("unidade_medida_snapshot") @db.VarChar(50)
-  valorUnitarioSnapshot   Decimal  @map("valor_unitario_snapshot") @db.Decimal(15, 4)
-  quantidade              Decimal  @db.Decimal(15, 4)
-  valorTotal              Decimal  @map("valor_total") @db.Decimal(15, 4)
-  observacoes             String?  @db.VarChar(1000)
-  createdAt               DateTime @default(now()) @map("created_at")
+  id                    String   @id @default(uuid())
+  entityId              String   @map("entity_id")
+  solicitacaoServicoId  String   @map("solicitacao_servico_id")
+  licitacaoItemId       String   @map("licitacao_item_id")
+  descricaoSnapshot     String   @map("descricao_snapshot") @db.VarChar(500)
+  unidadeMedidaSnapshot String   @map("unidade_medida_snapshot") @db.VarChar(50)
+  valorUnitarioSnapshot Decimal  @map("valor_unitario_snapshot") @db.Decimal(15, 4)
+  quantidade            Decimal  @db.Decimal(15, 4)
+  valorTotal            Decimal  @map("valor_total") @db.Decimal(15, 4)
+  observacoes           String?  @db.VarChar(1000)
+  createdAt             DateTime @default(now()) @map("created_at")
 
-  entity             Entity              @relation(fields: [entityId], references: [id])
-  solicitacaoServico SolicitacaoServico  @relation(fields: [solicitacaoServicoId], references: [id], onDelete: Cascade)
-  licitacaoItem      LicitacaoItem       @relation(fields: [licitacaoItemId], references: [id])
+  entity             Entity                   @relation(fields: [entityId], references: [id])
+  solicitacaoServico SolicitacaoServico       @relation(fields: [solicitacaoServicoId], references: [id], onDelete: Cascade)
+  licitacaoItem      LicitacaoItem            @relation(fields: [licitacaoItemId], references: [id])
   origens            PedidoCompraItemOrigem[]
 
   @@index([solicitacaoServicoId])
@@ -599,8 +603,8 @@ model PedidoCompra {
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
 
-  entity    Entity                   @relation(fields: [entityId], references: [id])
-  createdBy TenantUser               @relation("PedidoCompraCreatedBy", fields: [createdByUserId], references: [id])
+  entity    Entity             @relation(fields: [entityId], references: [id])
+  createdBy TenantUser         @relation("PedidoCompraCreatedBy", fields: [createdByUserId], references: [id])
   itens     PedidoCompraItem[]
 
   @@unique([entityId, numero])
@@ -609,20 +613,20 @@ model PedidoCompra {
 }
 
 model PedidoCompraItem {
-  id                      String   @id @default(uuid())
-  entityId                String   @map("entity_id")
-  pedidoCompraId          String   @map("pedido_compra_id")
-  licitacaoItemId         String   @map("licitacao_item_id")
-  descricaoSnapshot       String   @map("descricao_snapshot") @db.VarChar(500)
-  unidadeMedidaSnapshot   String   @map("unidade_medida_snapshot") @db.VarChar(50)
-  valorUnitarioSnapshot   Decimal  @map("valor_unitario_snapshot") @db.Decimal(15, 4)
-  quantidadeTotal         Decimal  @map("quantidade_total") @db.Decimal(15, 4)
-  valorTotal              Decimal  @map("valor_total") @db.Decimal(15, 4)
-  createdAt               DateTime @default(now()) @map("created_at")
+  id                    String   @id @default(uuid())
+  entityId              String   @map("entity_id")
+  pedidoCompraId        String   @map("pedido_compra_id")
+  licitacaoItemId       String   @map("licitacao_item_id")
+  descricaoSnapshot     String   @map("descricao_snapshot") @db.VarChar(500)
+  unidadeMedidaSnapshot String   @map("unidade_medida_snapshot") @db.VarChar(50)
+  valorUnitarioSnapshot Decimal  @map("valor_unitario_snapshot") @db.Decimal(15, 4)
+  quantidadeTotal       Decimal  @map("quantidade_total") @db.Decimal(15, 4)
+  valorTotal            Decimal  @map("valor_total") @db.Decimal(15, 4)
+  createdAt             DateTime @default(now()) @map("created_at")
 
-  entity        Entity                   @relation(fields: [entityId], references: [id])
-  pedidoCompra  PedidoCompra             @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
-  licitacaoItem LicitacaoItem            @relation(fields: [licitacaoItemId], references: [id])
+  entity        Entity                    @relation(fields: [entityId], references: [id])
+  pedidoCompra  PedidoCompra              @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+  licitacaoItem LicitacaoItem             @relation(fields: [licitacaoItemId], references: [id])
   origens       PedidoCompraItemOrigem[]
   recebimentos  PedidoCompraRecebimento[]
 
@@ -632,15 +636,15 @@ model PedidoCompraItem {
 }
 
 model PedidoCompraItemOrigem {
-  id                        String   @id @default(uuid())
-  entityId                  String   @map("entity_id")
-  pedidoCompraItemId        String   @map("pedido_compra_item_id")
-  solicitacaoServicoId      String   @map("solicitacao_servico_id")
-  solicitacaoServicoItemId  String   @map("solicitacao_servico_item_id")
-  servicoSlug               String   @map("servico_slug") @db.VarChar(80)
-  servicoNome               String   @map("servico_nome") @db.VarChar(160)
-  quantidade                Decimal  @db.Decimal(15, 4)
-  valorTotal                Decimal  @map("valor_total") @db.Decimal(15, 4)
+  id                       String  @id @default(uuid())
+  entityId                 String  @map("entity_id")
+  pedidoCompraItemId       String  @map("pedido_compra_item_id")
+  solicitacaoServicoId     String  @map("solicitacao_servico_id")
+  solicitacaoServicoItemId String  @map("solicitacao_servico_item_id")
+  servicoSlug              String  @map("servico_slug") @db.VarChar(80)
+  servicoNome              String  @map("servico_nome") @db.VarChar(160)
+  quantidade               Decimal @db.Decimal(15, 4)
+  valorTotal               Decimal @map("valor_total") @db.Decimal(15, 4)
 
   entity                 Entity                 @relation(fields: [entityId], references: [id])
   pedidoCompraItem       PedidoCompraItem       @relation(fields: [pedidoCompraItemId], references: [id], onDelete: Cascade)
@@ -670,4 +674,78 @@ model PedidoCompraRecebimento {
   @@index([pedidoCompraItemId])
   @@index([entityId, recebidoEm])
   @@map("pedido_compra_recebimentos")
+}
+
+/**
+ * ── Numeração sequencial por entidade (protocolo, OS…) ──
+ */
+model Sequencia {
+  entityId  String   @map("entity_id")
+  chave     String   @db.VarChar(40)
+  ultimo    Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  entity Entity @relation(fields: [entityId], references: [id])
+
+  @@id([entityId, chave])
+  @@map("sequencias")
+}
+
+/**
+ * ── Central do Munícipe: pedidos feitos pelo link / QR Code ──
+ */
+enum SolicitacaoMunicipeStatus {
+  NOVA
+  CONVERTIDA
+  RECUSADA
+}
+
+model SolicitacaoMunicipe {
+  id               String                    @id @default(uuid())
+  entityId         String                    @map("entity_id")
+  protocolo        String                    @db.VarChar(20)
+  categoria        String                    @db.VarChar(80)
+  categoriaNome    String                    @map("categoria_nome") @db.VarChar(160)
+  descricao        String                    @db.VarChar(2000)
+  bairro           String                    @db.VarChar(150)
+  logradouro       String                    @db.VarChar(300)
+  referencia       String?                   @db.VarChar(300)
+  lat              Float?
+  lng              Float?
+  precisaoM        Float?                    @map("precisao_m")
+  nome             String                    @db.VarChar(160)
+  telefone         String                    @db.VarChar(30)
+  cpf              String?                   @db.VarChar(14)
+  email            String?                   @db.VarChar(160)
+  status           SolicitacaoMunicipeStatus @default(NOVA)
+  motivoRecusa     String?                   @map("motivo_recusa") @db.VarChar(1000)
+  registroDiarioId String?                   @unique @map("registro_diario_id")
+  analisadoPorId   String?                   @map("analisado_por_id")
+  analisadoEm      DateTime?                 @map("analisado_em")
+  origemIp         String?                   @map("origem_ip") @db.VarChar(64)
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+
+  entity         Entity                    @relation(fields: [entityId], references: [id])
+  registroDiario RegistroDiario?           @relation(fields: [registroDiarioId], references: [id], onDelete: SetNull)
+  analisadoPor   TenantUser?               @relation("SolicitacaoMunicipeAnalisadaPor", fields: [analisadoPorId], references: [id])
+  fotos          SolicitacaoMunicipeFoto[]
+
+  @@unique([entityId, protocolo])
+  @@index([entityId, status, createdAt])
+  @@map("solicitacoes_municipe")
+}
+
+model SolicitacaoMunicipeFoto {
+  id            String   @id @default(uuid())
+  solicitacaoId String   @map("solicitacao_id")
+  mimeType      String   @map("mime_type") @db.VarChar(100)
+  tamanhoBytes  Int      @map("tamanho_bytes")
+  dados         Bytes
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  solicitacao SolicitacaoMunicipe @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+
+  @@index([solicitacaoId])
+  @@map("solicitacao_municipe_fotos")
 }

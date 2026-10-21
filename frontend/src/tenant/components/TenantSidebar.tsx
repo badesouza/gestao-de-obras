@@ -2,6 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTenant } from '../TenantContext';
 import { getInitials } from '../utils/format';
+import { centralApi } from '../../lib/api-client';
+
+/** Quantos pedidos de munícipes aguardam análise (atualiza a cada 2 min) */
+function usePedidosNovos(entityId: string | undefined, ativo: boolean) {
+  const [novas, setNovas] = useState(0);
+  useEffect(() => {
+    if (!entityId || !ativo) return;
+    const buscar = () => { if (navigator.onLine) centralApi.resumo(entityId).then(r => setNovas(r.novas)).catch(() => {}); };
+    buscar();
+    const t = setInterval(buscar, 120000);
+    window.addEventListener('focus', buscar);
+    return () => { clearInterval(t); window.removeEventListener('focus', buscar); };
+  }, [entityId, ativo]);
+  return novas;
+}
 
 interface NavItem {
   to: string;
@@ -67,6 +82,14 @@ function IconServicos() {
   );
 }
 
+function IconCentral() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l18-8v18L3 13z"/><path d="M7 12.5V19a2 2 0 002 2h1a2 2 0 002-2v-4.5"/>
+    </svg>
+  );
+}
+
 function IconCompras() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,6 +102,7 @@ function IconCompras() {
 
 const NAV_ITEMS: NavItem[] = [
   { to: 'dashboard',           label: 'Sala de Situação', permission: 'dashboard.view',     icon: <IconDashboard /> },
+  { to: 'central-municipe',    label: 'Central do Munícipe', permission: 'centros_custo.view', icon: <IconCentral /> },
   { to: 'cadastros-auxiliares',label: 'Cadastros',         permission: 'centros_custo.view', icon: <IconCadastros /> },
   { to: 'centros-custo',       label: 'Centro de Custos',  permission: 'centros_custo.view', icon: <IconCentrosCusto /> },
   { to: 'servicos',            label: 'Serviços Urbanos',  permission: 'centros_custo.view', icon: <IconServicos /> },
@@ -105,6 +129,10 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
   const visibleItems = NAV_ITEMS.filter((item) =>
     session.permissions.includes(item.permission),
   );
+  const novas = usePedidosNovos(entityId, session.permissions.includes('centros_custo.view'));
+  const badge = (to: string) => to === 'central-municipe' && novas > 0
+    ? <span className="tn-nav-badge" title={`${novas} ${novas === 1 ? 'pedido aguardando' : 'pedidos aguardando'}`}>{novas > 99 ? '99+' : novas}</span>
+    : null;
 
   const isActive = (path: string) =>
     location.pathname.includes(`/t/${entityId}/${path}`);
@@ -143,7 +171,7 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
           {visibleItems.map((item) => (
             <Link key={item.to} to={`/t/${entityId}/${item.to}`} onClick={onNavigate}
               className={`tn-nav-link ${isActive(item.to) ? 'active' : ''}`}>
-              {item.icon}{item.label}
+              {item.icon}{item.label}{badge(item.to)}
             </Link>
           ))}
         </nav>
@@ -205,8 +233,9 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
               className={`tn-nav-link ${active ? 'active' : ''}`}
               title={!expanded ? item.label : undefined}
             >
-              <span style={{ flexShrink: 0 }}>{item.icon}</span>
+              <span style={{ flexShrink: 0, position: 'relative', display: 'flex' }}>{item.icon}{!expanded && badge(item.to) && <span className="tn-nav-ponto" />}</span>
               <span className="tn-nav-link-label">{item.label}</span>
+              {expanded && badge(item.to)}
             </Link>
           );
         })}

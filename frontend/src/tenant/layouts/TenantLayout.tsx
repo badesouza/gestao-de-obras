@@ -13,6 +13,7 @@ const PAGE_TITLES: Record<string, string> = {
   servicos:        'Serviços Urbanos',
   'servicos/:slug': 'Serviços Urbanos',
   compras:         'Compras',
+  'central-municipe': 'Central do Munícipe',
   users:           'Usuários',
   licitacoes:      'Licitações',
   'centros-custo':        'Centros de Custo',

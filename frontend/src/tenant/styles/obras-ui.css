@@ -26,6 +26,21 @@
   --ob-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ── badge do menu (pedidos novos da Central do Munícipe) ── */
+.tn-nav-badge {
+  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: inline-grid; place-items: center; flex-shrink: 0;
+  background: #FBBF24; color: #1A1205; font: 700 11px 'JetBrains Mono', monospace;
+  box-shadow: 0 0 0 0 rgba(251,191,36,0.55);
+  animation: tn-badge-pulso 2s ease-out infinite;
+}
+@keyframes tn-badge-pulso { to { box-shadow: 0 0 0 8px rgba(251,191,36,0); } }
+.tn-nav-ponto {
+  position: absolute; top: -3px; right: -4px; width: 8px; height: 8px; border-radius: 50%;
+  background: #FBBF24; box-shadow: 0 0 0 2px var(--tn-dark, #0a1010);
+}
+@media (prefers-reduced-motion: reduce) { .tn-nav-badge { animation: none; } }
+
 /* ── tema escuro do shell quando a Sala de Situação está aberta ── */
 .tn-shell.tema-escuro .tn-content { background: var(--ob-bg); }
 .tn-shell.tema-escuro .tn-topbar {
@@ -428,7 +443,7 @@
    ══════════════════════════════════════════════════════════════ */
 .ob-anel-trilho { stroke: rgba(238,243,239,0.1); }
 
-.ob-page.ob-claro {
+.ob-claro {
   --ob-bg: #F5F6F4;
   --ob-card: #FFFFFF;
   --ob-card-2: #FFFFFF;
@@ -442,6 +457,8 @@
   --ob-blue: #2563EB;
   --ob-green: #16A34A;
   --ob-rose: #E11D48;
+}
+.ob-page.ob-claro {
   background:
     radial-gradient(70% 40% at 100% 0%, color-mix(in srgb, var(--serv-cor, #2563EB) 9%, transparent), transparent 65%),
     var(--ob-bg);
@@ -677,3 +694,6 @@
   .ob-kpi-rodape > svg, .ob-kpi-rodape > .ob-medidor { display: none; }
   .ob-kpi::after { left: 14px; right: 14px; }
 }
+
+.ob-alerta-link { text-decoration: none; color: inherit; }
+.ob-alerta-link:hover { border-color: rgba(251,191,36,0.55); }

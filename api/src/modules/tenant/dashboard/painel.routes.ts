@@ -56,7 +56,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
       const mes0 = (() => { const l = new Date(agora.getTime() + FUSO_MS); return new Date(Date.UTC(l.getUTCFullYear(), l.getUTCMonth(), 1) - FUSO_MS); })();
       const janela0 = new Date(hoje0.getTime() - 180 * dia);
 
-      const [registros, bairros, equipesCadastro] = await Promise.all([
+      const [registros, bairros, equipesCadastro, pedidosNovos] = await Promise.all([
         fastify.prisma.registroDiario.findMany({
           where: { entityId, createdAt: { gte: janela0 } },
           select: {
@@ -82,6 +82,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
           select: { nome: true },
           orderBy: { ordem: 'asc' },
         }),
+        fastify.prisma.solicitacaoMunicipe.count({ where: { entityId, status: 'NOVA' } }),
       ]);
 
       const itens = registros.map(r => {
@@ -211,6 +212,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
         porServico,
         equipes,
         fiscais: { total: fiscaisMap.size, nomes: Array.from(fiscaisMap.values()) },
+        pedidosMunicipeNovos: pedidosNovos,
       });
     } catch (e) {
       return handleAppError(reply, e);

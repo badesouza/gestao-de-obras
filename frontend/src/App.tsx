@@ -27,6 +27,8 @@ import { CadastrosAuxiliaresPage } from './tenant/pages/CadastrosAuxiliaresPage'
 import { ComprasPage } from './tenant/pages/ComprasPage';
 import { MapaFullPage } from './tenant/pages/MapaFullPage';
 import { ultimoTenant } from './lib/offline/pwa';
+import { CentralMunicipePage } from './municipe/CentralMunicipePage';
+import { CentralMunicipeAdminPage } from './tenant/pages/CentralMunicipeAdminPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
@@ -41,6 +43,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/platform/login" replace />} />
         <Route path="/app" element={<InicioApp />} />
+        <Route path="/s/:id" element={<CentralMunicipePage />} />
         <Route path="/platform/login" element={<LoginPage />} />
         <Route path="/platform" element={<PlatformGuard />}>
           <Route index element={<Navigate to="/platform/entities" replace />} />
@@ -57,6 +60,7 @@ function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SalaSituacaoPage />} />
           <Route path="servicos" element={<ServicosPage />} />
+          <Route path="central-municipe" element={<CentralMunicipeAdminPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
           <Route path="compras" element={<ComprasPage />} />
           <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />

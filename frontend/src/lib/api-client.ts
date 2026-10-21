@@ -204,6 +204,70 @@ export const publicApi = {
     ),
 };
 
+/* ── Central do Munícipe ── */
+export interface CentralPublica {
+  entidade: { id: string; nome: string; municipio: string | null; uf: string | null; brasaoUrl: string | null };
+  bairros: { nome: string; lat: number | null; lng: number | null }[];
+}
+export interface NovaSolicitacaoMunicipe {
+  categoria: string; categoriaNome: string; descricao: string;
+  bairro: string; logradouro: string; referencia?: string | null;
+  lat?: number | null; lng?: number | null; precisaoM?: number | null;
+  nome: string; telefone: string; cpf?: string | null; email?: string | null; aceite: true;
+}
+export type StatusSolicitacao = 'NOVA' | 'CONVERTIDA' | 'RECUSADA';
+export interface AcompanhamentoSolicitacao {
+  protocolo: string; status: StatusSolicitacao; categoriaNome: string; bairro: string; logradouro: string;
+  criadoEm: string; analisadoEm: string | null; motivoRecusa: string | null;
+  servicoStatus: string | null; servicoAtualizadoEm: string | null;
+}
+export interface SolicitacaoMunicipeItem {
+  id: string; protocolo: string; categoria: string; categoriaNome: string; descricao: string;
+  bairro: string; logradouro: string; referencia: string | null;
+  lat: number | null; lng: number | null; precisaoM: number | null;
+  nome: string; telefone: string; cpf: string | null; email: string | null;
+  status: StatusSolicitacao; motivoRecusa: string | null; registroDiarioId: string | null; centroCustoId: string | null;
+  analisadoPor: string | null; analisadoEm: string | null; createdAt: string; fotos: string[];
+}
+
+export const centralPublicaApi = {
+  config: (entityId: string) => apiRequest<CentralPublica>(`/api/public/v1/tenants/${entityId}/central`),
+  enviar: async (entityId: string, dados: NovaSolicitacaoMunicipe, fotos: File[]) => {
+    const form = new FormData();
+    form.append('dados', JSON.stringify(dados));
+    fotos.forEach(f => form.append('fotos', f, f.name));
+    const res = await fetch(`/api/public/v1/tenants/${entityId}/solicitacoes`, { method: 'POST', body: form });
+    const corpo = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, corpo as ApiErrorBody);
+    return corpo as { protocolo: string; criadoEm: string };
+  },
+  acompanhar: (entityId: string, protocolo: string, telefone: string) =>
+    apiRequest<AcompanhamentoSolicitacao>(`/api/public/v1/tenants/${entityId}/solicitacoes/${encodeURIComponent(protocolo)}?telefone=${encodeURIComponent(telefone)}`),
+};
+
+export const centralApi = {
+  listar: (entityId: string, status?: StatusSolicitacao) =>
+    tenantRequest<{ resumo: { novas: number; convertidas: number; recusadas: number }; itens: SolicitacaoMunicipeItem[] }>(
+      entityId, `/api/tenant/v1/central-municipe${status ? `?status=${status}` : ''}`),
+  converter: (entityId: string, id: string, centroCustoId: string) =>
+    tenantRequest<{ registroId: string }>(entityId, `/api/tenant/v1/central-municipe/${id}/converter`, {
+      method: 'POST', body: JSON.stringify({ centroCustoId }),
+    }),
+  recusar: (entityId: string, id: string, motivo: string) =>
+    tenantRequest<void>(entityId, `/api/tenant/v1/central-municipe/${id}/recusar`, {
+      method: 'POST', body: JSON.stringify({ motivo }),
+    }),
+  resumo: (entityId: string) => tenantRequest<{ novas: number }>(entityId, '/api/tenant/v1/central-municipe/resumo'),
+  fotoBlob: async (entityId: string, fotoId: string): Promise<string> => {
+    const token = getTenantToken(entityId);
+    const headers = new Headers({ 'X-Tenant-Id': entityId });
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`/api/tenant/v1/central-municipe/fotos/${fotoId}`, { headers });
+    if (!res.ok) throw new Error('Falha ao carregar foto');
+    return URL.createObjectURL(await res.blob());
+  },
+};
+
 const TENANT_TOKENS_KEY = 'tenant_tokens';
 
 /** Returns stored tenant JWT for an entity */
@@ -311,6 +375,7 @@ export interface PainelData {
   porServico: { id: string; nome: string; abertas: number; execucao: number; concluidas: number; total: number }[];
   equipes: { nome: string; hoje: number; ultimo: string | null }[];
   fiscais: { total: number; nomes: string[] };
+  pedidosMunicipeNovos: number;
 }
 
 export interface TenantDashboard {

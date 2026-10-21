@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { mapaApi, type Situacao } from '../../../lib/api-client';
+import { centralApi, mapaApi, type Situacao } from '../../../lib/api-client';
 import { CENTRO_IDS, SERVICOS_CONFIG, type ServicoConfig } from '../../pages/servico-config';
 
 /* ── utilitários da linguagem visual nova (Sala de Situação e telas de serviço) ── */
@@ -55,17 +55,18 @@ export function useContador(alvo: number, duracao = 1100) {
   return semAnimacao ? alvo : v;
 }
 
-/** Foto autenticada: baixa como blob e libera ao desmontar */
-export function useFotoUrl(entityId: string, fotoId: string | null | undefined) {
+/** Foto autenticada: baixa como blob e libera ao desmontar.
+    origem 'registro' = foto de ocorrência; 'central' = foto enviada pelo munícipe */
+export function useFotoUrl(entityId: string, fotoId: string | null | undefined, origem: 'registro' | 'central' = 'registro') {
   const [foto, setFoto] = useState<{ id: string; url: string } | null>(null);
   useEffect(() => {
     if (!fotoId) return;
     let viva = true, atual: string | null = null;
-    mapaApi.fetchMidiaBlob(entityId, fotoId)
+    (origem === 'central' ? centralApi.fotoBlob(entityId, fotoId) : mapaApi.fetchMidiaBlob(entityId, fotoId))
       .then(u => { if (viva) { atual = u; setFoto({ id: fotoId, url: u }); } else URL.revokeObjectURL(u); })
       .catch(() => {});
     return () => { viva = false; if (atual) URL.revokeObjectURL(atual); };
-  }, [entityId, fotoId]);
+  }, [entityId, fotoId, origem]);
   return foto && foto.id === fotoId ? foto.url : null;
 }
 
@@ -90,5 +91,6 @@ export function diasDesde(dataISO: string, agora = new Date()) {
 
 export const horaDe = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 export const dataBr = (iso: string) => { const [y, m, d] = iso.slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
-export const nomeCurto = (n: string) => n.trim().split(/\s+/).slice(0, 2).join(' ');
+/** Primeiro e último nome ("Maria da Silva Santos" → "Maria Santos") */
+export const nomeCurto = (n: string) => { const p = n.trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1]}` : p[0] ?? ''; };
 export const iniciais = (n: string) => n.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();

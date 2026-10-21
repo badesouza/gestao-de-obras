@@ -295,15 +295,15 @@ function carregarImagem(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export async function carregarBrasao(entityId: string): Promise<HTMLImageElement | null> {
+export async function carregarBrasao(entityId: string, urlPublica?: string | null): Promise<HTMLImageElement | null> {
   let guardado: string | null = null;
   try { guardado = localStorage.getItem(chaveBrasao(entityId)); } catch { /* sem storage */ }
 
   if (navigator.onLine) {
     try {
-      const { entity } = await tenantApi.dashboard(entityId);
-      if (entity.coatOfArmsUrl) {
-        const blob = await (await fetch(entity.coatOfArmsUrl)).blob();
+      const url = urlPublica !== undefined ? urlPublica : (await tenantApi.dashboard(entityId)).entity.coatOfArmsUrl;
+      if (url) {
+        const blob = await (await fetch(url)).blob();
         const dataUrl = await new Promise<string>(ok => {
           const r = new FileReader();
           r.onload = () => ok(r.result as string);
