@@ -1,658 +1,724 @@
-import { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Link, useParams } from 'react-router-dom';
-import { ApiError, tenantApi, type Licitacao, type LicitacaoItem } from '../../lib/api-client';
-import { ColumnsImportPanel } from '../components/ColumnsImportPanel';
-import { ConfirmModal } from '../components/ConfirmModal';
-import { ImportInstructions, useImportTemplateDownload } from '../components/ImportInstructions';
-import { SpreadsheetImportPanel } from '../components/SpreadsheetImportPanel';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  ApiError, contratosApi, tenantApi,
+  type AditivoContrato, type ContratoLicitacao, type DocumentoRef, type EstruturaLicitacao, type FornecedorConsulta,
+  type ItemContrato, type SituacaoVigencia, type TipoAditivo, type TipoLicitacao,
+} from '../../lib/api-client';
 import { useTenant, useTenantPermission } from '../TenantContext';
-import { ToastContainer } from '../components/Toast';
-import { useToast } from '../hooks/useToast';
+import { Anel, Dialogo, Kpi } from '../components/obras/ui';
+import { TIPOS } from '../components/obras/licitacao-tipos';
+import { CamposProcesso } from '../components/obras/CamposProcesso';
+import { dataBr } from '../components/obras/util';
+import { ImportInstructions, useImportTemplateDownload } from '../components/ImportInstructions';
+import '../styles/compras-ui.css';
+import '../styles/orcamento.css';
+import '../styles/licitacao.css';
 
-type ImportTab = 'spreadsheet' | 'columns';
-const ITEMS_PAGE_SIZE = 12;
+/* ── Licitação no padrão do Object ───────────────────────────────
+   licitação → contratos (fornecedor, vigência) → lotes → itens,
+   com os aditivos de prazo, valor e quantidade e os PDFs.          */
 
-function formatValor(value: string | null): string {
-  if (!value) return '—';
-  const num = Number(value);
-  if (!Number.isFinite(num)) return value;
-  return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const COR = '#2563EB';
+const SITUACAO: Record<SituacaoVigencia, { rotulo: (d: number) => string; classe: string }> = {
+  VIGENTE:   { rotulo: d => `Vigente · ${d} dias`, classe: 'is-concluida' },
+  VENCENDO:  { rotulo: d => d === 0 ? 'Vence hoje' : `Vence em ${d} ${d === 1 ? 'dia' : 'dias'}`, classe: 'is-execucao' },
+  VENCIDO:   { rotulo: d => `Vencido há ${-d} ${d === -1 ? 'dia' : 'dias'}`, classe: 'is-atrasada' },
+  A_INICIAR: { rotulo: () => 'A iniciar', classe: 'is-aprovacao' },
+};
+const ADITIVO: Record<TipoAditivo, { rotulo: string; desc: string; cor: string; icone: string }> = {
+  PRAZO:      { rotulo: 'Prazo',      desc: 'Estende a vigência do contrato para uma nova data', cor: '#2563EB', icone: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM12 14v3l2 1' },
+  VALOR:      { rotulo: 'Valor',      desc: 'Reajusta o valor unitário dos itens',               cor: '#7C3AED', icone: 'M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6' },
+  QUANTIDADE: { rotulo: 'Quantidade', desc: 'Acrescenta um percentual às quantidades de um lote', cor: '#0F766E', icone: 'M12 5v14M5 12h14' },
+};
+
+const real = (v: string | number | null | undefined) => Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const num = (v: string | number | null | undefined) => v === null || v === undefined ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+const msgErro = (e: unknown) => e instanceof ApiError ? e.body.message : e instanceof Error ? e.message : 'Não foi possível concluir';
+const hoje = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+/** um ano de vigência: de 21/10/2026 até 20/10/2027 */
+const umAnoDepois = (v: string) => { const d = new Date(`${v}T00:00:00Z`); d.setUTCFullYear(d.getUTCFullYear() + 1); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+const paraDecimal = (s: string) => { const t = s.trim(); return t ? (t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t) : null; };
+const mascaraCnpj = (v: string) => v.replace(/\D/g, '').slice(0, 14)
+  .replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2');
+
+function Icone({ d, tamanho = 16 }: { d: string; tamanho?: number }) {
+  return <svg width={tamanho} height={tamanho} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 }
+const I = {
+  mais: 'M12 5v14M5 12h14', lapis: 'M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z', lixo: 'M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2',
+  clipe: 'M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48',
+  pdf: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6', planilha: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18',
+  seta: 'M9 18l6-6-6-6', lupa: 'M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35', desfazer: 'M3 7v6h6M21 17a9 9 0 00-15-6.7L3 13',
+};
 
-function formatQuantidade(value: string | null): string {
-  if (!value) return 'â€”';
-  const num = Number(value);
-  if (!Number.isFinite(num)) return value;
-  return num.toLocaleString('pt-BR', { maximumFractionDigits: 4 });
-}
-
-function toNumber(value: string | null | undefined): number {
-  if (!value) return 0;
-  const parsed = Number(value.replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const active = status === 'ACTIVE';
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      fontSize: 11, fontWeight: 700, borderRadius: 99, padding: '3px 10px',
-      color: active ? '#16a34a' : '#64748b',
-      background: active ? '#f0fdf4' : '#f8fafc',
-      border: `1px solid ${active ? '#bbf7d0' : '#e2e8f0'}`,
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: active ? '#16a34a' : '#94a3b8', display: 'inline-block' }} />
-      {active ? 'Ativo' : 'Inativo'}
-    </span>
-  );
-}
-
-function SaldoValor({ value, unidade, tone = 'default' }: { value: string | null; unidade: string; tone?: 'default' | 'ok' | 'warn' | 'muted' }) {
-  const color = tone === 'ok' ? '#15803d' : tone === 'warn' ? '#b45309' : tone === 'muted' ? '#94a3b8' : '#334155';
-  const background = tone === 'ok' ? '#f0fdf4' : tone === 'warn' ? '#fffbeb' : tone === 'muted' ? '#f8fafc' : '#f8fafc';
-  const border = tone === 'ok' ? '#bbf7d0' : tone === 'warn' ? '#fde68a' : '#e2e8f0';
-
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minWidth: 74,
-      minHeight: 26,
-      padding: '2px 8px',
-      borderRadius: 8,
-      border: `1px solid ${border}`,
-      background,
-      color,
-      fontFamily: 'var(--tn-mono)',
-      fontSize: 11,
-      fontWeight: 850,
-      whiteSpace: 'nowrap',
-    }}>
-      {value === null ? 'Livre' : `${formatQuantidade(value)} ${unidade}`}
-    </span>
-  );
-}
-
-/* ── Modal de edição de item ──────────────────────────────────── */
-function EditItemModal({ item, licitacaoId, entityId, onClose, onSaved }: {
-  item: LicitacaoItem;
-  licitacaoId: string;
-  entityId: string;
-  onClose: () => void;
-  onSaved: () => void;
+/* ── documentos ── */
+function Documentos({ entityId, docs, alvo, podeGerir, onMudou, rotulo = 'Anexar PDF' }: {
+  entityId: string; docs: DocumentoRef[]; alvo: { licitacaoId?: string; contratoId?: string }; podeGerir: boolean; onMudou: () => void; rotulo?: string;
 }) {
-  const [categoria, setCategoria] = useState(item.categoria ?? '');
-  const [descricao, setDescricao] = useState(item.descricao);
-  const [unidade, setUnidade] = useState(item.unidadeMedida);
-  const [quantidade, setQuantidade] = useState(item.quantidade ?? '');
-  const [valor, setValor] = useState(item.valorUnitario ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const ref = useRef<HTMLInputElement>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState('');
+  const enviar = async (f: File | undefined) => {
+    if (!f) return;
+    setOcupado(true); setErro('');
+    try { await contratosApi.anexar(entityId, alvo, f); onMudou(); } catch (e) { setErro(msgErro(e)); } finally { setOcupado(false); if (ref.current) ref.current.value = ''; }
+  };
+  return (
+    <div className="lc-docs">
+      {docs.map(d => (
+        <span key={d.id} className="lc-doc">
+          <button type="button" onClick={() => void contratosApi.abrirDocumento(entityId, d.id).catch(e => setErro(msgErro(e)))} title="Abrir">
+            <Icone d={I.pdf} tamanho={14} />{d.nome}
+          </button>
+          {podeGerir && <button type="button" className="lc-doc-x" aria-label={`Tirar ${d.nome}`} onClick={() => { if (window.confirm(`Tirar o arquivo ${d.nome}?`)) void contratosApi.removerDocumento(entityId, d.id).then(onMudou).catch(e => setErro(msgErro(e))); }}>×</button>}
+        </span>
+      ))}
+      {podeGerir && <>
+        <input ref={ref} type="file" accept="application/pdf,image/*" hidden onChange={e => void enviar(e.target.files?.[0])} />
+        <button type="button" className="lc-doc-novo" disabled={ocupado} onClick={() => ref.current?.click()}><Icone d={I.clipe} tamanho={14} />{ocupado ? 'Enviando…' : rotulo}</button>
+      </>}
+      {erro && <span className="lc-erro-mini">{erro}</span>}
+    </div>
+  );
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!descricao.trim() || !unidade.trim()) return;
-    setSaving(true);
-    setError('');
-    try {
-      await tenantApi.licitacoes.updateItem(entityId, licitacaoId, item.id, {
-        categoria: categoria.trim() || undefined,
-        descricao: descricao.trim(),
-        unidadeMedida: unidade.trim(),
-        quantidade: quantidade.trim() ? quantidade.trim().replace(',', '.') : null,
-        valorUnitario: valor.trim() ? valor.trim().replace(',', '.') : null,
-      });
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar');
-      setSaving(false);
-    }
+/* ── barra da vigência ── */
+function Vigencia({ c }: { c: ContratoLicitacao }) {
+  const de = new Date(c.vigenciaDe).getTime(), ate = new Date(c.vigenciaAte).getTime(), h = new Date(hoje()).getTime();
+  const total = Math.max(1, ate - de);
+  const pct = Math.min(100, Math.max(0, ((h - de) / total) * 100));
+  const original = c.vigenciaOriginal ? Math.min(100, ((new Date(c.vigenciaOriginal).getTime() - de) / total) * 100) : null;
+  return (
+    <div className={`lc-vig is-${c.situacao.toLowerCase()}`}>
+      <div className="lc-vig-datas"><span>{dataBr(c.vigenciaDe)}</span><span>{c.vigenciaOriginal ? <><s>{dataBr(c.vigenciaOriginal)}</s> → </> : null}<b>{dataBr(c.vigenciaAte)}</b></span></div>
+      <div className="lc-vig-barra" role="img" aria-label={`Vigência ${Math.round(pct)}% decorrida`}>
+        <span style={{ width: `${pct}%` }} />
+        {original !== null && <i className="lc-vig-original" style={{ left: `${original}%` }} title="Fim original (antes do aditivo)" />}
+        {pct > 0 && pct < 100 && <i className="lc-vig-hoje" style={{ left: `${pct}%` }} title="Hoje" />}
+      </div>
+    </div>
+  );
+}
+
+/* ═════════════════ diálogos ═════════════════ */
+
+function DialogoContrato({ entityId, licitacaoId, contrato, objeto, onFechar, onSalvo }: {
+  entityId: string; licitacaoId: string; contrato: ContratoLicitacao | null; objeto: string; onFechar: () => void; onSalvo: () => void;
+}) {
+  const [numero, setNumero] = useState(contrato?.numero ?? '');
+  const [de, setDe] = useState(contrato?.vigenciaDe ?? hoje());
+  const [ate, setAte] = useState(contrato?.vigenciaAte ?? umAnoDepois(hoje()));
+  const [valor, setValor] = useState(contrato?.valor ? Number(contrato.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '');
+  const [cnpj, setCnpj] = useState(contrato?.fornecedor?.cnpj ?? '');
+  const [consulta, setConsulta] = useState<FornecedorConsulta | null>(null);
+  const [razao, setRazao] = useState(contrato?.fornecedor?.razaoSocial ?? '');
+  const [buscando, setBuscando] = useState(false);
+  const [loteNum, setLoteNum] = useState('01');
+  const [loteDesc, setLoteDesc] = useState('');
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const manterFornecedor = !!contrato?.fornecedor && !consulta && razao === contrato.fornecedor.razaoSocial && (cnpj || '') === (contrato.fornecedor.cnpj ?? '');
+
+  const buscar = async () => {
+    if (cnpj.replace(/\D/g, '').length !== 14) { setErro('Digite os 14 números do CNPJ.'); return; }
+    setBuscando(true); setErro('');
+    try { const r = await contratosApi.consultarCnpj(entityId, cnpj); setConsulta(r); setRazao(r.fornecedor.razaoSocial); }
+    catch (e) { setErro(msgErro(e)); setConsulta(null); }
+    finally { setBuscando(false); }
+  };
+  /* 12 meses é o mais comum: preenche o fim sozinho */
+  const aoMudarInicio = (v: string) => {
+    /* se o fim ainda é o automático (1 ano), acompanha o novo início */
+    if (v && !contrato && (!ate || ate === umAnoDepois(de))) setAte(umAnoDepois(v));
+    setDe(v);
   };
 
-  const fieldStyle = (filled: boolean): React.CSSProperties => ({
-    width: '100%', padding: '10px 12px', fontSize: 13, fontWeight: 500,
-    color: '#0f172a', border: `1.5px solid ${filled ? '#2563eb60' : '#e2e8f0'}`,
-    borderRadius: 10, outline: 'none', background: '#fafafa',
-    boxSizing: 'border-box', fontFamily: 'inherit',
-    transition: 'border-color 0.15s',
-  });
+  const salvar = async () => {
+    if (!numero.trim()) return setErro('Informe o número do contrato.');
+    if (!de || !ate) return setErro('Informe a vigência (início e fim).');
+    setSalvando(true); setErro('');
+    const dados = {
+      numero: numero.trim(), vigenciaDe: de, vigenciaAte: ate, valor: paraDecimal(valor),
+      ...(manterFornecedor ? { fornecedorId: contrato!.fornecedor!.id }
+        : consulta?.fornecedor.id ? { fornecedorId: consulta.fornecedor.id }
+        : razao.trim() ? { fornecedorNovo: { cnpj: cnpj || null, razaoSocial: razao.trim(), nomeFantasia: consulta?.fornecedor.nomeFantasia ?? null, telefone: consulta?.fornecedor.telefone ?? null, email: consulta?.fornecedor.email ?? null, endereco: consulta?.fornecedor.endereco ?? null } }
+        : {}),
+      ...(!contrato ? { primeiroLote: { numero: loteNum.trim() || '01', descricao: loteDesc.trim() || null } } : {}),
+    };
+    try {
+      if (contrato) await contratosApi.atualizar(entityId, contrato.id, dados); else await contratosApi.criar(entityId, licitacaoId, dados);
+      onSalvo();
+    } catch (e) { setErro(msgErro(e)); setSalvando(false); }
+  };
 
-  return createPortal(
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-      onClick={onClose}
-    >
-      <div
-        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* header */}
-        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2563eb', marginBottom: 2 }}>Editar item</p>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', margin: 0 }}>Atualizar dados do item</h3>
+  return (
+    <Dialogo titulo={contrato ? `Editar contrato ${contrato.numero}` : 'Novo contrato'} subtitulo={contrato ? undefined : 'O contrato liga a licitação ao fornecedor vencedor e define até quando dá para comprar.'}
+      onFechar={onFechar}
+      acoes={<>
+        <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={onFechar}>Cancelar</button>
+        <button type="button" className="ob-btn" disabled={salvando} onClick={() => void salvar()}>{salvando ? 'Salvando…' : contrato ? 'Salvar' : 'Lançar contrato'}</button>
+      </>}>
+      <div className="lc-form">
+        <label className="cc-campo"><span>Nº do contrato</span><input value={numero} onChange={e => setNumero(e.target.value)} placeholder="Ex.: 045/2026" autoFocus /></label>
+        <label className="cc-campo"><span>Valor do contrato <em>(opcional)</em></span><input inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder="0,00" /></label>
+        <label className="cc-campo"><span>Vigência — início</span><input type="date" value={de} onChange={e => aoMudarInicio(e.target.value)} /></label>
+        <label className="cc-campo"><span>Vigência — fim</span><input type="date" value={ate} min={de} onChange={e => setAte(e.target.value)} /></label>
+
+        <div className="cc-campo cc-largo">
+          <span>Fornecedor</span>
+          <div className="lc-cnpj">
+            <input inputMode="numeric" value={cnpj} onChange={e => { setCnpj(mascaraCnpj(e.target.value)); setConsulta(null); }} placeholder="CNPJ" onKeyDown={e => { if (e.key === 'Enter') void buscar(); }} />
+            <button type="button" className="ob-btn-ghost ob-btn-alto" disabled={buscando} onClick={() => void buscar()}><Icone d={I.lupa} tamanho={15} />{buscando ? 'Buscando…' : 'Buscar na Receita'}</button>
           </div>
-          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, borderRadius: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
         </div>
-
-        {/* form */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Categoria</span>
-            <input type="text" value={categoria} onChange={e => setCategoria(e.target.value)} placeholder="Ex.: LIMPEZA" style={fieldStyle(!!categoria)}
-              onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px #2563eb15'; }}
-              onBlur={e => { e.target.style.borderColor = categoria ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
-          </label>
-
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Descrição <span style={{ color: '#dc2626' }}>*</span>
-            </span>
-            <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} required placeholder="Descrição do item" style={fieldStyle(!!descricao)}
-              onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px #2563eb15'; }}
-              onBlur={e => { e.target.style.borderColor = descricao ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
-          </label>
-
-          <div className="tn-grid-2" style={{ gap: 12 }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Unidade <span style={{ color: '#dc2626' }}>*</span>
-              </span>
-              <input type="text" value={unidade} onChange={e => setUnidade(e.target.value)} required placeholder="Ex.: UN, M², H" style={fieldStyle(!!unidade)}
-                onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px #2563eb15'; }}
-                onBlur={e => { e.target.style.borderColor = unidade ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quantidade</span>
-              <input type="text" value={quantidade} onChange={e => setQuantidade(e.target.value)} placeholder="0,0000" style={fieldStyle(!!quantidade)}
-                onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px #2563eb15'; }}
-                onBlur={e => { e.target.style.borderColor = quantidade ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Valor unit.</span>
-              <input type="text" value={valor} onChange={e => setValor(e.target.value)} placeholder="0,00" style={fieldStyle(!!valor)}
-                onFocus={e => { e.target.style.borderColor = '#2563eb'; e.target.style.boxShadow = '0 0 0 3px #2563eb15'; }}
-                onBlur={e => { e.target.style.borderColor = valor ? '#2563eb60' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }} />
-            </label>
+        {consulta && (
+          <div className={`lc-forn-achado cc-largo is-${consulta.origem}`}>
+            <b>{consulta.origem === 'cadastro' ? 'Já cadastrado' : 'Encontrado na Receita'}</b>
+            <span>{consulta.fornecedor.razaoSocial}{consulta.fornecedor.nomeFantasia ? ` · ${consulta.fornecedor.nomeFantasia}` : ''}</span>
+            {consulta.fornecedor.endereco && <small>{consulta.fornecedor.endereco}</small>}
+            {consulta.fornecedor.situacao && consulta.fornecedor.situacao !== 'ATIVA' && <small className="lc-alerta">Situação na Receita: {consulta.fornecedor.situacao}</small>}
           </div>
+        )}
+        <label className="cc-campo cc-largo"><span>Razão social {consulta ? <em>— veio da consulta</em> : <em>— ou digite, se não tiver CNPJ</em>}</span>
+          <input value={razao} onChange={e => setRazao(e.target.value)} placeholder="Nome da empresa vencedora" disabled={consulta?.origem === 'cadastro'} />
+        </label>
 
-          {error && (
-            <div className="tn-alert" style={{ marginTop: 0 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {error}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-            <button type="button" onClick={onClose} className="tn-btn-secondary">Cancelar</button>
-            <button type="submit" disabled={saving} className="tn-btn-blue" style={{ height: 38, fontSize: 13, flex: 1, opacity: saving ? 0.7 : 1 }}>
-              {saving ? (
-                <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 0.8s linear infinite' }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-                  Salvando…
-                </>
-              ) : (
-                <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  Salvar alterações
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        {!contrato && <>
+          <label className="cc-campo"><span>Primeiro lote</span><input value={loteNum} onChange={e => setLoteNum(e.target.value)} placeholder="01" /></label>
+          <label className="cc-campo"><span>Descrição do lote <em>(opcional)</em></span><input value={loteDesc} onChange={e => setLoteDesc(e.target.value)} placeholder={objeto.slice(0, 60)} /></label>
+        </>}
       </div>
-    </div>,
-    document.body
+      {erro && <div className="ob-erro">{erro}</div>}
+    </Dialogo>
   );
 }
 
-/* ── Página principal ─────────────────────────────────────────── */
+function DialogoLote({ entityId, contratoId, lote, onFechar, onSalvo }: {
+  entityId: string; contratoId: string; lote: { id: string; numero: string; descricao: string | null } | null; onFechar: () => void; onSalvo: () => void;
+}) {
+  const [numero, setNumero] = useState(lote?.numero ?? '');
+  const [descricao, setDescricao] = useState(lote?.descricao ?? '');
+  const [erro, setErro] = useState('');
+  const salvar = async () => {
+    try {
+      if (lote) await contratosApi.atualizarLote(entityId, lote.id, { numero, descricao: descricao || null });
+      else await contratosApi.criarLote(entityId, contratoId, { numero, descricao: descricao || null });
+      onSalvo();
+    } catch (e) { setErro(msgErro(e)); }
+  };
+  return (
+    <Dialogo titulo={lote ? `Editar lote ${lote.numero}` : 'Novo lote'} onFechar={onFechar}
+      acoes={<><button type="button" className="ob-btn-ghost ob-btn-alto" onClick={onFechar}>Cancelar</button><button type="button" className="ob-btn" disabled={!numero.trim()} onClick={() => void salvar()}>Salvar</button></>}>
+      <div className="lc-form">
+        <label className="cc-campo"><span>Nº do lote</span><input value={numero} onChange={e => setNumero(e.target.value)} placeholder="02" autoFocus /></label>
+        <label className="cc-campo"><span>Descrição <em>(opcional)</em></span><input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex.: Agregados" /></label>
+      </div>
+      {erro && <div className="ob-erro">{erro}</div>}
+    </Dialogo>
+  );
+}
+
+function DialogoItem({ entityId, licitacaoId, loteId, item, onFechar, onSalvo }: {
+  entityId: string; licitacaoId: string; loteId: string | null; item: ItemContrato | null; onFechar: () => void; onSalvo: (outro: boolean) => void;
+}) {
+  const [descricao, setDescricao] = useState(item?.descricao ?? '');
+  const [marca, setMarca] = useState(item?.marca ?? '');
+  const [unidade, setUnidade] = useState(item?.unidade ?? '');
+  const [quantidade, setQuantidade] = useState(item?.quantidade ? num(item.quantidade) : '');
+  const [valor, setValor] = useState(item?.valorUnitario ? Number(item.valorUnitario).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '');
+  const [categoria, setCategoria] = useState(item?.categoria ?? '');
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const total = (Number(paraDecimal(quantidade)) || 0) * (Number(paraDecimal(valor)) || 0);
+  const salvar = async (outro: boolean) => {
+    if (descricao.trim().length < 2 || !unidade.trim()) { setErro('Descrição e unidade são obrigatórias.'); return; }
+    setSalvando(true); setErro('');
+    try {
+      if (item) await contratosApi.editarItem(entityId, licitacaoId, item.id, { descricao: descricao.trim(), marca: marca.trim() || null, unidadeMedida: unidade.trim(), quantidade: paraDecimal(quantidade), valorUnitario: paraDecimal(valor), categoria: categoria.trim() || undefined });
+      else await contratosApi.adicionarItem(entityId, loteId!, { descricao, marca: marca || null, unidade, quantidade: paraDecimal(quantidade), valorUnitario: paraDecimal(valor), categoria: categoria || null });
+      if (outro) { setDescricao(''); setMarca(''); setQuantidade(''); setValor(''); setSalvando(false); onSalvo(true); }
+      else onSalvo(false);
+    } catch (e) { setErro(msgErro(e)); setSalvando(false); }
+  };
+  return (
+    <Dialogo titulo={item ? 'Editar item' : 'Novo item do lote'} onFechar={onFechar}
+      acoes={<>
+        <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={onFechar}>Fechar</button>
+        {!item && <button type="button" className="ob-btn-ghost ob-btn-alto" disabled={salvando} onClick={() => void salvar(true)}>Salvar e lançar outro</button>}
+        <button type="button" className="ob-btn" disabled={salvando} onClick={() => void salvar(false)}>Salvar</button>
+      </>}>
+      <div className="lc-form">
+        <label className="cc-campo cc-largo"><span>Descrição</span><input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex.: Cimento CP-II 50 kg" autoFocus /></label>
+        <label className="cc-campo"><span>Marca <em>(opcional)</em></span><input value={marca} onChange={e => setMarca(e.target.value)} /></label>
+        <label className="cc-campo"><span>Unidade</span><input value={unidade} onChange={e => setUnidade(e.target.value)} placeholder="SACO, M³, UN…" /></label>
+        <label className="cc-campo"><span>Quantidade <em>(vazio = sem limite)</em></span><input inputMode="decimal" value={quantidade} onChange={e => setQuantidade(e.target.value)} placeholder="0" /></label>
+        <label className="cc-campo"><span>Valor unitário</span><input inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder="0,00" /></label>
+        <label className="cc-campo"><span>Categoria <em>(opcional)</em></span><input value={categoria} onChange={e => setCategoria(e.target.value)} placeholder="Ex.: ALVENARIA" /></label>
+        <div className="lc-item-total"><small>Total do item</small><b>{real(total)}</b></div>
+      </div>
+      {item?.emUso && <p className="lc-nota">Este item já foi usado em compras. Mudar o preço vale só para as próximas.</p>}
+      {erro && <div className="ob-erro">{erro}</div>}
+    </Dialogo>
+  );
+}
+
+function DialogoImportar({ entityId, licitacaoId, lote, onFechar, onSalvo }: {
+  entityId: string; licitacaoId: string; lote: { id: string; numero: string }; onFechar: () => void; onSalvo: (n: number) => void;
+}) {
+  const [aba, setAba] = useState<'planilha' | 'colar'>('planilha');
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [cols, setCols] = useState({ descricao: '', unidade: '', quantidade: '', valor: '', categoria: '' });
+  const [erro, setErro] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const baixarModelo = useImportTemplateDownload();
+  const linhas = (t: string) => t.split(/\r?\n/).filter(l => l.trim()).length;
+  const enviar = async () => {
+    setOcupado(true); setErro('');
+    try {
+      const r = aba === 'planilha'
+        ? await contratosApi.importarPlanilha(entityId, licitacaoId, lote.id, arquivo!)
+        : await contratosApi.importarColunas(entityId, licitacaoId, lote.id, Object.fromEntries(Object.entries(cols).filter(([, v]) => v.trim())));
+      onSalvo(r.importedCount);
+    } catch (e) {
+      const det = e instanceof ApiError ? (e.body.details as { lineErrors?: { line: number; message: string }[] } | undefined)?.lineErrors : undefined;
+      setErro(det?.length ? `${msgErro(e)}: ${det.slice(0, 4).map(l => `linha ${l.line} — ${l.message}`).join('; ')}` : msgErro(e));
+      setOcupado(false);
+    }
+  };
+  return (
+    <Dialogo titulo={`Importar itens para o lote ${lote.numero}`} subtitulo="Os itens entram direto neste lote, em maiúsculas."
+      onFechar={onFechar}
+      acoes={<><button type="button" className="ob-btn-ghost ob-btn-alto" onClick={onFechar}>Cancelar</button>
+        <button type="button" className="ob-btn" disabled={ocupado || (aba === 'planilha' ? !arquivo : !cols.descricao.trim())} onClick={() => void enviar()}>{ocupado ? 'Importando…' : 'Importar'}</button></>}>
+      <div className="ob-chips lc-abas" role="tablist">
+        <button type="button" role="tab" aria-selected={aba === 'planilha'} className={`ob-chip${aba === 'planilha' ? ' is-ativo' : ''}`} onClick={() => setAba('planilha')}><Icone d={I.planilha} tamanho={14} />Planilha</button>
+        <button type="button" role="tab" aria-selected={aba === 'colar'} className={`ob-chip${aba === 'colar' ? ' is-ativo' : ''}`} onClick={() => setAba('colar')}>Colar colunas</button>
+      </div>
+      {aba === 'planilha' ? (
+        <div className="lc-importar">
+          <ImportInstructions onDownload={f => { void baixarModelo(f).catch(e => setErro(msgErro(e))); }} />
+          <label className="lc-arquivo">
+            <input type="file" accept=".csv,.xlsx" onChange={e => setArquivo(e.target.files?.[0] ?? null)} />
+            <Icone d={I.planilha} tamanho={22} />
+            <span>{arquivo ? arquivo.name : 'Escolher planilha (.xlsx ou .csv)'}</span>
+          </label>
+        </div>
+      ) : (
+        <div className="lc-colunas">
+          {(['descricao', 'unidade', 'quantidade', 'valor', 'categoria'] as const).map(k => (
+            <label key={k} className="cc-campo">
+              <span>{{ descricao: 'Descrição', unidade: 'Unidade', quantidade: 'Quantidade', valor: 'Valor unit.', categoria: 'Categoria' }[k]} <em>{linhas(cols[k]) || ''}</em></span>
+              <textarea rows={7} value={cols[k]} onChange={e => setCols(c => ({ ...c, [k]: e.target.value }))} placeholder="uma linha por item" />
+            </label>
+          ))}
+        </div>
+      )}
+      {erro && <div className="ob-erro">{erro}</div>}
+    </Dialogo>
+  );
+}
+
+function DialogoAditivo({ entityId, contrato, onFechar, onSalvo }: {
+  entityId: string; contrato: ContratoLicitacao; onFechar: () => void; onSalvo: (msg: string) => void;
+}) {
+  const [tipo, setTipo] = useState<TipoAditivo>('PRAZO');
+  const [numero, setNumero] = useState(String(contrato.aditivos.length + 1).padStart(2, '0'));
+  const [publicacao, setPublicacao] = useState(hoje());
+  const [novaVigencia, setNovaVigencia] = useState('');
+  const [percentual, setPercentual] = useState('25');
+  const [loteId, setLoteId] = useState(contrato.lotes[0]?.id ?? '');
+  const [observacao, setObservacao] = useState('');
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const pct = Number(paraDecimal(percentual)) || 0;
+  const itensAfetados = (tipo === 'VALOR' && !loteId ? contrato.lotes.flatMap(l => l.itens) : contrato.lotes.find(l => l.id === loteId)?.itens ?? [])
+    .filter(i => i.status === 'ACTIVE' && (tipo === 'QUANTIDADE' ? i.quantidade : i.valorUnitario));
+  const impacto = itensAfetados.reduce((t, i) => t + (tipo === 'QUANTIDADE'
+    ? Number(i.quantidade) * (pct / 100) * Number(i.valorUnitario ?? 0)
+    : Number(i.valorUnitario) * (pct / 100) * Number(i.quantidade ?? 0)), 0);
+
+  const salvar = async () => {
+    setSalvando(true); setErro('');
+    try {
+      const r = await contratosApi.criarAditivo(entityId, contrato.id, {
+        tipo, numero, dataPublicacao: publicacao, observacao: observacao || null,
+        ...(tipo === 'PRAZO' ? { novaVigencia } : { percentual: paraDecimal(percentual), loteId: loteId || null }),
+      });
+      onSalvo(tipo === 'PRAZO' ? `Aditivo ${numero}: vigência até ${dataBr(novaVigencia)}.` : `Aditivo ${numero} lançado (${real(r.valorAditivado)}).`);
+    } catch (e) { setErro(msgErro(e)); setSalvando(false); }
+  };
+
+  return (
+    <Dialogo titulo={`Aditivo ao contrato ${contrato.numero}`} onFechar={onFechar}
+      acoes={<><button type="button" className="ob-btn-ghost ob-btn-alto" onClick={onFechar}>Cancelar</button>
+        <button type="button" className="ob-btn" disabled={salvando || (tipo === 'PRAZO' ? !novaVigencia : !pct)} onClick={() => void salvar()}>{salvando ? 'Lançando…' : 'Lançar aditivo'}</button></>}>
+      <div className="lc-tipos" role="radiogroup" aria-label="Tipo de aditivo">
+        {(Object.keys(ADITIVO) as TipoAditivo[]).map(t => (
+          <button key={t} type="button" role="radio" aria-checked={tipo === t} className={`lc-tipo${tipo === t ? ' is-ativo' : ''}`} style={{ '--tipo-cor': ADITIVO[t].cor } as React.CSSProperties}
+            onClick={() => { setTipo(t); if (t === 'VALOR') setPercentual(''); if (t === 'QUANTIDADE') { setPercentual('25'); if (!loteId) setLoteId(contrato.lotes[0]?.id ?? ''); } }}>
+            <span className="lc-tipo-icone"><Icone d={ADITIVO[t].icone} tamanho={18} /></span>
+            <b>{ADITIVO[t].rotulo}</b><small>{ADITIVO[t].desc}</small>
+          </button>
+        ))}
+      </div>
+      <div className="lc-form">
+        <label className="cc-campo"><span>Nº do aditivo</span><input value={numero} onChange={e => setNumero(e.target.value)} /></label>
+        <label className="cc-campo"><span>Data de publicação</span><input type="date" value={publicacao} onChange={e => setPublicacao(e.target.value)} /></label>
+        {tipo === 'PRAZO' ? (
+          <label className="cc-campo cc-largo"><span>Nova vigência <em>— hoje vai até {dataBr(contrato.vigenciaAte)}</em></span><input type="date" value={novaVigencia} min={contrato.vigenciaAte} onChange={e => setNovaVigencia(e.target.value)} /></label>
+        ) : <>
+          <label className="cc-campo"><span>{tipo === 'VALOR' ? 'Reajuste (%)' : 'Acréscimo (%)'}</span><input inputMode="decimal" value={percentual} onChange={e => setPercentual(e.target.value)} placeholder={tipo === 'VALOR' ? 'Ex.: 5,32' : '25'} /></label>
+          <label className="cc-campo"><span>Lote</span>
+            <select value={loteId} onChange={e => setLoteId(e.target.value)}>
+              {tipo === 'VALOR' && <option value="">Todos os lotes</option>}
+              {contrato.lotes.map(l => <option key={l.id} value={l.id}>Lote {l.numero}{l.descricao ? ` · ${l.descricao}` : ''}</option>)}
+            </select>
+          </label>
+        </>}
+        <label className="cc-campo cc-largo"><span>Observação <em>(opcional)</em></span><input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Ex.: Termo aditivo publicado no DOM nº…" /></label>
+      </div>
+      {tipo === 'QUANTIDADE' && pct > 25 && <p className="lc-nota is-alerta">Acima de 25% a lei só permite para reforma (até 50%). Confira antes de lançar.</p>}
+      {tipo !== 'PRAZO' && pct !== 0 && itensAfetados.length > 0 && (
+        <div className="lc-previa">
+          <div className="lc-previa-topo"><span>{itensAfetados.length} {itensAfetados.length === 1 ? 'item muda' : 'itens mudam'}</span><b>{impacto >= 0 ? '+' : ''}{real(impacto)}</b></div>
+          {itensAfetados.slice(0, 5).map(i => (
+            <div key={i.id} className="lc-previa-linha">
+              <span>{i.descricao}</span>
+              {tipo === 'QUANTIDADE'
+                ? <em>{num(i.quantidade)} → <b>{num(Number(i.quantidade) * (1 + pct / 100))}</b> {i.unidade}</em>
+                : <em>{real(i.valorUnitario)} → <b>{real(Number(i.valorUnitario) * (1 + pct / 100))}</b></em>}
+            </div>
+          ))}
+          {itensAfetados.length > 5 && <small>…e mais {itensAfetados.length - 5}</small>}
+        </div>
+      )}
+      {erro && <div className="ob-erro">{erro}</div>}
+    </Dialogo>
+  );
+}
+
+function DialogoProcesso({ entityId, est, onFechar, onSalvo }: { entityId: string; est: EstruturaLicitacao; onFechar: () => void; onSalvo: () => void }) {
+  const [identificacao, setIdentificacao] = useState(est.identificacao);
+  const [objeto, setObjeto] = useState(est.objeto);
+  const [pa, setPa] = useState(est.numeroProcesso ?? '');
+  const [modalidade, setModalidade] = useState(est.modalidade ?? '');
+  const [tipo, setTipo] = useState<TipoLicitacao | ''>(est.tipo ?? '');
+  const [homologacao, setHomologacao] = useState(est.dataHomologacao ?? '');
+  const [erro, setErro] = useState('');
+  const salvar = async () => {
+    try {
+      await tenantApi.licitacoes.update(entityId, est.id, { identificacao: identificacao.trim(), objeto: objeto.trim(), fornecedorId: est.fornecedorLegado?.id ?? null });
+      await contratosApi.salvarProcesso(entityId, est.id, { numeroProcesso: pa || null, modalidade: modalidade || null, tipo: tipo || null, dataHomologacao: homologacao || null });
+      onSalvo();
+    } catch (e) { setErro(msgErro(e)); }
+  };
+  return (
+    <Dialogo titulo="Dados da licitação" onFechar={onFechar}
+      acoes={<><button type="button" className="ob-btn-ghost ob-btn-alto" onClick={onFechar}>Cancelar</button><button type="button" className="ob-btn" onClick={() => void salvar()}>Salvar</button></>}>
+      <CamposProcesso {...{ identificacao, setIdentificacao, objeto, setObjeto, pa, setPa, modalidade, setModalidade, tipo, setTipo, homologacao, setHomologacao, modalidades: est.modalidades }} />
+      {erro && <div className="ob-erro">{erro}</div>}
+    </Dialogo>
+  );
+}
+
+
+/* ═════════════════ página ═════════════════ */
+
+type Dialogos =
+  | { tipo: 'processo' } | { tipo: 'contrato'; contrato: ContratoLicitacao | null }
+  | { tipo: 'lote'; contratoId: string; lote: { id: string; numero: string; descricao: string | null } | null }
+  | { tipo: 'item'; loteId: string | null; item: ItemContrato | null }
+  | { tipo: 'importar'; lote: { id: string; numero: string } }
+  | { tipo: 'aditivo'; contrato: ContratoLicitacao }
+  | { tipo: 'confirmar'; titulo: string; texto: string; rotulo: string; acao: () => Promise<unknown> };
+
 export function LicitacaoDetailPage() {
   const { entityId } = useTenant();
   const { licitacaoId = '' } = useParams<{ licitacaoId: string }>();
-  const canManage = useTenantPermission('licitacoes.manage');
-  const canImport = useTenantPermission('licitacoes.items.import');
-  const canDeactivate = useTenantPermission('licitacoes.items.deactivate');
-  const downloadTemplate = useImportTemplateDownload();
-  const { toasts, showToast, closeToast } = useToast();
+  const [busca] = useSearchParams();
+  const navigate = useNavigate();
+  const podeGerir = useTenantPermission('licitacoes.manage');
+  const podeImportar = useTenantPermission('licitacoes.items.import');
+  const podeEditarItem = useTenantPermission('licitacoes.items.deactivate');
+  const [est, setEst] = useState<EstruturaLicitacao | null>(null);
+  const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [dialogo, setDialogo] = useState<Dialogos | null>(busca.get('novoContrato') ? { tipo: 'contrato', contrato: null } : null);
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({});
+  const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [destino, setDestino] = useState('');
 
-  const [licitacao, setLicitacao] = useState<Licitacao | null>(null);
-  const [items, setItems] = useState<LicitacaoItem[]>([]);
-  const [itemsTotal, setItemsTotal] = useState(0);
-  const [itemsPage, setItemsPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [includeInactive, setIncludeInactive] = useState(false);
-  const [importTab, setImportTab] = useState<ImportTab>('spreadsheet');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [hovRow, setHovRow] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<LicitacaoItem | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<LicitacaoItem | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const carregar = useCallback(() => contratosApi.estrutura(entityId, licitacaoId).then(r => { setEst(r); setErro(''); }).catch(e => setErro(msgErro(e))), [entityId, licitacaoId]);
+  useEffect(() => { void carregar(); }, [carregar]);
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(''), 4000); return () => clearTimeout(t); }, [aviso]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      if (includeInactive) params.set('includeInactive', 'true');
-      params.set('page', String(itemsPage));
-      params.set('pageSize', String(ITEMS_PAGE_SIZE));
-      const [lic, itemsResult] = await Promise.all([
-        tenantApi.licitacoes.get(entityId, licitacaoId),
-        tenantApi.licitacoes.listItems(entityId, licitacaoId, params),
-      ]);
-      setLicitacao(lic);
-      setItems(itemsResult.items);
-      setItemsTotal(itemsResult.total);
-      const nextTotalPages = Math.max(1, Math.ceil(itemsResult.total / ITEMS_PAGE_SIZE));
-      if (itemsPage > nextTotalPages) setItemsPage(nextTotalPages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar');
-    } finally {
-      setLoading(false);
-    }
-  }, [entityId, licitacaoId, search, includeInactive, itemsPage]);
+  const fechar = () => setDialogo(null);
+  const salvo = (msg?: string) => { setDialogo(null); if (msg) setAviso(msg); void carregar(); };
+  const contratoAberto = (c: ContratoLicitacao) => abertos[c.id] ?? (est!.contratos.length <= 2 || c.situacao !== 'VENCIDO');
+  const lotesDestino = useMemo(() => est?.contratos.filter(c => c.status === 'ACTIVE').flatMap(c => c.lotes.map(l => ({ id: l.id, rotulo: `Contrato ${c.numero} · Lote ${l.numero}` }))) ?? [], [est]);
 
-  useEffect(() => { void loadData(); }, [loadData]);
-  useEffect(() => { setItemsPage(1); }, [search, includeInactive]);
+  if (!est) return (
+    <div className="ob-page ob-claro">
+      {erro ? <><div className="ob-erro">{erro}</div><Link to={`/t/${entityId}/licitacoes`} className="ob-btn-ghost ob-btn-alto">Voltar</Link></>
+        : <><span className="ob-skeleton" style={{ height: 120, borderRadius: 20 }} /><span className="ob-skeleton" style={{ height: 320, borderRadius: 20, marginTop: 16 }} /></>}
+    </div>
+  );
 
-  const handleDeactivateLicitacao = () => setConfirmDeactivate(true);
+  const ativa = est.status === 'ACTIVE';
+  const tipo = est.tipo ? TIPOS[est.tipo] : null;
+  const usoPct = Number(est.resumo.valorGlobal) ? Math.round((Number(est.resumo.valorUsado) / Number(est.resumo.valorGlobal)) * 100) : null;
 
-  const doDeactivateLicitacao = async () => {
-    setConfirmDeactivate(false);
-    try {
-      const updated = await tenantApi.licitacoes.deactivate(entityId, licitacaoId);
-      setLicitacao(updated);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Erro ao desativar');
-    }
-  };
-
-  const handleDeactivateItem = async (itemId: string) => {
-    try {
-      await tenantApi.licitacoes.deactivateItem(entityId, licitacaoId, itemId);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Erro ao desativar item');
-    }
-  };
-
-  const handleDeleteItem = async () => {
-    if (!confirmDelete) return;
-    setDeleting(true);
-    const desc = confirmDelete.descricao;
-    try {
-      await tenantApi.licitacoes.deleteItem(entityId, licitacaoId, confirmDelete.id);
-      setConfirmDelete(null);
-      showToast(`Item "${desc}" excluído com sucesso.`);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Erro ao excluir item');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  if (loading && !licitacao) {
-    return (
-      <div className="tn-page">
-        <div className="tn-skeleton">{[1,2,3].map(n => <div key={n} className="tn-skeleton-row" />)}</div>
-      </div>
-    );
-  }
-
-  if (!licitacao) {
-    return (
-      <div className="tn-page">
-        <div className="tn-alert">{error || 'Licitação não encontrada'}</div>
-        <Link to={`/t/${entityId}/licitacoes`} className="tn-back-link" style={{ marginTop: 12 }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          Voltar para licitações
-        </Link>
-      </div>
-    );
-  }
-
-  const isActive = licitacao.status === 'ACTIVE';
-  const totalPages = Math.max(1, Math.ceil(itemsTotal / ITEMS_PAGE_SIZE));
-  const pageStart = itemsTotal === 0 ? 0 : (itemsPage - 1) * ITEMS_PAGE_SIZE + 1;
-  const pageEnd = Math.min(itemsTotal, itemsPage * ITEMS_PAGE_SIZE);
+  const confirmar = (titulo: string, texto: string, rotulo: string, acao: () => Promise<unknown>) => setDialogo({ tipo: 'confirmar', titulo, texto, rotulo, acao });
 
   return (
-    <>
-    <div className="tn-page">
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-      <Link to={`/t/${entityId}/licitacoes`} className="tn-back-link">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        Licitações
-      </Link>
-
-      <div className="tn-hero-light" style={{ borderLeftColor: isActive ? '#2563eb' : '#94a3b8' }}>
-        <div className="tn-hero-light-glow" />
-        <div className="tn-hero-light-inner">
-          <div className="tn-hero-light-left">
-            <div className="tn-hero-light-kicker">
-              <span className="tn-hero-light-dot" style={{ background: isActive ? '#2563eb' : '#94a3b8' }} />
-              Licitação
+    <div className="ob-page ob-claro lc-pagina" style={{ '--serv-cor': tipo?.cor ?? COR } as React.CSSProperties}>
+      <header className="ob-head ob-reveal" style={{ '--i': 0 } as React.CSSProperties}>
+        <div className="ob-serv-titulo">
+          <span className="ob-serv-icone"><Icone d={tipo?.icone ?? I.pdf} tamanho={30} /></span>
+          <div className="ob-head-texto">
+            <span className="ob-eyebrow ob-eyebrow-serv"><Link to={`/t/${entityId}/licitacoes`} className="or-voltar">← Licitações</Link>{est.modalidade ? ` · ${est.modalidade}` : ''}</span>
+            <h1 className="ob-h1">{est.identificacao}</h1>
+            <p className="ob-sub">{est.objeto}</p>
+            <div className="lc-meta">
+              {tipo && <span className="lc-meta-chip" style={{ '--tipo-cor': tipo.cor } as React.CSSProperties}><Icone d={tipo.icone} tamanho={13} />{tipo.rotulo}</span>}
+              {est.numeroProcesso && <span className="lc-meta-chip">P.A. {est.numeroProcesso}</span>}
+              {est.dataHomologacao && <span className="lc-meta-chip">Homologada em {dataBr(est.dataHomologacao)}</span>}
+              {!ativa && <span className="ob-badge is-cancelada"><i />Desativada</span>}
             </div>
-            <h2 className="tn-hero-light-title">{licitacao.identificacao}</h2>
-            {licitacao.objeto && <p className="tn-hero-light-desc">{licitacao.objeto}</p>}
           </div>
-          <div className="tn-hero-light-right">
-            <Link to={`/t/${entityId}/licitacoes`}>
-              <button type="button" className="tn-btn-secondary">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                Voltar
-              </button>
-            </Link>
-            {canManage && isActive && (
-              <button type="button" className="tn-btn-secondary" style={{ color: '#dc2626', borderColor: '#fecaca' }} onClick={() => void handleDeactivateLicitacao()}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                Desativar licitação
-              </button>
+        </div>
+        <div className="ob-head-acoes">
+          {podeGerir && <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => setDialogo({ tipo: 'processo' })}><Icone d={I.lapis} />Dados</button>}
+          {podeGerir && ativa && <button type="button" className="ob-btn" onClick={() => setDialogo({ tipo: 'contrato', contrato: null })}><Icone d={I.mais} />Novo contrato</button>}
+        </div>
+      </header>
+
+      <section className="ob-kpis" aria-label="Resumo">
+        <Kpi i={1} rotulo="Contratos vigentes" valor={est.resumo.vigentes} cor="var(--ob-green)"
+          nota={est.resumo.vencendo ? `${est.resumo.vencendo} ${est.resumo.vencendo === 1 ? 'vence' : 'vencem'} em até 30 dias` : est.resumo.vencidos ? `${est.resumo.vencidos} vencido${est.resumo.vencidos > 1 ? 's' : ''}` : `${est.resumo.contratos} no total`}
+          tom={est.resumo.vencendo ? 'alerta' : est.resumo.vencidos ? 'ruim' : 'neutro'} grafico={null} />
+        <div className="ob-kpi ob-reveal" style={{ '--i': 2, '--kpi-cor': COR } as React.CSSProperties}>
+          <span className="ob-kpi-rotulo">Valor dos itens</span>
+          <div className="ob-kpi-linha"><span className="ob-kpi-valor cp-kpi-dinheiro">{real(est.resumo.valorGlobal)}</span></div>
+          <div className="ob-kpi-rodape"><span className="ob-kpi-nota tom-neutro">{est.resumo.itens} {est.resumo.itens === 1 ? 'item ativo' : 'itens ativos'}</span></div>
+        </div>
+        <div className="ob-kpi ob-reveal" style={{ '--i': 3, '--kpi-cor': '#F59E0B' } as React.CSSProperties}>
+          <span className="ob-kpi-rotulo">Já comprometido</span>
+          <div className="ob-kpi-linha"><span className="ob-kpi-valor cp-kpi-dinheiro">{real(est.resumo.valorUsado)}</span><Anel pct={usoPct} cor="#F59E0B" /></div>
+          <div className="ob-kpi-rodape"><span className="ob-kpi-nota tom-neutro">em pedidos e solicitações</span></div>
+        </div>
+        <div className="ob-kpi ob-reveal" style={{ '--i': 4, '--kpi-cor': '#64748B' } as React.CSSProperties}>
+          <span className="ob-kpi-rotulo">Documentos</span>
+          <Documentos entityId={entityId} docs={est.arquivos} alvo={{ licitacaoId: est.id }} podeGerir={podeGerir} onMudou={() => void carregar()} rotulo="Anexar edital / ata" />
+        </div>
+      </section>
+
+      {aviso && <div className="cp-aviso" role="status">{aviso}</div>}
+      {erro && <div className="ob-erro">{erro}</div>}
+
+      {est.contratos.length === 0 && (
+        <section className="ob-card lc-vazio ob-reveal" style={{ '--i': 5 } as React.CSSProperties}>
+          <Icone d={I.pdf} tamanho={40} />
+          <strong>Nenhum contrato lançado</strong>
+          <span>No padrão do Object, cada fornecedor vencedor vira um contrato, com vigência, lotes e itens.</span>
+          {podeGerir && ativa && <button type="button" className="ob-btn" onClick={() => setDialogo({ tipo: 'contrato', contrato: null })}><Icone d={I.mais} />Lançar o primeiro contrato</button>}
+        </section>
+      )}
+
+      <div className="lc-contratos">
+        {est.contratos.map((c, idx) => {
+          const sit = SITUACAO[c.situacao];
+          const aberto = contratoAberto(c);
+          const usoC = Number(c.valorItens) ? Math.min(100, (Number(c.valorUsado) / Number(c.valorItens)) * 100) : 0;
+          const ultimoAditivo = c.aditivos[c.aditivos.length - 1];
+          return (
+            <article key={c.id} className={`ob-card lc-contrato ob-reveal is-${c.situacao.toLowerCase()}${c.status === 'INACTIVE' ? ' is-inativo' : ''}`} style={{ '--i': 5 + Math.min(idx, 6) } as React.CSSProperties}>
+              <div className="lc-contrato-cab">
+                <button type="button" className="lc-contrato-abrir" onClick={() => setAbertos(a => ({ ...a, [c.id]: !aberto }))} aria-expanded={aberto}>
+                  <span className={`lc-seta${aberto ? ' is-aberta' : ''}`}><Icone d={I.seta} /></span>
+                  <span className="lc-contrato-id">
+                    <span className="lc-contrato-num">Contrato {c.numero}</span>
+                    {c.status === 'INACTIVE' ? <span className="ob-badge is-cancelada"><i />Desativado</span> : <span className={`ob-badge ${sit.classe}`}><i />{sit.rotulo(c.diasRestantes)}</span>}
+                    {c.aditivos.length > 0 && <span className="lc-tag-aditivo">{c.aditivos.length} aditivo{c.aditivos.length > 1 ? 's' : ''}</span>}
+                  </span>
+                  <strong className="lc-forn">{c.fornecedor?.razaoSocial ?? 'Fornecedor não informado'}</strong>
+                  {c.fornecedor?.cnpj && <span className="lc-cnpj-txt">CNPJ {c.fornecedor.cnpj}</span>}
+                </button>
+                <div className="lc-contrato-valores">
+                  <span><small>Itens</small><b>{real(c.valorItens)}</b></span>
+                  <span><small>Comprometido</small><b>{real(c.valorUsado)}</b></span>
+                  <div className="lc-uso" aria-label={`${Math.round(usoC)}% comprometido`}><span style={{ width: `${usoC}%` }} /></div>
+                </div>
+              </div>
+              <Vigencia c={c} />
+
+              {aberto && <>
+                {podeGerir && (
+                  <div className="lc-contrato-acoes">
+                    {c.status === 'ACTIVE' ? <>
+                      <button type="button" className="lc-acao" onClick={() => setDialogo({ tipo: 'aditivo', contrato: c })}><Icone d={I.mais} tamanho={14} />Aditivo</button>
+                      <button type="button" className="lc-acao" onClick={() => setDialogo({ tipo: 'lote', contratoId: c.id, lote: null })}><Icone d={I.mais} tamanho={14} />Lote</button>
+                      <button type="button" className="lc-acao" onClick={() => setDialogo({ tipo: 'contrato', contrato: c })}><Icone d={I.lapis} tamanho={14} />Editar</button>
+                      <button type="button" className="lc-acao is-perigo" onClick={() => confirmar(`Excluir o contrato ${c.numero}?`, 'Se algum item já foi usado em compras, o contrato fica só desativado (o histórico é preservado).', 'Excluir', async () => {
+                        const r = await contratosApi.remover(entityId, c.id); setAviso(r.removido ? `Contrato ${c.numero} excluído.` : `Contrato ${c.numero} desativado (já tinha compras).`);
+                      })}><Icone d={I.lixo} tamanho={14} />Excluir</button>
+                    </> : (
+                      <button type="button" className="lc-acao" onClick={() => void contratosApi.reativar(entityId, c.id).then(() => salvo(`Contrato ${c.numero} reativado.`)).catch(e => setErro(msgErro(e)))}>Reativar contrato</button>
+                    )}
+                    <Documentos entityId={entityId} docs={c.arquivos} alvo={{ contratoId: c.id }} podeGerir={podeGerir} onMudou={() => void carregar()} />
+                  </div>
+                )}
+                {!podeGerir && c.arquivos.length > 0 && <Documentos entityId={entityId} docs={c.arquivos} alvo={{ contratoId: c.id }} podeGerir={false} onMudou={() => void carregar()} />}
+
+                {c.aditivos.length > 0 && (
+                  <ol className="lc-aditivos" aria-label="Aditivos">
+                    {c.aditivos.map((a: AditivoContrato) => (
+                      <li key={a.id} style={{ '--tipo-cor': ADITIVO[a.tipo].cor } as React.CSSProperties}>
+                        <span className="lc-aditivo-icone"><Icone d={ADITIVO[a.tipo].icone} tamanho={14} /></span>
+                        <span className="lc-aditivo-texto">
+                          <b>Aditivo {a.numero} · {ADITIVO[a.tipo].rotulo}</b>
+                          <small>
+                            {a.tipo === 'PRAZO' ? `${dataBr(a.vigenciaAnterior!)} → ${dataBr(a.novaVigencia!)}` : `${Number(a.percentual) > 0 ? '+' : ''}${num(a.percentual)}% ${a.lote ? `no lote ${a.lote}` : 'em todos os lotes'} · ${a.itensAfetados} itens · ${real(a.valorAditivado)}`}
+                            {' · publicado em '}{dataBr(a.dataPublicacao)}{a.observacao ? ` · ${a.observacao}` : ''}
+                          </small>
+                        </span>
+                        {podeGerir && a.id === ultimoAditivo?.id && (
+                          <button type="button" className="lc-acao is-mini" onClick={() => confirmar(`Desfazer o aditivo ${a.numero}?`, a.tipo === 'PRAZO' ? 'A vigência volta à data anterior.' : 'Quantidades e preços voltam ao que eram antes.', 'Desfazer', () => contratosApi.desfazerAditivo(entityId, a.id))}>
+                            <Icone d={I.desfazer} tamanho={13} />Desfazer
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {c.lotes.map(l => (
+                  <section key={l.id} className="lc-lote">
+                    <div className="lc-lote-cab">
+                      <span className="lc-lote-num">Lote {l.numero}</span>
+                      <span className="lc-lote-desc">{l.descricao}</span>
+                      <b className="lc-lote-valor">{real(l.valor)}</b>
+                      {c.status === 'ACTIVE' && (podeGerir || podeImportar) && (
+                        <span className="lc-lote-acoes">
+                          {podeGerir && <button type="button" className="lc-acao" onClick={() => setDialogo({ tipo: 'item', loteId: l.id, item: null })}><Icone d={I.mais} tamanho={14} />Item</button>}
+                          {podeImportar && <button type="button" className="lc-acao" onClick={() => setDialogo({ tipo: 'importar', lote: l })}><Icone d={I.planilha} tamanho={14} />Importar</button>}
+                          {podeGerir && <button type="button" className="lc-icone" title="Editar lote" onClick={() => setDialogo({ tipo: 'lote', contratoId: c.id, lote: l })}><Icone d={I.lapis} tamanho={14} /></button>}
+                          {podeGerir && l.itens.length === 0 && <button type="button" className="lc-icone is-perigo" title="Excluir lote" onClick={() => confirmar(`Excluir o lote ${l.numero}?`, 'O lote está vazio.', 'Excluir', () => contratosApi.removerLote(entityId, l.id))}><Icone d={I.lixo} tamanho={14} /></button>}
+                        </span>
+                      )}
+                    </div>
+                    {l.itens.length === 0 ? <p className="lc-lote-vazio">Lote sem itens. {podeGerir ? 'Lance um a um ou importe uma planilha.' : ''}</p> : (
+                      <TabelaItens itens={l.itens} podeEditar={podeEditarItem} onEditar={i => setDialogo({ tipo: 'item', loteId: l.id, item: i })}
+                        onExcluir={i => confirmar(`Tirar o item ${i.descricao}?`, i.emUso ? 'O item já foi usado: ele fica inativo, sem apagar o histórico.' : 'O item será apagado.', 'Tirar', () => contratosApi.excluirItem(entityId, est.id, i.id))} />
+                    )}
+                  </section>
+                ))}
+              </>}
+            </article>
+          );
+        })}
+      </div>
+
+      {est.itensSemContrato.length > 0 && (
+        <section className="ob-card lc-soltos ob-reveal" style={{ '--i': 8 } as React.CSSProperties}>
+          <div className="lc-soltos-cab">
+            <div>
+              <h2 className="or-secao-titulo">Itens sem contrato <small>{est.itensSemContrato.length}</small></h2>
+              <p className="lc-nota">Itens lançados antes dos contratos. Marque e mova para o lote certo — assim valem a vigência e os aditivos.</p>
+            </div>
+            {podeGerir && lotesDestino.length > 0 && (
+              <div className="lc-mover">
+                <select value={destino} onChange={e => setDestino(e.target.value)} aria-label="Lote de destino">
+                  <option value="">Mover para…</option>
+                  {lotesDestino.map(l => <option key={l.id} value={l.id}>{l.rotulo}</option>)}
+                </select>
+                <button type="button" className="ob-btn" disabled={!destino || !selecionados.length}
+                  onClick={() => void contratosApi.vincularItens(entityId, destino, selecionados).then(r => { setSelecionados([]); salvo(`${r.vinculados} ${r.vinculados === 1 ? 'item movido' : 'itens movidos'} para o lote.`); }).catch(e => setErro(msgErro(e)))}>
+                  Mover {selecionados.length || ''}
+                </button>
+              </div>
             )}
           </div>
+          <TabelaItens itens={est.itensSemContrato} podeEditar={podeEditarItem}
+            selecao={podeGerir && lotesDestino.length > 0 ? { ids: selecionados, alternar: id => setSelecionados(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]), todos: v => setSelecionados(v ? est.itensSemContrato.map(i => i.id) : []) } : undefined}
+            onEditar={i => setDialogo({ tipo: 'item', loteId: null, item: i })}
+            onExcluir={i => confirmar(`Tirar o item ${i.descricao}?`, i.emUso ? 'O item já foi usado: ele fica inativo.' : 'O item será apagado.', 'Tirar', () => contratosApi.excluirItem(entityId, est.id, i.id))} />
+        </section>
+      )}
+
+      {podeGerir && ativa && est.contratos.length > 0 && (
+        <div className="lc-rodape">
+          <button type="button" className="or-cancelar" onClick={() => confirmar('Desativar esta licitação?', 'Ela deixa de aparecer para novas compras. O histórico fica guardado.', 'Desativar', async () => {
+            await tenantApi.licitacoes.deactivate(entityId, est.id);
+          })}>Desativar licitação</button>
         </div>
-      </div>
-
-      <div className="tn-stats">
-        <div className="tn-stat tone-blue">
-          <div className="tn-stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-          <div className="tn-stat-kicker">Status</div>
-          <div className="tn-stat-value" style={{ fontSize: 16, paddingTop: 6 }}><StatusBadge status={licitacao.status} /></div>
-          <div className="tn-stat-desc">Situação atual</div>
-        </div>
-        <div className="tn-stat tone-green">
-          <div className="tn-stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
-          <div className="tn-stat-kicker">Itens ativos</div>
-          <div className="tn-stat-value">{licitacao.activeItemCount}</div>
-          <div className="tn-stat-desc">Itens disponíveis</div>
-          <div className="tn-stat-badge"><i />Ativos</div>
-        </div>
-        <div className="tn-stat tone-blue">
-          <div className="tn-stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-          <div className="tn-stat-kicker">Cadastro</div>
-          <div className="tn-stat-value" style={{ fontSize: 13, paddingTop: 8 }}>{new Date(licitacao.createdAt).toLocaleDateString('pt-BR')}</div>
-          <div className="tn-stat-desc">{new Date(licitacao.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-        </div>
-        <div className="tn-stat tone-blue">
-          <div className="tn-stat-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-          <div className="tn-stat-kicker">Cadastrado por</div>
-          <div className="tn-stat-value" style={{ fontSize: 15, paddingTop: 8 }}>{licitacao.createdBy.name}</div>
-          <div className="tn-stat-desc">Responsável</div>
-        </div>
-      </div>
-
-      {error && <div className="tn-alert">{error}</div>}
-
-      {/* Tabela de itens */}
-      <div className="tn-panel">
-        <div className="tn-panel-head">
-          <div className="tn-panel-head-left">
-            <span>Tabela de preços</span>
-            <h3>Itens da licitação</h3>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"
-                style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar descrição…"
-                style={{ paddingLeft: 32, paddingRight: 12, height: 36, fontSize: 12, fontWeight: 500, border: '1.5px solid #e2e8f0', borderRadius: 10, outline: 'none', color: '#334155', background: '#fafafa', width: 200 }} />
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
-              <input type="checkbox" checked={includeInactive} onChange={e => setIncludeInactive(e.target.checked)} style={{ accentColor: '#2563eb', width: 14, height: 14 }} />
-              Incluir inativos
-            </label>
-            <span style={{ minWidth: 78, textAlign: 'right', fontFamily: 'var(--tn-mono)', fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-              {itemsTotal} itens
-            </span>
-          </div>
-        </div>
-
-        {loading && <div className="tn-skeleton">{[1,2,3,4].map(n => <div key={n} className="tn-skeleton-row" />)}</div>}
-
-        {!loading && items.length === 0 && (
-          <div className="tn-empty">
-            <div className="tn-empty-icon" style={{ fontSize: 32 }}>📄</div>
-            <strong>Nenhum item encontrado</strong>
-            <span style={{ fontSize: 12, color: 'var(--tn-muted)', marginTop: 4 }}>
-              {search ? 'Tente outro termo de busca.' : 'Importe itens usando o painel abaixo.'}
-            </span>
-          </div>
-        )}
-
-        {!loading && items.length > 0 && (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  {['Categoria', 'Descrição', 'Un.', 'Licitado', 'Reservado', 'Recebido', 'Disponível', 'Valor unit.', 'Status', ''].map((h, i) => (
-                    <th key={i} style={{ padding: '10px 12px', textAlign: i >= 2 ? 'center' : 'left', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', background: '#fafbfc', borderBottom: '1px solid #f1f5f9' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map(item => {
-                  const active = item.status === 'ACTIVE';
-                  const isHov = hovRow === item.id;
-                  return (
-                    <tr key={item.id}
-                      onMouseEnter={() => setHovRow(item.id)}
-                      onMouseLeave={() => setHovRow(null)}
-                      style={{ borderBottom: '1px solid #f8fafc', background: isHov ? '#f8fafc' : 'transparent', opacity: active ? 1 : 0.55, transition: 'background 0.12s' }}>
-                      <td style={{ padding: '11px 12px' }}>
-                        {item.categoria
-                          ? <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', background: '#eff6ff', borderRadius: 99, padding: '2px 8px', border: '1px solid #bfdbfe' }}>{item.categoria}</span>
-                          : <span style={{ color: '#e2e8f0' }}>—</span>}
-                      </td>
-                      <td style={{ padding: '11px 12px', color: '#1e293b', fontWeight: 500, minWidth: 260 }}>{item.descricao}</td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', borderRadius: 99, padding: '2px 8px', border: '1px solid #e9d5ff' }}>{item.unidadeMedida}</span>
-                      </td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                        <SaldoValor value={item.saldo.quantidadeLicitada} unidade={item.unidadeMedida} tone={item.saldo.controleSaldo ? 'default' : 'muted'} />
-                      </td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                        <SaldoValor value={item.saldo.quantidadeReservada} unidade={item.unidadeMedida} tone={toNumber(item.saldo.quantidadeReservada) > 0 ? 'warn' : 'muted'} />
-                      </td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                        <SaldoValor value={item.saldo.quantidadeRecebida} unidade={item.unidadeMedida} tone={toNumber(item.saldo.quantidadeRecebida) > 0 ? 'ok' : 'muted'} />
-                      </td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center' }}>
-                        <SaldoValor
-                          value={item.saldo.quantidadeDisponivel}
-                          unidade={item.unidadeMedida}
-                          tone={!item.saldo.controleSaldo ? 'muted' : toNumber(item.saldo.quantidadeDisponivel) <= 0 ? 'warn' : 'ok'}
-                        />
-                      </td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center', fontWeight: 700, color: '#16a34a', fontFamily: 'monospace', fontSize: 13 }}>
-                        R$ {formatValor(item.valorUnitario)}
-                      </td>
-                      <td style={{ padding: '11px 12px', textAlign: 'center' }}><StatusBadge status={item.status} /></td>
-
-                      {/* ações */}
-                      <td style={{ padding: '11px 12px', textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          {/* editar */}
-                          {canDeactivate && (
-                            <button type="button" title="Editar item" onClick={() => setEditingItem(item)}
-                              className="tn-icon-btn"
-                              style={{ opacity: isHov ? 1 : 0, transition: 'opacity 0.15s' }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            </button>
-                          )}
-                          {/* desativar */}
-                          {canDeactivate && active && (
-                            <button type="button" title="Desativar item" onClick={() => void handleDeactivateItem(item.id)}
-                              className="tn-icon-btn"
-                              style={{ opacity: isHov ? 1 : 0, transition: 'opacity 0.15s', color: '#f59e0b' }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                            </button>
-                          )}
-                          {/* excluir */}
-                          {canDeactivate && (
-                            <button type="button" title="Excluir item" onClick={() => setConfirmDelete(item)}
-                              className="tn-icon-btn sv-btn-excluir"
-                              style={{ opacity: isHov ? 1 : 0, transition: 'opacity 0.15s' }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '12px 16px',
-              borderTop: '1px solid #f1f5f9',
-              background: '#fafbfc',
-            }}>
-              <div style={{ color: '#64748b', fontSize: 12, fontWeight: 700 }}>
-                Mostrando <strong style={{ color: '#0f172a' }}>{pageStart}-{pageEnd}</strong> de <strong style={{ color: '#0f172a' }}>{itemsTotal}</strong>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button
-                  type="button"
-                  className="tn-btn-secondary"
-                  disabled={itemsPage <= 1 || loading}
-                  onClick={() => setItemsPage((page) => Math.max(1, page - 1))}
-                  style={{ height: 32, fontSize: 12, opacity: itemsPage <= 1 ? 0.5 : 1 }}
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                  Anterior
-                </button>
-                <span style={{
-                  minWidth: 76,
-                  height: 32,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 10,
-                  background: '#fff',
-                  color: '#334155',
-                  fontFamily: 'var(--tn-mono)',
-                  fontSize: 11,
-                  fontWeight: 800,
-                }}>
-                  {itemsPage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="tn-btn-secondary"
-                  disabled={itemsPage >= totalPages || loading}
-                  onClick={() => setItemsPage((page) => Math.min(totalPages, page + 1))}
-                  style={{ height: 32, fontSize: 12, opacity: itemsPage >= totalPages ? 0.5 : 1 }}
-                >
-                  Proxima
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Importar itens */}
-      {canImport && isActive && (
-        <div className="tn-panel">
-          <div className="tn-panel-head">
-            <div className="tn-panel-head-left">
-              <span>Carga de dados</span>
-              <h3>Importar itens</h3>
-            </div>
-          </div>
-          <div style={{ padding: '0 20px 12px' }}>
-            <ImportInstructions onDownload={format => { void downloadTemplate(format).catch(err => setError(err instanceof Error ? err.message : 'Erro ao baixar modelo')); }} />
-          </div>
-          <div style={{ padding: '0 20px 16px', display: 'flex', gap: 8 }}>
-            {(['spreadsheet', 'columns'] as const).map(tab => (
-              <button key={tab} type="button" onClick={() => setImportTab(tab)} className={`sv-aba${importTab === tab ? ' is-active' : ''}`}>
-                {tab === 'spreadsheet' ? (
-                  <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>Planilha</>
-                ) : (
-                  <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>Colunas (textarea)</>
-                )}
-              </button>
-            ))}
-          </div>
-          <div style={{ padding: '0 20px 20px' }}>
-            {importTab === 'spreadsheet'
-              ? <SpreadsheetImportPanel licitacaoId={licitacaoId} onSuccess={() => void loadData()} />
-              : <ColumnsImportPanel licitacaoId={licitacaoId} onSuccess={() => void loadData()} />}
-          </div>
+      )}
+      {podeGerir && est.contratos.length === 0 && est.itensSemContrato.length === 0 && (
+        <div className="lc-rodape">
+          <button type="button" className="or-cancelar" onClick={() => confirmar('Apagar esta licitação?', 'Ela ainda não tem contratos nem itens.', 'Apagar', async () => {
+            await tenantApi.licitacoes.delete(entityId, est.id); navigate(`/t/${entityId}/licitacoes`);
+          })}>Apagar licitação</button>
         </div>
       )}
 
-      {/* Modal editar item */}
-      {editingItem && (
-        <EditItemModal
-          item={editingItem}
-          licitacaoId={licitacaoId}
-          entityId={entityId}
-          onClose={() => setEditingItem(null)}
-          onSaved={() => { setEditingItem(null); void loadData(); }}
-        />
+      {dialogo?.tipo === 'processo' && <DialogoProcesso entityId={entityId} est={est} onFechar={fechar} onSalvo={() => salvo('Dados da licitação salvos.')} />}
+      {dialogo?.tipo === 'contrato' && <DialogoContrato entityId={entityId} licitacaoId={est.id} contrato={dialogo.contrato} objeto={est.objeto} onFechar={fechar} onSalvo={() => salvo(dialogo.contrato ? 'Contrato atualizado.' : 'Contrato lançado. Agora inclua os itens do lote.')} />}
+      {dialogo?.tipo === 'lote' && <DialogoLote entityId={entityId} contratoId={dialogo.contratoId} lote={dialogo.lote} onFechar={fechar} onSalvo={() => salvo('Lote salvo.')} />}
+      {dialogo?.tipo === 'item' && <DialogoItem entityId={entityId} licitacaoId={est.id} loteId={dialogo.loteId} item={dialogo.item} onFechar={fechar}
+        onSalvo={outro => { if (outro) { setAviso('Item lançado.'); void carregar(); } else salvo(dialogo.item ? 'Item atualizado.' : 'Item lançado.'); }} />}
+      {dialogo?.tipo === 'importar' && <DialogoImportar entityId={entityId} licitacaoId={est.id} lote={dialogo.lote} onFechar={fechar} onSalvo={n => salvo(`${n} ${n === 1 ? 'item importado' : 'itens importados'} no lote ${dialogo.lote.numero}.`)} />}
+      {dialogo?.tipo === 'aditivo' && <DialogoAditivo entityId={entityId} contrato={dialogo.contrato} onFechar={fechar} onSalvo={salvo} />}
+      {dialogo?.tipo === 'confirmar' && (
+        <Dialogo titulo={dialogo.titulo} subtitulo={dialogo.texto} onFechar={fechar}
+          acoes={<><button type="button" className="ob-btn-ghost ob-btn-alto" onClick={fechar}>Cancelar</button>
+            <button type="button" className="ob-acao is-conferir" onClick={() => { const a = dialogo.acao; setDialogo(null); void a().then(() => carregar()).catch(e => setErro(msgErro(e))); }}>{dialogo.rotulo}</button></>} />
       )}
-
-      {/* Modal confirmar exclusão */}
-      {confirmDelete && createPortal(
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setConfirmDelete(null)}
-        >
-          <div
-            style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              </div>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0 }}>Remover item?</h3>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                O item <strong style={{ color: '#0f172a' }}>{confirmDelete.descricao}</strong> será removido se ainda não tiver uso. Se já existir histórico, ele será apenas inativado.
-              </p>
-              <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 4 }}>
-                <button type="button" onClick={() => setConfirmDelete(null)} className="tn-btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                <button type="button" onClick={() => void handleDeleteItem()} disabled={deleting}
-                  style={{ flex: 1, height: 38, fontSize: 13, fontWeight: 700, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 10, cursor: 'pointer', opacity: deleting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  {deleting ? 'Processando...' : 'Remover'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      , document.body)}
     </div>
-    {confirmDeactivate && (
-      <ConfirmModal
-        title="Desativar esta licitação?"
-        message="A licitação será marcada como inativa e não poderá ser usada em novas solicitações."
-        confirmLabel="Desativar"
-        variant="warning"
-        onConfirm={() => void doDeactivateLicitacao()}
-        onCancel={() => setConfirmDeactivate(false)}
-      />
-    )}
-      <ToastContainer toasts={toasts} onClose={closeToast} />
-    </>
+  );
+}
+
+function TabelaItens({ itens, podeEditar, onEditar, onExcluir, selecao }: {
+  itens: ItemContrato[]; podeEditar: boolean; onEditar: (i: ItemContrato) => void; onExcluir: (i: ItemContrato) => void;
+  selecao?: { ids: string[]; alternar: (id: string) => void; todos: (v: boolean) => void };
+}) {
+  return (
+    <div className="lc-tabela">
+      <table>
+        <thead>
+          <tr>
+            {selecao && <th className="lc-col-check"><input type="checkbox" aria-label="Marcar todos" checked={selecao.ids.length === itens.length} onChange={e => selecao.todos(e.target.checked)} /></th>}
+            <th>Item</th><th className="is-num">Qtd.</th><th className="is-num">Valor unit.</th><th className="is-num">Total</th><th>Saldo</th>{podeEditar && <th />}
+          </tr>
+        </thead>
+        <tbody>
+          {itens.map(i => {
+            const q = Number(i.quantidade ?? 0), usado = Number(i.usado);
+            const pct = q ? Math.min(100, (usado / q) * 100) : 0;
+            return (
+              <tr key={i.id} className={i.status !== 'ACTIVE' ? 'is-inativo' : undefined}>
+                {selecao && <td className="lc-col-check"><input type="checkbox" aria-label={`Marcar ${i.descricao}`} checked={selecao.ids.includes(i.id)} onChange={() => selecao.alternar(i.id)} /></td>}
+                <td><span className="lc-item-desc">{i.descricao}</span>{(i.marca || i.categoria) && <small className="lc-item-sub">{[i.marca, i.categoria].filter(Boolean).join(' · ')}</small>}</td>
+                <td className="is-num">{num(i.quantidade)} <small>{i.unidade}</small></td>
+                <td className="is-num">{i.valorUnitario ? real(i.valorUnitario) : '—'}</td>
+                <td className="is-num"><b>{i.valorTotal ? real(i.valorTotal) : '—'}</b></td>
+                <td className="lc-col-saldo">
+                  {i.disponivel === null ? <small className="lc-sem-limite">sem limite</small> : <>
+                    <span className="lc-saldo-barra"><span style={{ width: `${pct}%` }} className={pct >= 100 ? 'is-cheio' : pct >= 80 ? 'is-quase' : ''} /></span>
+                    <small>{num(i.disponivel)} livres</small>
+                  </>}
+                </td>
+                {podeEditar && (
+                  <td className="lc-col-acoes">
+                    <button type="button" className="lc-icone" title="Editar" onClick={() => onEditar(i)}><Icone d={I.lapis} tamanho={14} /></button>
+                    {i.status === 'ACTIVE' && <button type="button" className="lc-icone is-perigo" title="Tirar" onClick={() => onExcluir(i)}><Icone d={I.lixo} tamanho={14} /></button>}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

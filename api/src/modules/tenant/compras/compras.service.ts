@@ -7,6 +7,7 @@ import { Prisma } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { statusInicialDoPedido } from './compras-fluxo.service.js';
+import { assertItensVigentes } from '../contratos/contratos.service.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -331,6 +332,7 @@ export async function createSolicitacao(
       const current = requestedByItemId.get(input.licitacaoItemId) ?? new Prisma.Decimal(0);
       requestedByItemId.set(input.licitacaoItemId, current.plus(decimal(input.quantidade)));
     });
+    await assertItensVigentes(tx, entityId, itemIds);
     await assertSaldoDisponivel(tx, entityId, itemIds, licitacaoItems, requestedByItemId);
     const centrosInformados = [body.centroDeCustoId, ...body.itens.map(i => i.centroDeCustoId)].filter((x): x is string => !!x);
     if (centrosInformados.length) {

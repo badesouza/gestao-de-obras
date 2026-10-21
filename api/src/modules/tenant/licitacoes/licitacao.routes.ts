@@ -34,6 +34,10 @@ import {
   listLicitacoes,
   updateLicitacao,
 } from './licitacao.service.js';
+import { destinoDoLote } from '../contratos/contratos.service.js';
+
+/** ?loteId= manda os itens importados direto para um lote de contrato */
+const loteQuerySchema = z.object({ loteId: z.string().uuid().optional() });
 
 const listQuerySchema = z.object({
   search: z.string().optional(),
@@ -255,6 +259,8 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
           );
         }
 
+        const { loteId } = loteQuerySchema.parse(request.query);
+        const destino = loteId ? await destinoDoLote(fastify.prisma, request.user.entityId!, id, loteId) : undefined;
         const result = await importItemsFromSpreadsheet(
           fastify.prisma,
           request.user.sub,
@@ -262,6 +268,7 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
           id,
           buffer,
           filename,
+          destino,
         );
         return reply.code(201).send(result);
       } catch (error) {
@@ -277,12 +284,15 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
       try {
         const { id } = request.params as { id: string };
         const body = importColumnsRequestSchema.parse(request.body);
+        const { loteId } = loteQuerySchema.parse(request.query);
+        const destino = loteId ? await destinoDoLote(fastify.prisma, request.user.entityId!, id, loteId) : undefined;
         const result = await importItemsFromColumns(
           fastify.prisma,
           request.user.sub,
           request.user.entityId!,
           id,
           body.columns,
+          destino,
         );
         return reply.code(201).send(result);
       } catch (error) {
@@ -294,6 +304,7 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
   /* ── PUT /licitacoes/:licitacaoId/items/:itemId ── editar item ── */
   const updateItemSchema = z.object({
     categoria:     z.string().optional(),
+    marca:         z.string().max(120).optional().nullable(),
     descricao:     z.string().min(1),
     unidadeMedida: z.string().min(1),
     quantidade:    z.string().optional().nullable(),
@@ -318,6 +329,7 @@ export async function registerLicitacaoRoutes(fastify: FastifyInstance) {
           where: { id: itemId },
           data: {
             categoria:     body.categoria ?? null,
+            ...(body.marca !== undefined ? { marca: body.marca?.trim() || null } : {}),
             descricao:     body.descricao,
             unidadeMedida: body.unidadeMedida,
             quantidade:    body.quantidade ? body.quantidade : null,

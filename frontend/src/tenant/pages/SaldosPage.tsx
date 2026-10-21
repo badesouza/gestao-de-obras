@@ -164,7 +164,9 @@ export function SaldosPage() {
                     <div key={i.id} className={`sd-item ob-reveal is-${i.sit}`} style={{ '--i': Math.min(idx, 14) } as React.CSSProperties}>
                       <div className="sd-item-texto">
                         <strong>{i.descricao}</strong>
-                        <span>{i.categoria ? `${i.categoria} · ` : ''}{Number(i.valorUnitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / {i.unidade}</span>
+                        <span>{i.contrato ? `Contrato ${i.contrato.numero}${i.lote ? ` · Lote ${i.lote}` : ''} · ` : ''}{i.categoria ? `${i.categoria} · ` : ''}{Number(i.valorUnitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / {i.unidade}</span>
+                        {i.contrato?.situacao === 'VENCIDO' && <span className="ob-badge is-atrasada" style={{ alignSelf: 'flex-start' }}><i />contrato vencido · sem compras</span>}
+                        {i.contrato?.situacao === 'VENCENDO' && <span className="ob-badge is-execucao" style={{ alignSelf: 'flex-start' }}><i />contrato vence em {i.contrato.diasRestantes} dias</span>}
                       </div>
                       <div className="sd-item-barra">
                         {c != null

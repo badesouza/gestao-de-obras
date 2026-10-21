@@ -3,6 +3,7 @@ import { Prisma } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { obterConfig } from '../ordens/ordens.service.js';
+import { situacaoVigencia } from '../contratos/contratos.service.js';
 
 /* ── Pedido de compra: lançamento → revisão → aprovação → envio ao fornecedor ──
    Quem revisa e quem aprova é configurável por perfil. Quem revisou não aprova
@@ -95,8 +96,12 @@ export async function saldosDasLicitacoes(prisma: PrismaClient, entityId: string
         id: true, identificacao: true, objeto: true,
         fornecedor: { select: { razaoSocial: true } },
         items: {
-          where: { status: 'ACTIVE' },
-          select: { id: true, categoria: true, descricao: true, unidadeMedida: true, quantidade: true, valorUnitario: true },
+          where: { status: 'ACTIVE', OR: [{ contratoId: null }, { contrato: { status: 'ACTIVE' } }] },
+          select: {
+            id: true, categoria: true, descricao: true, unidadeMedida: true, quantidade: true, valorUnitario: true,
+            contrato: { select: { id: true, numero: true, vigenciaDe: true, vigenciaAte: true, fornecedor: { select: { razaoSocial: true } } } },
+            lote: { select: { numero: true } },
+          },
           orderBy: { descricao: 'asc' },
         },
       },
@@ -139,7 +144,13 @@ export async function saldosDasLicitacoes(prisma: PrismaClient, entityId: string
       tot.pedido = tot.pedido.plus(ped.times(vu));
       tot.reservado = tot.reservado.plus(res.times(vu));
       tot.recebido = tot.recebido.plus(rec.times(vu));
+      const vig = i.contrato ? situacaoVigencia(i.contrato.vigenciaDe, i.contrato.vigenciaAte) : null;
       return {
+        contrato: i.contrato ? {
+          id: i.contrato.id, numero: i.contrato.numero, vigenciaAte: i.contrato.vigenciaAte.toISOString().slice(0, 10),
+          fornecedor: i.contrato.fornecedor?.razaoSocial ?? null, situacao: vig!.situacao, diasRestantes: vig!.diasRestantes,
+        } : null,
+        lote: i.lote?.numero ?? null,
         id: i.id, categoria: i.categoria, descricao: i.descricao, unidade: i.unidadeMedida,
         valorUnitario: vu.toString(),
         contratado: i.quantidade?.toString() ?? null,

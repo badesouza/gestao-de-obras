@@ -1,0 +1,228 @@
+/* ── Licitações: licitação → contratos → lotes → itens ─────────── */
+
+.lc-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.lc-meta-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+  background: #FFFFFF; border: 1px solid var(--ob-line); color: var(--ob-muted);
+}
+.lc-meta-chip svg { color: var(--tipo-cor, var(--serv-cor)); }
+
+/* documentos */
+.lc-docs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.lc-doc { display: inline-flex; align-items: center; max-width: 100%; border-radius: 10px; border: 1px solid var(--ob-line); background: #FFFFFF; overflow: hidden; }
+.lc-doc > button:first-child {
+  all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px 5px 9px; font-size: 12.5px; color: var(--ob-ink);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lc-doc > button:first-child svg { color: #DC2626; flex: none; }
+.lc-doc > button:first-child:hover { background: #FEF2F2; }
+.lc-doc-x { border: 0; border-left: 1px solid var(--ob-line); background: transparent; color: var(--ob-faint); width: 26px; align-self: stretch; cursor: pointer; font-size: 15px; }
+.lc-doc-x:hover { color: #BE123C; background: #FFF1F2; }
+.lc-doc-novo {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 10px; cursor: pointer;
+  border: 1.5px dashed color-mix(in srgb, var(--serv-cor) 45%, transparent); background: transparent; color: var(--serv-cor); font: 600 12.5px var(--ob-body);
+}
+.lc-doc-novo:hover:not(:disabled) { background: color-mix(in srgb, var(--serv-cor) 7%, transparent); }
+.lc-erro-mini { font-size: 12px; color: #BE123C; }
+
+/* vazio */
+.lc-vazio { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 44px 20px; color: var(--ob-muted); }
+.lc-vazio svg { color: var(--serv-cor); }
+.lc-vazio strong { font-size: 18px; color: var(--ob-ink); }
+.lc-vazio span { max-width: 460px; }
+
+/* contrato */
+.lc-contratos { display: flex; flex-direction: column; gap: 16px; }
+.lc-contrato { padding: 0; overflow: hidden; position: relative; }
+.lc-contrato::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--ob-green); }
+.lc-contrato.is-vencendo::before { background: var(--ob-amber); }
+.lc-contrato.is-vencido::before { background: var(--ob-rose); }
+.lc-contrato.is-a_iniciar::before { background: var(--ob-violeta, #7C3AED); }
+.lc-contrato.is-inativo { opacity: .7; }
+.lc-contrato.is-inativo::before { background: var(--ob-faint); }
+.lc-contrato-cab { display: flex; gap: 16px; align-items: flex-start; padding: 18px 20px 10px 24px; flex-wrap: wrap; }
+.lc-contrato-abrir { all: unset; cursor: pointer; flex: 1; min-width: 240px; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 4px; align-items: center; }
+.lc-contrato-abrir:focus-visible { outline: 2px solid var(--serv-cor); outline-offset: 4px; border-radius: 8px; }
+.lc-seta { grid-row: span 3; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: #F5F5F4; color: var(--ob-muted); transition: transform .3s var(--ob-ease), background .2s; }
+.lc-seta.is-aberta { transform: rotate(90deg); background: color-mix(in srgb, var(--serv-cor) 12%, #FFFFFF); color: var(--serv-cor); }
+.lc-contrato-id { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lc-contrato-num { font-family: var(--ob-display); font-size: 22px; font-weight: 700; letter-spacing: .01em; text-transform: uppercase; }
+.lc-tag-aditivo { font-size: 11.5px; font-weight: 600; color: #6D28D9; background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 999px; padding: 2px 8px; }
+.lc-forn { font-size: 15.5px; font-weight: 600; }
+.lc-cnpj-txt { font-family: var(--ob-mono); font-size: 12px; color: var(--ob-faint); }
+.lc-contrato-valores { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; position: relative; padding-bottom: 10px; }
+.lc-contrato-valores > span { display: flex; flex-direction: column; align-items: flex-end; }
+.lc-contrato-valores small { font-size: 11.5px; color: var(--ob-faint); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.lc-contrato-valores b { font-family: var(--ob-display); font-size: 24px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.lc-uso { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; border-radius: 3px; background: #F5F5F4; overflow: hidden; }
+.lc-uso span { display: block; height: 100%; background: linear-gradient(90deg, #F59E0B, #EA580C); border-radius: 3px; transform-origin: left; animation: ob-cresce 1s .2s var(--ob-ease) both; }
+
+/* vigência */
+.lc-vig { padding: 4px 20px 14px 24px; display: flex; flex-direction: column; gap: 6px; }
+.lc-vig-datas { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ob-muted); font-variant-numeric: tabular-nums; }
+.lc-vig-datas s { color: var(--ob-faint); }
+.lc-vig-barra { position: relative; height: 8px; border-radius: 4px; background: #F0FDF4; }
+.lc-vig-barra > span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #86EFAC, #16A34A); transform-origin: left; animation: ob-cresce 1.1s .15s var(--ob-ease) both; }
+.lc-vig.is-vencendo .lc-vig-barra { background: #FFFBEB; }
+.lc-vig.is-vencendo .lc-vig-barra > span { background: linear-gradient(90deg, #FDE68A, #F59E0B); }
+.lc-vig.is-vencido .lc-vig-barra { background: #FFF1F2; }
+.lc-vig.is-vencido .lc-vig-barra > span { background: linear-gradient(90deg, #FDA4AF, #E11D48); }
+.lc-vig-hoje { position: absolute; top: -4px; width: 3px; height: 16px; border-radius: 2px; background: var(--ob-ink); transform: translateX(-50%); box-shadow: 0 0 0 3px #FFFFFF; }
+.lc-vig-original { position: absolute; top: -2px; width: 2px; height: 12px; background: repeating-linear-gradient(transparent 0 2px, #7C3AED 2px 4px); transform: translateX(-50%); }
+
+/* ações do contrato */
+.lc-contrato-acoes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 20px 12px 24px; border-top: 1px dashed var(--ob-line); }
+.lc-acao {
+  display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--ob-line); background: #FFFFFF; color: var(--ob-ink); font: 500 13px var(--ob-body);
+  transition: border-color .2s, background .2s, transform .2s var(--ob-ease);
+}
+.lc-acao svg { color: var(--serv-cor); }
+.lc-acao:hover { border-color: color-mix(in srgb, var(--serv-cor) 45%, transparent); background: color-mix(in srgb, var(--serv-cor) 5%, #FFFFFF); transform: translateY(-1px); }
+.lc-acao.is-perigo svg { color: #BE123C; }
+.lc-acao.is-perigo:hover { border-color: #FECDD3; background: #FFF1F2; }
+.lc-acao.is-mini { height: 28px; font-size: 12px; }
+.lc-icone { width: 30px; height: 30px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--ob-muted); cursor: pointer; display: inline-grid; place-items: center; }
+.lc-icone:hover { background: #F5F5F4; border-color: var(--ob-line); color: var(--ob-ink); }
+.lc-icone.is-perigo:hover { background: #FFF1F2; border-color: #FECDD3; color: #BE123C; }
+
+/* aditivos */
+.lc-aditivos { list-style: none; margin: 0; padding: 4px 20px 10px 24px; display: flex; flex-direction: column; gap: 6px; }
+.lc-aditivos li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--tipo-cor) 5%, #FFFFFF); border: 1px solid color-mix(in srgb, var(--tipo-cor) 18%, transparent); }
+.lc-aditivo-icone { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center; background: var(--tipo-cor); color: #FFFFFF; }
+.lc-aditivo-texto { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.lc-aditivo-texto b { font-size: 13.5px; }
+.lc-aditivo-texto small { font-size: 12px; color: var(--ob-muted); }
+
+/* lotes */
+.lc-lote { margin: 0 16px 14px 20px; border: 1px solid var(--ob-line); border-radius: 16px; overflow: hidden; background: #FFFFFF; }
+.lc-lote-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px 10px 14px; background: #FAFAF9; border-bottom: 1px solid var(--ob-line); }
+.lc-lote-num { font-family: var(--ob-mono); font-size: 13px; font-weight: 500; padding: 3px 8px; border-radius: 8px; background: color-mix(in srgb, var(--serv-cor) 10%, #FFFFFF); color: var(--serv-cor); }
+.lc-lote-desc { font-size: 13.5px; color: var(--ob-muted); flex: 1; min-width: 120px; }
+.lc-lote-valor { font-family: var(--ob-display); font-size: 19px; font-variant-numeric: tabular-nums; }
+.lc-lote-acoes { display: flex; gap: 4px; align-items: center; }
+.lc-lote-vazio { margin: 0; padding: 14px; font-size: 13.5px; color: var(--ob-faint); }
+
+/* tabela de itens */
+.lc-tabela { overflow-x: auto; }
+.lc-tabela table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.lc-tabela th { text-align: left; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ob-faint); padding: 8px 10px; border-bottom: 1px solid var(--ob-line); white-space: nowrap; }
+.lc-tabela td { padding: 9px 10px; border-bottom: 1px solid #F5F5F4; vertical-align: middle; }
+.lc-tabela tr:last-child td { border-bottom: 0; }
+.lc-tabela tbody tr { transition: background .15s; }
+.lc-tabela tbody tr:hover { background: color-mix(in srgb, var(--serv-cor) 3%, #FFFFFF); }
+.lc-tabela tr.is-inativo { opacity: .5; }
+.lc-tabela .is-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lc-tabela .is-num small { color: var(--ob-faint); }
+.lc-item-desc { display: block; font-weight: 500; min-width: 200px; }
+.lc-item-sub { display: block; font-size: 11.5px; color: var(--ob-faint); margin-top: 1px; }
+.lc-col-saldo { min-width: 120px; }
+.lc-col-saldo small { font-size: 11.5px; color: var(--ob-muted); white-space: nowrap; }
+.lc-saldo-barra { display: block; height: 5px; border-radius: 3px; background: #DCFCE7; overflow: hidden; margin-bottom: 3px; }
+.lc-saldo-barra span { display: block; height: 100%; background: #2563EB; border-radius: 3px; }
+.lc-saldo-barra span.is-quase { background: #F59E0B; }
+.lc-saldo-barra span.is-cheio { background: #E11D48; }
+.lc-sem-limite { font-style: italic; }
+.lc-col-acoes { white-space: nowrap; text-align: right; width: 1%; }
+.lc-col-acoes .lc-icone { opacity: .55; }
+.lc-tabela tr:hover .lc-col-acoes .lc-icone { opacity: 1; }
+.lc-col-check { width: 1%; }
+.lc-col-check input { width: 17px; height: 17px; accent-color: var(--serv-cor); }
+
+/* itens soltos */
+.lc-soltos { padding: 18px 16px 12px; display: flex; flex-direction: column; gap: 10px; border: 1.5px dashed #FDE68A; background: linear-gradient(180deg, #FFFBEB, #FFFFFF 140px); }
+.lc-soltos-cab { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.lc-mover { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lc-mover select { height: 42px; border-radius: 12px; border: 1.5px solid var(--ob-line); padding: 0 10px; font: 400 14px var(--ob-body); background: #FFFFFF; max-width: 320px; }
+.lc-nota { margin: 4px 0 0; font-size: 13px; color: var(--ob-muted); }
+.lc-nota.is-alerta { color: #92400E; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 8px 10px; }
+.lc-rodape { display: flex; justify-content: center; padding: 18px 0 4px; }
+
+/* formulários */
+.lc-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lc-form textarea, .lc-colunas textarea {
+  padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--ob-line); background: #FFFFFF; color: var(--ob-ink);
+  font: 400 14px var(--ob-body); outline: none; resize: vertical; width: 100%; box-sizing: border-box;
+}
+.lc-form textarea:focus, .lc-colunas textarea:focus { border-color: var(--serv-cor, #2563EB); }
+.lc-cnpj { display: flex; gap: 8px; }
+.lc-cnpj input { flex: 1; min-width: 0; font-family: var(--ob-mono) !important; }
+.lc-cnpj .ob-btn-ghost { flex: none; white-space: nowrap; }
+.lc-forn-achado { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: #F0FDF4; border: 1px solid #BBF7D0; animation: or-entra .3s ease both; }
+.lc-forn-achado.is-cadastro { background: #EFF6FF; border-color: #BFDBFE; }
+.lc-forn-achado b { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: #15803D; }
+.lc-forn-achado.is-cadastro b { color: #1D4ED8; }
+.lc-forn-achado span { font-size: 14.5px; font-weight: 600; }
+.lc-forn-achado small { font-size: 12.5px; color: var(--ob-muted); }
+.lc-forn-achado .lc-alerta { color: #B45309; font-weight: 600; }
+.lc-item-total { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end; }
+.lc-item-total small { font-size: 12px; color: var(--ob-faint); }
+.lc-item-total b { font-family: var(--ob-display); font-size: 26px; font-variant-numeric: tabular-nums; }
+.ob-dialogo:has(.lc-form), .ob-dialogo:has(.lc-tipos), .ob-dialogo:has(.lc-colunas) { width: min(680px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; }
+
+/* cartões de tipo (aditivo e licitação) */
+.lc-tipos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.lc-tipos.is-compacto { grid-template-columns: repeat(4, 1fr); margin-bottom: 0; }
+.lc-tipo {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 12px 8px; border-radius: 14px; cursor: pointer;
+  border: 1.5px solid var(--ob-line); background: #FFFFFF; color: var(--ob-ink); font-family: var(--ob-body);
+  transition: border-color .2s, transform .2s var(--ob-ease), box-shadow .2s, background .2s;
+}
+.lc-tipo:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tipo-cor) 45%, transparent); }
+.lc-tipo.is-ativo { border-color: var(--tipo-cor); background: color-mix(in srgb, var(--tipo-cor) 7%, #FFFFFF); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tipo-cor) 14%, transparent); }
+.lc-tipo-icone { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: #F5F5F4; color: var(--ob-muted); transition: all .2s; }
+.lc-tipo.is-ativo .lc-tipo-icone { background: var(--tipo-cor); color: #FFFFFF; }
+.lc-tipo b { font-size: 13.5px; }
+.lc-tipo small { font-size: 11.5px; color: var(--ob-faint); line-height: 1.3; }
+
+.lc-previa { margin-top: 12px; border-radius: 14px; border: 1px solid var(--ob-line); padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; background: #FAFAF9; }
+.lc-previa-topo { display: flex; justify-content: space-between; font-size: 13px; color: var(--ob-muted); }
+.lc-previa-topo b { font-family: var(--ob-display); font-size: 20px; color: var(--ob-ink); }
+.lc-previa-linha { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.lc-previa-linha span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-previa-linha em { font-style: normal; color: var(--ob-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lc-previa-linha em b { color: var(--ob-ink); }
+.lc-previa small { font-size: 12px; color: var(--ob-faint); }
+
+/* importação */
+.lc-abas { margin-bottom: 12px; }
+.lc-importar { display: flex; flex-direction: column; gap: 12px; }
+.lc-arquivo {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px; border-radius: 16px; cursor: pointer; text-align: center;
+  border: 2px dashed color-mix(in srgb, var(--serv-cor, #2563EB) 40%, transparent); color: var(--serv-cor, #2563EB); font-weight: 600; font-size: 14px;
+}
+.lc-arquivo:hover { background: color-mix(in srgb, var(--serv-cor, #2563EB) 5%, transparent); }
+.lc-arquivo input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.lc-colunas { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 8px; }
+.lc-colunas textarea { font-family: var(--ob-mono); font-size: 12.5px; white-space: pre; }
+
+/* ── lista de licitações ── */
+.lc-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; padding: 4px 16px 20px; }
+.lc-cartao {
+  display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px 20px; border-radius: 20px; border: 1px solid var(--ob-line); background: #FFFFFF;
+  text-decoration: none; color: var(--ob-ink); position: relative; overflow: hidden;
+  transition: transform .3s var(--ob-ease), box-shadow .3s, border-color .3s;
+}
+.lc-cartao::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--tipo-cor); }
+.lc-cartao:hover { transform: translateY(-3px); box-shadow: 0 18px 38px -14px color-mix(in srgb, var(--tipo-cor) 45%, rgba(24,24,27,.3)); border-color: color-mix(in srgb, var(--tipo-cor) 40%, transparent); }
+.lc-cartao.is-inativa { opacity: .6; }
+.lc-cartao-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lc-cartao-num { font-family: var(--ob-display); font-size: 24px; font-weight: 700; letter-spacing: .01em; }
+.lc-cartao-mod { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--tipo-cor); }
+.lc-cartao-obj { font-size: 14px; color: var(--ob-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lc-cartao-forn { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-cartao-rodape { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px dashed var(--ob-line); padding-top: 9px; margin-top: auto; font-size: 12.5px; color: var(--ob-faint); }
+.lc-cartao-contratos { display: inline-flex; gap: 6px; align-items: center; }
+
+@media (max-width: 640px) {
+  .lc-form, .lc-colunas { grid-template-columns: 1fr; }
+  .lc-tipos, .lc-tipos.is-compacto { grid-template-columns: repeat(2, 1fr); }
+  .lc-contrato-cab, .lc-vig, .lc-contrato-acoes, .lc-aditivos { padding-left: 18px; padding-right: 14px; }
+  .lc-lote { margin: 0 10px 12px 12px; }
+  .lc-contrato-valores { width: 100%; justify-content: space-between; }
+  .lc-lista { grid-template-columns: 1fr; padding: 4px 12px 16px; }
+  .lc-cnpj { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-vig-barra > span, .lc-uso span, .lc-cartao, .lc-tipo, .lc-seta { animation: none !important; transition: none !important; }
+}

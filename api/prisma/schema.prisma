@@ -113,6 +113,7 @@ model Entity {
   usuarioServicos               UsuarioServico[]
   centrosDeCusto                CentroDeCusto[]
   orcamentos                    Orcamento[]
+  contratos                     Contrato[]
 
   @@index([status])
   @@map("entities")
@@ -255,6 +256,8 @@ model TenantUser {
   orcamentosCriados               Orcamento[]               @relation("OrcamentoCriadoPor")
   orcamentosRevisados             Orcamento[]               @relation("OrcamentoRevisadoPor")
   orcamentosAprovados             Orcamento[]               @relation("OrcamentoAprovadoPor")
+  contratosCriados                Contrato[]                @relation("ContratoCriadoPor")
+  aditivosCriados                 ContratoAditivo[]         @relation("AditivoCriadoPor")
 
   @@unique([entityId, email])
   @@index([entityId])
@@ -318,19 +321,22 @@ model TenantAuditLog {
 }
 
 model Fornecedor {
-  id          String   @id @default(uuid())
-  entityId    String   @map("entity_id")
-  razaoSocial String   @map("razao_social") @db.VarChar(250)
-  cnpj        String?  @db.VarChar(18)
-  contato     String?  @db.VarChar(150)
-  telefone    String?  @db.VarChar(30)
-  email       String?  @db.VarChar(150)
-  ativo       Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  entityId     String   @map("entity_id")
+  razaoSocial  String   @map("razao_social") @db.VarChar(250)
+  cnpj         String?  @db.VarChar(18)
+  contato      String?  @db.VarChar(150)
+  telefone     String?  @db.VarChar(30)
+  email        String?  @db.VarChar(150)
+  nomeFantasia String?  @map("nome_fantasia") @db.VarChar(250)
+  endereco     String?  @db.VarChar(400)
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   entity     Entity      @relation(fields: [entityId], references: [id])
   licitacoes Licitacao[]
+  contratos  Contrato[]
 
   @@index([entityId, ativo])
   @@map("fornecedores")
@@ -342,6 +348,10 @@ model Licitacao {
   identificacao   String          @db.VarChar(100)
   objeto          String          @db.VarChar(500)
   fornecedorId    String?         @map("fornecedor_id")
+  numeroProcesso  String?         @map("numero_processo") @db.VarChar(60)
+  modalidade      String?         @db.VarChar(80)
+  tipo            String?         @db.VarChar(30)
+  dataHomologacao DateTime?       @map("data_homologacao") @db.Date
   status          LicitacaoStatus @default(ACTIVE)
   createdByUserId String          @map("created_by_user_id")
   createdAt       DateTime        @default(now()) @map("created_at")
@@ -353,6 +363,8 @@ model Licitacao {
   items               LicitacaoItem[]
   centrosCusto        CentroCustoLicitacao[]
   solicitacoesServico SolicitacaoServico[]
+  contratos           Contrato[]
+  arquivos            DocumentoContratacao[]
 
   @@unique([entityId, identificacao])
   @@index([entityId, status])
@@ -368,6 +380,9 @@ model LicitacaoItem {
   unidadeMedida   String          @map("unidade_medida") @db.VarChar(50)
   quantidade      Decimal?        @db.Decimal(15, 4)
   valorUnitario   Decimal?        @map("valor_unitario") @db.Decimal(15, 4)
+  marca           String?         @db.VarChar(120)
+  contratoId      String?         @map("contrato_id")
+  loteId          String?         @map("lote_id")
   status          LicitacaoStatus @default(ACTIVE)
   createdByUserId String          @map("created_by_user_id")
   createdAt       DateTime        @default(now()) @map("created_at")
@@ -376,6 +391,9 @@ model LicitacaoItem {
   licitacao               Licitacao                 @relation(fields: [licitacaoId], references: [id])
   entity                  Entity                    @relation(fields: [entityId], references: [id])
   createdBy               TenantUser                @relation("LicitacaoItemCreatedBy", fields: [createdByUserId], references: [id])
+  contrato                Contrato?                 @relation(fields: [contratoId], references: [id])
+  lote                    ContratoLote?             @relation(fields: [loteId], references: [id])
+  aditivoItens            ContratoAditivoItem[]
   registroValores         RegistroDiarioValorItem[]
   solicitacaoServicoItens SolicitacaoServicoItem[]
   pedidoCompraItens       PedidoCompraItem[]
@@ -980,4 +998,126 @@ model OrcamentoFoto {
 
   @@index([orcamentoId])
   @@map("orcamento_fotos")
+}
+
+/**
+ * ── Contratos da licitação (padrão Object): contrato → lotes → itens, aditivos ──
+ */
+enum AditivoTipo {
+  PRAZO
+  VALOR
+  QUANTIDADE
+}
+
+model Contrato {
+  id               String          @id @default(uuid())
+  entityId         String          @map("entity_id")
+  licitacaoId      String          @map("licitacao_id")
+  numero           String          @db.VarChar(60)
+  fornecedorId     String?         @map("fornecedor_id")
+  vigenciaDe       DateTime        @map("vigencia_de") @db.Date
+  vigenciaAte      DateTime        @map("vigencia_ate") @db.Date
+  vigenciaOriginal DateTime?       @map("vigencia_original") @db.Date
+  valor            Decimal?        @db.Decimal(15, 2)
+  status           LicitacaoStatus @default(ACTIVE)
+  createdByUserId  String          @map("created_by_user_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  entity     Entity                 @relation(fields: [entityId], references: [id])
+  licitacao  Licitacao              @relation(fields: [licitacaoId], references: [id])
+  fornecedor Fornecedor?            @relation(fields: [fornecedorId], references: [id])
+  createdBy  TenantUser             @relation("ContratoCriadoPor", fields: [createdByUserId], references: [id])
+  lotes      ContratoLote[]
+  itens      LicitacaoItem[]
+  aditivos   ContratoAditivo[]
+  arquivos   DocumentoContratacao[]
+
+  @@unique([licitacaoId, numero])
+  @@index([entityId, vigenciaAte])
+  @@map("contratos")
+}
+
+model ContratoLote {
+  id         String   @id @default(uuid())
+  contratoId String   @map("contrato_id")
+  numero     String   @db.VarChar(20)
+  descricao  String?  @db.VarChar(300)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  contrato Contrato          @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  itens    LicitacaoItem[]
+  aditivos ContratoAditivo[]
+
+  @@unique([contratoId, numero])
+  @@map("contrato_lotes")
+}
+
+model ContratoAditivo {
+  id               String      @id @default(uuid())
+  entityId         String      @map("entity_id")
+  contratoId       String      @map("contrato_id")
+  numero           String      @db.VarChar(40)
+  tipo             AditivoTipo
+  dataPublicacao   DateTime    @map("data_publicacao") @db.Date
+  vigenciaAnterior DateTime?   @map("vigencia_anterior") @db.Date
+  novaVigencia     DateTime?   @map("nova_vigencia") @db.Date
+  percentual       Decimal?    @db.Decimal(7, 4)
+  loteId           String?     @map("lote_id")
+  valorAditivado   Decimal     @default(0) @map("valor_aditivado") @db.Decimal(15, 2)
+  observacao       String?     @db.VarChar(1000)
+  createdByUserId  String      @map("created_by_user_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  contrato  Contrato               @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  lote      ContratoLote?          @relation(fields: [loteId], references: [id], onDelete: SetNull)
+  createdBy TenantUser             @relation("AditivoCriadoPor", fields: [createdByUserId], references: [id])
+  itens     ContratoAditivoItem[]
+  arquivos  DocumentoContratacao[]
+
+  @@unique([contratoId, numero])
+  @@map("contrato_aditivos")
+}
+
+/**
+ * O que cada aditivo mudou em cada item (para saber de onde veio o saldo e o preço)
+ */
+model ContratoAditivoItem {
+  id                 String   @id @default(uuid())
+  aditivoId          String   @map("aditivo_id")
+  licitacaoItemId    String   @map("licitacao_item_id")
+  quantidadeAnterior Decimal? @map("quantidade_anterior") @db.Decimal(15, 4)
+  quantidadeNova     Decimal? @map("quantidade_nova") @db.Decimal(15, 4)
+  valorAnterior      Decimal? @map("valor_anterior") @db.Decimal(15, 4)
+  valorNovo          Decimal? @map("valor_novo") @db.Decimal(15, 4)
+
+  aditivo ContratoAditivo @relation(fields: [aditivoId], references: [id], onDelete: Cascade)
+  item    LicitacaoItem   @relation(fields: [licitacaoItemId], references: [id])
+
+  @@index([aditivoId])
+  @@map("contrato_aditivo_itens")
+}
+
+/**
+ * PDFs da contratação: edital/ata (licitação), contrato, aditivo
+ */
+model DocumentoContratacao {
+  id           String   @id @default(uuid())
+  entityId     String   @map("entity_id")
+  licitacaoId  String?  @map("licitacao_id")
+  contratoId   String?  @map("contrato_id")
+  aditivoId    String?  @map("aditivo_id")
+  nomeArquivo  String   @map("nome_arquivo") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  tamanhoBytes Int      @map("tamanho_bytes")
+  dados        Bytes
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  licitacao Licitacao?       @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  contrato  Contrato?        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  aditivo   ContratoAditivo? @relation(fields: [aditivoId], references: [id], onDelete: Cascade)
+
+  @@index([licitacaoId])
+  @@index([contratoId])
+  @@map("documentos_contratacao")
 }

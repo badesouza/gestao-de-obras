@@ -6,6 +6,7 @@ import { writeTenantAudit } from '../audit/audit.service.js';
 import { obterConfig } from '../ordens/ordens.service.js';
 import { poderesCompra } from '../compras/compras-fluxo.service.js';
 import { createPedidoFromSolicitacoes, createSolicitacao } from '../compras/compras.service.js';
+import { assertItensVigentes } from '../contratos/contratos.service.js';
 
 /* ── Orçamentação ─────────────────────────────────────────────────
    O fiscal vai ao local, fotografa (com carimbo) e lista o material dos
@@ -149,6 +150,7 @@ async function montarItens(prisma: PrismaClient | Prisma.TransactionClient, enti
     select: { id: true, descricao: true, unidadeMedida: true, valorUnitario: true },
   });
   if (licItens.length !== ids.length) throw new AppError(422, 'ITEM_INVALIDO', 'Um ou mais materiais não pertencem a um contrato ativo');
+  await assertItensVigentes(prisma, entityId, ids);
   const centros = Array.from(new Set([dados.centroDeCustoId, ...dados.itens.map(i => i.centroDeCustoId)].filter((x): x is string => !!x)));
   if (centros.length) {
     const ok = await prisma.centroDeCusto.count({ where: { entityId, ativo: true, id: { in: centros } } });

@@ -1,4 +1,5 @@
 import type { LicitacaoStatus, PrismaClient } from '../../../../generated/prisma/index.js';
+import { situacaoVigencia } from '../contratos/contratos.service.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import type { CreateLicitacaoRequest, UpdateLicitacaoRequest } from './licitacao.schema.js';
@@ -23,7 +24,29 @@ export interface LicitacaoDto {
   createdAt: string;
   createdBy: UserRef;
   activeItemCount: number;
+  numeroProcesso: string | null;
+  modalidade: string | null;
+  tipo: string | null;
+  dataHomologacao: string | null;
+  contratos: { total: number; vigentes: number; vencendo: number; vencidos: number; proximoVencimento: string | null; fornecedores: string[] };
 }
+
+type ContratoResumo = { status: LicitacaoStatus; vigenciaDe: Date; vigenciaAte: Date; fornecedor: { razaoSocial: string } | null };
+
+function resumoContratos(contratos: ContratoResumo[] = []) {
+  const ativos = contratos.filter(c => c.status === 'ACTIVE').map(c => ({ ...c, ...situacaoVigencia(c.vigenciaDe, c.vigenciaAte) }));
+  const proximo = ativos.filter(c => c.situacao !== 'VENCIDO').sort((a, b) => a.vigenciaAte.getTime() - b.vigenciaAte.getTime())[0];
+  return {
+    total: contratos.length,
+    vigentes: ativos.filter(c => c.situacao === 'VIGENTE' || c.situacao === 'VENCENDO').length,
+    vencendo: ativos.filter(c => c.situacao === 'VENCENDO').length,
+    vencidos: ativos.filter(c => c.situacao === 'VENCIDO').length,
+    proximoVencimento: proximo ? proximo.vigenciaAte.toISOString().slice(0, 10) : null,
+    fornecedores: Array.from(new Set(contratos.map(c => c.fornecedor?.razaoSocial).filter((x): x is string => !!x))),
+  };
+}
+
+const incluirContratos = { select: { status: true, vigenciaDe: true, vigenciaAte: true, fornecedor: { select: { razaoSocial: true } } } } as const;
 
 /** Ensures entity exists and is active before licitacao mutations */
 export async function assertEntityActive(prisma: PrismaClient, entityId: string) {
@@ -47,6 +70,11 @@ function toLicitacaoDto(
     createdAt: Date;
     createdBy: { id: string; name: string };
     fornecedor?: { id: string; razaoSocial: string; cnpj: string | null } | null;
+    numeroProcesso?: string | null;
+    modalidade?: string | null;
+    tipo?: string | null;
+    dataHomologacao?: Date | null;
+    contratos?: ContratoResumo[];
   },
   activeItemCount: number,
 ): LicitacaoDto {
@@ -61,6 +89,11 @@ function toLicitacaoDto(
     createdAt: licitacao.createdAt.toISOString(),
     createdBy: { id: licitacao.createdBy.id, name: licitacao.createdBy.name },
     activeItemCount,
+    numeroProcesso: licitacao.numeroProcesso ?? null,
+    modalidade: licitacao.modalidade ?? null,
+    tipo: licitacao.tipo ?? null,
+    dataHomologacao: licitacao.dataHomologacao ? licitacao.dataHomologacao.toISOString().slice(0, 10) : null,
+    contratos: resumoContratos(licitacao.contratos),
   };
 }
 
@@ -75,6 +108,7 @@ export async function getLicitacaoForEntity(
     include: {
       createdBy: { select: { id: true, name: true } },
       fornecedor: { select: { id: true, razaoSocial: true, cnpj: true } },
+      contratos: incluirContratos,
     },
   });
   if (!licitacao) {
@@ -114,6 +148,10 @@ export async function createLicitacao(
       identificacao: input.identificacao,
       objeto: input.objeto,
       createdByUserId: actorId,
+      numeroProcesso: input.numeroProcesso || null,
+      modalidade: input.modalidade || null,
+      tipo: input.tipo || null,
+      dataHomologacao: input.dataHomologacao ? new Date(`${input.dataHomologacao}T00:00:00.000Z`) : null,
       ...(input.fornecedorId ? { fornecedorId: input.fornecedorId } : {}),
     },
     include: {
@@ -151,6 +189,8 @@ export async function listLicitacoes(
           OR: [
             { identificacao: { contains: query.search, mode: 'insensitive' as const } },
             { objeto: { contains: query.search, mode: 'insensitive' as const } },
+            { numeroProcesso: { contains: query.search, mode: 'insensitive' as const } },
+            { contratos: { some: { OR: [{ numero: { contains: query.search, mode: 'insensitive' as const } }, { fornecedor: { razaoSocial: { contains: query.search, mode: 'insensitive' as const } } }] } } },
           ],
         }
       : {}),
@@ -163,6 +203,7 @@ export async function listLicitacoes(
       include: {
         createdBy: { select: { id: true, name: true } },
         fornecedor: { select: { id: true, razaoSocial: true, cnpj: true } },
+        contratos: incluirContratos,
       },
       orderBy: { createdAt: 'desc' },
       skip: (query.page - 1) * query.pageSize,
@@ -258,9 +299,19 @@ export async function deleteLicitacao(
 ) {
   await assertEntityActive(prisma, entityId);
   const licitacao = await getLicitacaoForEntity(prisma, entityId, licitacaoId);
+  const emUso = await prisma.licitacaoItem.count({
+    where: { licitacaoId, OR: [{ solicitacaoServicoItens: { some: {} } }, { pedidoCompraItens: { some: {} } }, { orcamentoItens: { some: {} } }, { registroValores: { some: {} } }] },
+  });
+  if (emUso) {
+    throw new AppError(409, 'LICITACAO_EM_USO', 'Esta licitação já tem compras, orçamentos ou ocorrências. Desative em vez de apagar, para guardar o histórico.');
+  }
 
-  await prisma.licitacaoItem.deleteMany({ where: { licitacaoId } });
-  await prisma.licitacao.delete({ where: { id: licitacaoId } });
+  await prisma.$transaction([
+    prisma.contratoAditivoItem.deleteMany({ where: { aditivo: { contrato: { licitacaoId } } } }),
+    prisma.licitacaoItem.deleteMany({ where: { licitacaoId } }),
+    prisma.contrato.deleteMany({ where: { licitacaoId } }),
+    prisma.licitacao.delete({ where: { id: licitacaoId } }),
+  ]);
 
   await writeTenantAudit(prisma, {
     entityId,

@@ -153,18 +153,21 @@ async function persistImport(
   licitacaoId: string,
   source: 'spreadsheet' | 'textarea',
   items: ReturnType<typeof validateImportRows>['items'],
+  destino?: { contratoId: string; loteId: string },
 ) {
   await prisma.$transaction(async (tx) => {
     await tx.licitacaoItem.createMany({
       data: items.map((item) => ({
         licitacaoId,
         entityId,
-        categoria: item.categoria,
-        descricao: item.descricao,
-        unidadeMedida: item.unidadeMedida,
+        /* dentro de contrato segue o padrão do Object: tudo em maiúsculas */
+        categoria: destino ? item.categoria?.toUpperCase() ?? null : item.categoria,
+        descricao: destino ? item.descricao.toUpperCase() : item.descricao,
+        unidadeMedida: destino ? item.unidadeMedida.toUpperCase() : item.unidadeMedida,
         quantidade: item.quantidade,
         valorUnitario: item.valorUnitario,
         createdByUserId: actorId,
+        ...(destino ? { contratoId: destino.contratoId, loteId: destino.loteId } : {}),
       })),
     });
 
@@ -242,6 +245,7 @@ export async function importItemsFromSpreadsheet(
   licitacaoId: string,
   buffer: Buffer,
   filename: string,
+  destino?: { contratoId: string; loteId: string },
 ) {
   await assertEntityActive(prisma, entityId);
   await assertLicitacaoActiveForImport(prisma, entityId, licitacaoId);
@@ -269,7 +273,7 @@ export async function importItemsFromSpreadsheet(
     });
   }
 
-  return persistImport(prisma, actorId, entityId, licitacaoId, 'spreadsheet', items);
+  return persistImport(prisma, actorId, entityId, licitacaoId, 'spreadsheet', items, destino);
 }
 
 /** Imports items from column textareas */
@@ -279,6 +283,7 @@ export async function importItemsFromColumns(
   entityId: string,
   licitacaoId: string,
   columns: Partial<Record<'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor', string>>,
+  destino?: { contratoId: string; loteId: string },
 ) {
   await assertEntityActive(prisma, entityId);
   await assertLicitacaoActiveForImport(prisma, entityId, licitacaoId);
@@ -314,7 +319,7 @@ export async function importItemsFromColumns(
     });
   }
 
-  return persistImport(prisma, actorId, entityId, licitacaoId, 'textarea', items);
+  return persistImport(prisma, actorId, entityId, licitacaoId, 'textarea', items, destino);
 }
 
 /** Deactivates a licitacao item (idempotent) */

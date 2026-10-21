@@ -740,13 +740,14 @@ export function OrcamentoEditorPage() {
                 <div className="or-cat-cab"><strong>Licitação {l.identificacao}</strong><span>{l.fornecedor ?? l.objeto}</span></div>
                 {l.itens.map(i => {
                   const escolhido = linhas.some(x => x.licitacaoItemId === i.id);
-                  const esgotado = i.disponivel !== null && Number(i.disponivel) <= 0;
+                  const vencido = i.contrato?.situacao === 'VENCIDO' || i.contrato?.situacao === 'A_INICIAR';
+                  const esgotado = vencido || (i.disponivel !== null && Number(i.disponivel) <= 0);
                   return (
                     <button key={i.id} type="button" className={`or-cat-item${escolhido ? ' is-escolhido' : ''}${esgotado ? ' is-esgotado' : ''}`}
                       disabled={esgotado && !escolhido} onClick={() => adicionar(l, i)} aria-pressed={escolhido}>
                       <span className="or-cat-check" aria-hidden="true">{escolhido ? '✓' : '+'}</span>
-                      <span className="or-cat-texto"><strong>{i.descricao}</strong><small>{real(i.valorUnitario)} / {i.unidade}{i.categoria ? ` · ${i.categoria}` : ''}</small></span>
-                      <span className="or-cat-saldo">{i.disponivel === null ? <small>sem limite</small> : esgotado ? <small>esgotado</small> : <><b>{num(i.disponivel)}</b><small>{i.unidade} livres</small></>}</span>
+                      <span className="or-cat-texto"><strong>{i.descricao}</strong><small>{real(i.valorUnitario)} / {i.unidade}{i.contrato ? ` · Contrato ${i.contrato.numero}${i.lote ? ` · Lote ${i.lote}` : ''}` : ''}{i.categoria ? ` · ${i.categoria}` : ''}</small></span>
+                      <span className="or-cat-saldo">{vencido ? <small>{i.contrato?.situacao === 'VENCIDO' ? 'contrato vencido' : 'contrato a iniciar'}</small> : i.disponivel === null ? <small>sem limite</small> : esgotado ? <small>esgotado</small> : <><b>{num(i.disponivel)}</b><small>{i.unidade} livres</small></>}</span>
                     </button>
                   );
                 })}

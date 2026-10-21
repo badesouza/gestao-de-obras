@@ -441,7 +441,14 @@ export interface Licitacao {
   createdAt: string;
   createdBy: UserRef;
   activeItemCount: number;
+  numeroProcesso?: string | null;
+  modalidade?: string | null;
+  tipo?: TipoLicitacao | null;
+  dataHomologacao?: string | null;
+  contratos?: { total: number; vigentes: number; vencendo: number; vencidos: number; proximoVencimento: string | null; fornecedores: string[] };
 }
+
+export type TipoLicitacao = 'MATERIAL' | 'SERVICO' | 'COMBUSTIVEL' | 'OBRA';
 
 export interface LicitacaoItem {
   id: string;
@@ -719,12 +726,111 @@ export const orcamentosApi = {
   },
 };
 
+/* ── Contratos da licitação (padrão Object): contrato → lotes → itens, aditivos ── */
+export type SituacaoVigencia = 'VIGENTE' | 'VENCENDO' | 'VENCIDO' | 'A_INICIAR';
+export type TipoAditivo = 'PRAZO' | 'VALOR' | 'QUANTIDADE';
+export interface ItemContrato {
+  id: string; categoria: string | null; descricao: string; marca: string | null; unidade: string;
+  quantidade: string | null; valorUnitario: string | null; valorTotal: string | null; status: 'ACTIVE' | 'INACTIVE';
+  usado: string; recebido: string; disponivel: string | null; emUso: boolean;
+}
+export interface DocumentoRef { id: string; nome: string; tamanho?: number; criadoEm?: string }
+export interface AditivoContrato {
+  id: string; numero: string; tipo: TipoAditivo; dataPublicacao: string; vigenciaAnterior: string | null; novaVigencia: string | null;
+  percentual: string | null; lote: string | null; valorAditivado: string; observacao: string | null; itensAfetados: number;
+  criadoPor: string; criadoEm: string; arquivos: { id: string; nomeArquivo: string }[];
+}
+export interface ContratoLicitacao {
+  id: string; numero: string; status: 'ACTIVE' | 'INACTIVE';
+  fornecedor: { id: string; razaoSocial: string; cnpj: string | null; nomeFantasia: string | null } | null;
+  vigenciaDe: string; vigenciaAte: string; vigenciaOriginal: string | null; situacao: SituacaoVigencia; diasRestantes: number;
+  valor: string | null; valorItens: string; valorUsado: string; valorAditivado: string;
+  lotes: { id: string; numero: string; descricao: string | null; valor: string; itens: ItemContrato[] }[];
+  aditivos: AditivoContrato[];
+  arquivos: DocumentoRef[];
+}
+export interface EstruturaLicitacao {
+  id: string; identificacao: string; objeto: string; status: 'ACTIVE' | 'INACTIVE';
+  numeroProcesso: string | null; modalidade: string | null; tipo: TipoLicitacao | null; dataHomologacao: string | null;
+  fornecedorLegado: { id: string; razaoSocial: string; cnpj: string | null } | null;
+  criadoPor: string; criadoEm: string; arquivos: DocumentoRef[];
+  resumo: { contratos: number; vigentes: number; vencendo: number; vencidos: number; valorGlobal: string; valorUsado: string; itens: number };
+  contratos: ContratoLicitacao[];
+  itensSemContrato: ItemContrato[];
+  modalidades: string[];
+}
+export interface FornecedorConsulta {
+  origem: 'cadastro' | 'receita';
+  fornecedor: { id: string | null; cnpj: string | null; razaoSocial: string; nomeFantasia: string | null; telefone: string | null; email: string | null; endereco: string | null; situacao?: string | null };
+}
+export interface DadosContratoForm {
+  numero: string; vigenciaDe: string; vigenciaAte: string; valor?: string | null;
+  fornecedorId?: string | null;
+  fornecedorNovo?: { cnpj?: string | null; razaoSocial: string; nomeFantasia?: string | null; telefone?: string | null; email?: string | null; endereco?: string | null } | null;
+  primeiroLote?: { numero: string; descricao?: string | null } | null;
+}
+export interface ContratoAVencer {
+  id: string; numero: string; licitacaoId: string; licitacao: string; fornecedor: string | null; vigenciaAte: string;
+  situacao: SituacaoVigencia; diasRestantes: number;
+}
+const V1 = '/api/tenant/v1';
+type ColunasImport = Partial<Record<'categoria' | 'descricao' | 'unidade' | 'quantidade' | 'valor', string>>;
+export const contratosApi = {
+  estrutura: (entityId: string, licitacaoId: string) => tenantRequest<EstruturaLicitacao>(entityId, `${V1}/licitacoes/${licitacaoId}/estrutura`),
+  modalidades: (entityId: string) => tenantRequest<{ modalidades: string[]; tipos: TipoLicitacao[] }>(entityId, `${V1}/licitacoes-modalidades`),
+  salvarProcesso: (entityId: string, licitacaoId: string, d: { numeroProcesso?: string | null; modalidade?: string | null; tipo?: TipoLicitacao | null; dataHomologacao?: string | null }) =>
+    tenantRequest<void>(entityId, `${V1}/licitacoes/${licitacaoId}/processo`, { method: 'PUT', body: JSON.stringify(d) }),
+  consultarCnpj: (entityId: string, cnpj: string) => tenantRequest<FornecedorConsulta>(entityId, `${V1}/fornecedores/cnpj/${cnpj.replace(/\D/g, '')}`),
+  criar: (entityId: string, licitacaoId: string, d: DadosContratoForm) => tenantRequest<{ id: string }>(entityId, `${V1}/licitacoes/${licitacaoId}/contratos`, { method: 'POST', body: JSON.stringify(d) }),
+  atualizar: (entityId: string, id: string, d: DadosContratoForm) => tenantRequest<void>(entityId, `${V1}/contratos/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  remover: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `${V1}/contratos/${id}`, { method: 'DELETE' }),
+  reativar: (entityId: string, id: string) => tenantRequest<void>(entityId, `${V1}/contratos/${id}/reativar`, { method: 'POST' }),
+  criarLote: (entityId: string, contratoId: string, d: { numero: string; descricao?: string | null }) => tenantRequest<{ id: string }>(entityId, `${V1}/contratos/${contratoId}/lotes`, { method: 'POST', body: JSON.stringify(d) }),
+  atualizarLote: (entityId: string, id: string, d: { numero: string; descricao?: string | null }) => tenantRequest<void>(entityId, `${V1}/lotes/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  removerLote: (entityId: string, id: string) => tenantRequest<void>(entityId, `${V1}/lotes/${id}`, { method: 'DELETE' }),
+  adicionarItem: (entityId: string, loteId: string, d: { categoria?: string | null; descricao: string; marca?: string | null; unidade: string; quantidade?: string | null; valorUnitario?: string | null }) =>
+    tenantRequest<{ id: string }>(entityId, `${V1}/lotes/${loteId}/itens`, { method: 'POST', body: JSON.stringify(d) }),
+  vincularItens: (entityId: string, loteId: string, itemIds: string[]) => tenantRequest<{ vinculados: number }>(entityId, `${V1}/lotes/${loteId}/vincular`, { method: 'POST', body: JSON.stringify({ itemIds }) }),
+  importarPlanilha: (entityId: string, licitacaoId: string, loteId: string, file: File) => {
+    const form = new FormData(); form.append('file', file);
+    return tenantUpload<ImportResult>(entityId, `${V1}/licitacoes/${licitacaoId}/items/import/spreadsheet?loteId=${loteId}`, form);
+  },
+  importarColunas: (entityId: string, licitacaoId: string, loteId: string, columns: ColunasImport) =>
+    tenantRequest<ImportResult>(entityId, `${V1}/licitacoes/${licitacaoId}/items/import/columns?loteId=${loteId}`, { method: 'POST', body: JSON.stringify({ columns }) }),
+  criarAditivo: (entityId: string, contratoId: string, d: { tipo: TipoAditivo; numero: string; dataPublicacao: string; novaVigencia?: string | null; percentual?: string | null; loteId?: string | null; observacao?: string | null }) =>
+    tenantRequest<{ id: string; valorAditivado: string }>(entityId, `${V1}/contratos/${contratoId}/aditivos`, { method: 'POST', body: JSON.stringify(d) }),
+  desfazerAditivo: (entityId: string, id: string) => tenantRequest<void>(entityId, `${V1}/aditivos/${id}`, { method: 'DELETE' }),
+  anexar: (entityId: string, alvo: { licitacaoId?: string; contratoId?: string; aditivoId?: string }, file: File) => {
+    const form = new FormData(); form.append('arquivo', file, file.name);
+    const q = new URLSearchParams(Object.entries(alvo).filter(([, v]) => !!v) as [string, string][]);
+    return tenantUpload<{ id: string }>(entityId, `${V1}/documentos-contratacao?${q}`, form);
+  },
+  removerDocumento: (entityId: string, id: string) => tenantRequest<void>(entityId, `${V1}/documentos-contratacao/${id}`, { method: 'DELETE' }),
+  abrirDocumento: async (entityId: string, id: string) => {
+    const aba = window.open('', '_blank');
+    const token = getTenantToken(entityId);
+    const headers = new Headers({ 'X-Tenant-Id': entityId });
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`${V1}/documentos-contratacao/${id}`, { headers });
+    if (!res.ok) { aba?.close(); throw new Error('Não foi possível abrir o documento'); }
+    const url = URL.createObjectURL(await res.blob());
+    if (aba) aba.location.href = url; else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 120_000);
+  },
+  aVencer: (entityId: string) => tenantRequest<ContratoAVencer[]>(entityId, `${V1}/contratos/a-vencer`),
+  editarItem: (entityId: string, licitacaoId: string, itemId: string, d: { categoria?: string; marca?: string | null; descricao: string; unidadeMedida: string; quantidade?: string | null; valorUnitario?: string | null }) =>
+    tenantRequest<unknown>(entityId, `${V1}/licitacoes/${licitacaoId}/items/${itemId}`, { method: 'PUT', body: JSON.stringify(d) }),
+  excluirItem: (entityId: string, licitacaoId: string, itemId: string) => tenantRequest<unknown>(entityId, `${V1}/licitacoes/${licitacaoId}/items/${itemId}`, { method: 'DELETE' }),
+};
+
 export interface SaldoLicitacao {
   id: string; identificacao: string; objeto: string; fornecedor: string | null;
   valores: { contratado: string; pedido: string; reservado: string; recebido: string; disponivel: string };
   itens: {
     id: string; categoria: string | null; descricao: string; unidade: string; valorUnitario: string;
     contratado: string | null; pedido: string; reservado: string; recebido: string; disponivel: string | null;
+    contrato: { id: string; numero: string; vigenciaAte: string; fornecedor: string | null; situacao: SituacaoVigencia; diasRestantes: number } | null;
+    lote: string | null;
   }[];
 }
 
@@ -854,7 +960,7 @@ export const tenantApi = {
       ),
     get: (entityId: string, licitacaoId: string) =>
       tenantRequest<Licitacao>(entityId, `/api/tenant/v1/licitacoes/${licitacaoId}`),
-    create: (entityId: string, body: { identificacao: string; objeto: string; fornecedorId?: string | null }) =>
+    create: (entityId: string, body: { identificacao: string; objeto: string; fornecedorId?: string | null; numeroProcesso?: string | null; modalidade?: string | null; tipo?: TipoLicitacao | null; dataHomologacao?: string | null }) =>
       tenantRequest<Licitacao>(entityId, '/api/tenant/v1/licitacoes', {
         method: 'POST',
         body: JSON.stringify(body),

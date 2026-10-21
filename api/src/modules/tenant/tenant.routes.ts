@@ -13,6 +13,7 @@ import { registerMapaRoutes } from './mapa/mapa.routes.js';
 import { registerEnderecoDescobertoRoutes } from './enderecos/endereco-descoberto.routes.js';
 import { registerComprasRoutes } from './compras/compras.routes.js';
 import { registerOrcamentosRoutes } from './orcamentos/orcamentos.routes.js';
+import { registerContratosRoutes } from './contratos/contratos.routes.js';
 import { registerEquipeRoutes } from './equipes/equipe.routes.js';
 import { registerFornecedorRoutes } from './fornecedores/fornecedor.routes.js';
 
@@ -30,6 +31,7 @@ export async function registerTenantRoutes(fastify: FastifyInstance) {
   await registerCadastroAuxiliarRoutes(fastify);
   await registerComprasRoutes(fastify);
   await registerOrcamentosRoutes(fastify);
+  await registerContratosRoutes(fastify);
   await registerMapaRoutes(fastify);
   await registerEnderecoDescobertoRoutes(fastify);
   await registerEquipeRoutes(fastify);
