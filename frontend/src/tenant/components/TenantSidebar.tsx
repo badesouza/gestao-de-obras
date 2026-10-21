@@ -137,7 +137,7 @@ function IconCompras() {
 const NAV_ITEMS: NavItem[] = [
   { to: 'dashboard',           label: 'Sala de Situação', permission: 'dashboard.view',     icon: <IconDashboard /> },
   { to: 'central-municipe',    label: 'Central do Munícipe', permission: 'centros_custo.view', icon: <IconCentral /> },
-  { to: 'cadastros-auxiliares',label: 'Cadastros',         permission: 'centros_custo.view', icon: <IconCadastros /> },
+  { to: 'cadastros',           label: 'Cadastros',         permission: 'centros_custo.view', icon: <IconCadastros /> },
   { to: 'centros-de-custo',    label: 'Centros de custo',  permission: 'centros_custo.view', icon: <IconCentrosCusto /> },
   { to: 'centros-custo',       label: 'Estrutura dos serviços', permission: 'centros_custo.manage', icon: <IconCadastros /> },
   { to: 'servicos',            label: 'Serviços Urbanos',  permission: 'centros_custo.view', icon: <IconServicos /> },

@@ -1503,3 +1503,41 @@ export const entityBootstrapApi = {
       { method: 'POST', body: JSON.stringify(body) },
     ),
 };
+
+/* ── Módulo 1 · Cadastros em 6 passos (padrão SisObras) ── */
+export type SituacaoPasso = 'ok' | 'warn' | 'opt';
+export type ChavePasso = 'orgao' | 'lugares' | 'pessoas' | 'veiculos' | 'centros' | 'servicos';
+export interface PassoResumo {
+  n: number; chave: ChavePasso; situacao: SituacaoPasso; contagem: string; aviso: string | null; avisoLeve: boolean;
+}
+export interface ResumoCadastros { prontos: number; total: number; passos: PassoResumo[] }
+export interface Orgao {
+  nome: string; municipio: string | null; uf: string | null; cnpj: string | null; secretario: string | null;
+  telefone: string | null; email: string | null; endereco: string | null; brasaoUrl: string | null;
+}
+export interface DadosOrgao { nome: string; cnpj?: string | null; secretario?: string | null; telefone?: string | null; email?: string | null; endereco?: string | null }
+export interface MacrozonaLugar { id: string; nome: string; bairros: number }
+export interface BairroLugar { id: string; nome: string; macrozonaId: string | null; macrozona: string | null; lat: number | null; lng: number | null; osAbertas: number }
+export interface DadosBairro { nome: string; macrozonaId: string | null; lat: number | null; lng: number | null }
+
+const CB = '/api/tenant/v1/cadastros';
+export const cadastrosBaseApi = {
+  resumo: (entityId: string) => tenantRequest<ResumoCadastros>(entityId, `${CB}/resumo`),
+  orgao: (entityId: string) => tenantRequest<Orgao>(entityId, `${CB}/orgao`),
+  salvarOrgao: (entityId: string, d: DadosOrgao) => tenantRequest<Orgao>(entityId, `${CB}/orgao`, { method: 'PUT', body: JSON.stringify(d) }),
+  enviarBrasao: (entityId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return tenantUpload<Orgao>(entityId, `${CB}/orgao/brasao`, form);
+  },
+  removerBrasao: (entityId: string) => tenantRequest<Orgao>(entityId, `${CB}/orgao/brasao`, { method: 'DELETE' }),
+  lugares: (entityId: string) => tenantRequest<{ macrozonas: MacrozonaLugar[]; bairros: BairroLugar[] }>(entityId, `${CB}/lugares`),
+  criarMacrozona: (entityId: string, nome: string) => tenantRequest<{ id: string }>(entityId, `${CB}/lugares/macrozonas`, { method: 'POST', body: JSON.stringify({ nome }) }),
+  renomearMacrozona: (entityId: string, id: string, nome: string) => tenantRequest<void>(entityId, `${CB}/lugares/macrozonas/${id}`, { method: 'PUT', body: JSON.stringify({ nome }) }),
+  removerMacrozona: (entityId: string, id: string) => tenantRequest<void>(entityId, `${CB}/lugares/macrozonas/${id}`, { method: 'DELETE' }),
+  criarBairro: (entityId: string, d: DadosBairro) => tenantRequest<{ id: string }>(entityId, `${CB}/lugares/bairros`, { method: 'POST', body: JSON.stringify(d) }),
+  atualizarBairro: (entityId: string, id: string, d: DadosBairro) => tenantRequest<{ id: string }>(entityId, `${CB}/lugares/bairros/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  removerBairro: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `${CB}/lugares/bairros/${id}`, { method: 'DELETE' }),
+  colarBairros: (entityId: string, texto: string, macrozonaId: string | null) =>
+    tenantRequest<{ criados: number; repetidos: string[] }>(entityId, `${CB}/lugares/bairros/colar`, { method: 'POST', body: JSON.stringify({ texto, macrozonaId }) }),
+};

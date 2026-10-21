@@ -23,6 +23,7 @@ const PAGE_TITLES: Record<string, string> = {
   licitacoes:      'Licitações',
   'centros-custo':        'Estrutura dos serviços',
   'cadastros-auxiliares': 'Cadastros Auxiliares',
+  cadastros:       'Cadastros',
 };
 
 function usePageTitle(entityId: string | undefined): string {

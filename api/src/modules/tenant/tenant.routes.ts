@@ -16,6 +16,7 @@ import { registerOrcamentosRoutes } from './orcamentos/orcamentos.routes.js';
 import { registerContratosRoutes } from './contratos/contratos.routes.js';
 import { registerEquipeRoutes } from './equipes/equipe.routes.js';
 import { registerFornecedorRoutes } from './fornecedores/fornecedor.routes.js';
+import { registerCadastrosBaseRoutes } from './cadastros-base/cadastros-base.routes.js';
 
 /** Registers all tenant API routes under /api/tenant/v1 */
 export async function registerTenantRoutes(fastify: FastifyInstance) {
@@ -36,4 +37,5 @@ export async function registerTenantRoutes(fastify: FastifyInstance) {
   await registerEnderecoDescobertoRoutes(fastify);
   await registerEquipeRoutes(fastify);
   await registerFornecedorRoutes(fastify);
+  await registerCadastrosBaseRoutes(fastify);
 }

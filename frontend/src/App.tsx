@@ -34,6 +34,9 @@ import { PedidosCompraPage } from './tenant/pages/PedidosCompraPage';
 import { SaldosPage } from './tenant/pages/SaldosPage';
 import { CentrosDeCustoPage } from './tenant/pages/CentrosDeCustoPage';
 import { OrcamentosPage, OrcamentoEditorPage } from './tenant/pages/OrcamentosPage';
+import { CadastrosInicioPage } from './tenant/pages/cadastros/CadastrosInicioPage';
+import { OrgaoPage } from './tenant/pages/cadastros/OrgaoPage';
+import { LugaresPage } from './tenant/pages/cadastros/LugaresPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
@@ -83,6 +86,9 @@ function App() {
             <Route path="licitacoes/new" element={<LicitacaoCreatePage />} />
           </Route>
           <Route element={<TenantPermissionGuard permission="centros_custo.view" />}>
+            <Route path="cadastros" element={<CadastrosInicioPage />} />
+            <Route path="cadastros/orgao" element={<OrgaoPage />} />
+            <Route path="cadastros/lugares" element={<LugaresPage />} />
             <Route path="centros-custo" element={<CentroCustoListPage />} />
             <Route path="centros-custo/:centroId" element={<CentroCustoDetailPage />} />
           </Route>
