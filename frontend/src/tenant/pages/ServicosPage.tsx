@@ -1,3 +1,5 @@
+import { useTenant } from '../TenantContext';
+import { CENTRO_IDS } from './servico-config';
 import { useCallback, useMemo, useState, type MouseEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -211,15 +213,19 @@ export function ServicosPage() {
     setAjudaCor(cor);
   }, []);
 
+  const { session } = useTenant();
+  const permitidos = session.servicosPermitidos;
+  const meus = useMemo(() => permitidos ? SERVICOS.filter(s => permitidos.includes(CENTRO_IDS[s.slug])) : SERVICOS, [permitidos]);
+
   const filtered = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return SERVICOS;
+    if (!termo) return meus;
 
-    return SERVICOS.filter((servico) =>
+    return meus.filter((servico) =>
       [servico.nome, servico.descricao, servico.categoria, servico.foco, ...servico.metricas]
         .some((campo) => campo.toLowerCase().includes(termo)),
     );
-  }, [busca]);
+  }, [busca, meus]);
 
   const ativos = SERVICOS.filter((servico) => servico.status === 'ativo').length;
   const totalCampos = SERVICOS.reduce((total, servico) => total + servico.metricas.length, 0);

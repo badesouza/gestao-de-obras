@@ -4,6 +4,8 @@ export const JWT_SCOPE_TENANT = 'tenant';
 export const TENANT_ROLE_ADMIN = 'ADMIN';
 export const TENANT_ROLE_ENGINEER = 'ENGINEER';
 export const TENANT_ROLE_OPERATOR = 'OPERATOR';
+export const TENANT_ROLE_COORDENADOR = 'COORDENADOR';
+export const TENANT_ROLE_FISCAL = 'FISCAL';
 
 export const PERMISSION_DASHBOARD_VIEW = 'dashboard.view';
 export const PERMISSION_USERS_VIEW = 'users.view';

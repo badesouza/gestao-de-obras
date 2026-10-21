@@ -29,6 +29,7 @@ import { MapaFullPage } from './tenant/pages/MapaFullPage';
 import { ultimoTenant } from './lib/offline/pwa';
 import { CentralMunicipePage } from './municipe/CentralMunicipePage';
 import { CentralMunicipeAdminPage } from './tenant/pages/CentralMunicipeAdminPage';
+import { ConfiguracoesPage } from './tenant/pages/ConfiguracoesPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
@@ -61,6 +62,7 @@ function App() {
           <Route path="dashboard" element={<SalaSituacaoPage />} />
           <Route path="servicos" element={<ServicosPage />} />
           <Route path="central-municipe" element={<CentralMunicipeAdminPage />} />
+          <Route path="configuracoes" element={<ConfiguracoesPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
           <Route path="compras" element={<ComprasPage />} />
           <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />

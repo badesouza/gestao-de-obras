@@ -2,15 +2,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, tenantApi, type TenantUser } from '../../lib/api-client';
 import { useTenant, useTenantPermission } from '../TenantContext';
+import { ServicosDoUsuario } from '../components/obras/ServicosDoUsuario';
 
 const ROLES = [
-  { code: 'ADMIN',    name: 'Administrador' },
-  { code: 'ENGINEER', name: 'Engenheiro / Fiscal' },
-  { code: 'OPERATOR', name: 'Operador' },
+  { code: 'ADMIN',       name: 'Administrador' },
+  { code: 'COORDENADOR', name: 'Coordenador — aprova e confere as OS' },
+  { code: 'FISCAL',      name: 'Fiscal — registra e dá baixa em campo' },
+  { code: 'ENGINEER',    name: 'Engenheiro' },
+  { code: 'OPERATOR',    name: 'Operador' },
 ] as const;
 
 const ROLE_META: Record<string, { label: string; color: string; grad: string }> = {
   ADMIN:    { label: 'Administrador', color: '#2563eb', grad: 'linear-gradient(135deg,#1e40af,#2563eb)' },
+  COORDENADOR: { label: 'Coordenador', color: '#7c3aed', grad: 'linear-gradient(135deg,#4c1d95,#7c3aed)' },
+  FISCAL:   { label: 'Fiscal',        color: '#d97706', grad: 'linear-gradient(135deg,#92400e,#d97706)' },
   ENGINEER: { label: 'Engenheiro',    color: '#16a34a', grad: 'linear-gradient(135deg,#065f46,#16a34a)' },
   OPERATOR: { label: 'Operador',      color: '#7c3aed', grad: 'linear-gradient(135deg,#4c1d95,#7c3aed)' },
 };
@@ -398,6 +403,9 @@ export function TenantUserDetailPage() {
               </button>
             </form>
           </div>
+
+          {/* serviços que a pessoa atende */}
+          {userId && <ServicosDoUsuario entityId={entityId} userId={userId} podeEditar={canManage} />}
 
           {/* redefinir senha */}
           <div style={{

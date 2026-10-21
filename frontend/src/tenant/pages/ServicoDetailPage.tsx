@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { tenantApi, mapaApi, type CentroCustoDetail, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
+import { tenantApi, mapaApi, ordensApi, type AcaoOS, type CentroCustoDetail, type Etapa, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { ToastContainer } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
@@ -12,11 +12,10 @@ import { OrdemServicoModal } from '../components/OrdemServicoModal';
 import { ServicoAnalytics } from '../components/ServicoAnalytics';
 import { PlanejamentoAnual } from '../components/PlanejamentoAnual';
 import { ServicoSolicitacoesPanel } from '../components/ServicoSolicitacoesPanel';
-import { Anel, Badge, FotoThumb, Kpi, KpiCarregando, Sparkline } from '../components/obras/ui';
-import { DIAS_ATRASO, dataBr, diasDesde, nomeCurto, numeroOS, situacaoDe } from '../components/obras/util';
-import type { Situacao } from '../../lib/api-client';
+import { Anel, Dialogo, EtapaBadge, FotoThumb, Kpi, KpiCarregando, Sparkline } from '../components/obras/ui';
+import { DIAS_ATRASO, dataBr, diasDesde, etapaAberta, etapaDe, nomeCurto, numeroDaOS } from '../components/obras/util';
 
-type Filtro = 'todas' | 'atrasadas' | Situacao;
+type Filtro = 'todas' | 'atrasadas' | Etapa;
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 function hoje(): { year: number; month: number } {
@@ -74,6 +73,8 @@ export function ServicoDetailPage() {
   const [ajudaOpen, setAjudaOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [rowConcluindo, setRowConcluindo] = useState<RegistroDiarioRow | null>(null);
+  const [rowConferindo, setRowConferindo] = useState<RegistroDiarioRow | null>(null);
+  const [obsConferencia, setObsConferencia] = useState('');
   const [rowOS, setRowOS] = useState<RegistroDiarioRow | null>(null);
   const rowOSAtiva = rowOS ?? (paramOS ? rows.find(r => r.id === paramOS) ?? null : null);
   const formularioAberto = modalOpen || paramNova;
@@ -111,57 +112,49 @@ export function ServicoDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  /* concluir ocorrência — abre modal de conclusão */
+  /* baixa do fiscal: registra a vistoria e leva a OS para "Executada" */
   const handleConfirmarConclusao = async (dados: DadosConclusao) => {
     if (!rowConcluindo) return;
-    const pid = Object.entries(propMap.current).find(([nome]) => nome === 'Status')?.[1];
-    const pidObs = Object.entries(propMap.current).find(([nome]) => nome === 'Observações')?.[1];
-    const pidFiscal = Object.entries(propMap.current).find(([nome]) => nome === 'Fiscal Responsável')?.[1];
-    if (!pid) return;
-
+    const pidObs = propMap.current['Observações'];
+    const pidFiscal = propMap.current['Fiscal Responsável'];
     const obsTexto = [
       dados.observacoesFiscal,
-      `Vistoria: ${dados.dataVistoria} | Fiscal: ${dados.nomeFiscal} | Qualidade: ${dados.qualidade}`,
+      `Vistoria: ${dados.dataVistoria} | Fiscal: ${dados.nomeFiscal} | Qualidade: ${dados.qualidade} | Resultado: ${dados.statusFinal}`,
     ].filter(Boolean).join('\n');
 
-    const novosValues: Record<string, { text?: string }> = {
-      ...rowConcluindo.values,
-      [pid]: { text: dados.statusFinal },
-    };
+    const novosValues: Record<string, { text?: string }> = { ...rowConcluindo.values };
     if (pidObs) novosValues[pidObs] = { text: obsTexto };
     if (pidFiscal) novosValues[pidFiscal] = { text: dados.nomeFiscal };
 
-    await tenantApi.centrosCusto.updateRegistro(entityId, centroId, rowConcluindo.id, {
-      data: rowConcluindo.data,
-      values: novosValues,
-    });
-
-    /* salvar coords da vistoria do fiscal se confirmadas */
+    await tenantApi.centrosCusto.updateRegistro(entityId, centroId, rowConcluindo.id, { data: rowConcluindo.data, values: novosValues });
     if (dados.lat != null && dados.lng != null) {
       await mapaApi.salvarCoords(entityId, rowConcluindo.id, dados.lat, dados.lng, dados.enderecoConfirmado);
     }
-
+    /* "Não executado" fica registrado na vistoria, mas a OS continua aberta */
+    if (dados.statusFinal !== 'Não Executado') {
+      await ordensApi.acao(entityId, rowConcluindo.id, 'executar');
+      showToast(session.obras.exigeConferencia ? 'Baixa registrada. Aguardando a conferência do coordenador.' : 'Baixa registrada. OS finalizada.');
+    } else {
+      showToast('Vistoria registrada. A OS continua aberta.');
+    }
     setRowConcluindo(null);
     await load();
   };
 
-  /* reabrir ocorrência */
-  const handleReabrir = async (row: RegistroDiarioRow) => {
-    const pid = Object.entries(propMap.current).find(([nome]) => nome === 'Status')?.[1];
-    if (!pid) return;
+  /* aprovar, conferir, reabrir… */
+  const acaoOS = async (row: RegistroDiarioRow, acao: AcaoOS, observacao?: string, mensagem?: string) => {
     setSaving(row.id);
     try {
-      await tenantApi.centrosCusto.updateRegistro(entityId, centroId, row.id, {
-        data: row.data,
-        values: { ...row.values, [pid]: { text: 'Em Andamento' } },
-      });
+      await ordensApi.acao(entityId, row.id, acao, observacao);
+      if (mensagem) showToast(mensagem);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao reabrir');
+      setError(e instanceof Error ? e.message : 'Não foi possível concluir a ação');
     } finally {
       setSaving(null);
     }
   };
+  const handleReabrir = (row: RegistroDiarioRow) => acaoOS(row, 'reabrir', undefined, 'OS reaberta.');
 
   /* excluir */
   const handleDelete = async (id: string) => {
@@ -204,11 +197,12 @@ export function ServicoDetailPage() {
     const v = pid ? getCellText(row, pid) : '—';
     return v === '—' ? '' : v;
   };
+  const { podeAprovar, podeConferir } = session.obras;
   const itens = rows.map(row => {
     const status = pidStatus ? (row.values[pidStatus]?.text ?? '') : '';
-    const situacao = situacaoDe(status);
+    const etapa = etapaDe(row, status);
     const dias = diasDesde(row.data);
-    const atrasada = (situacao === 'aberta' || situacao === 'execucao') && dias > DIAS_ATRASO;
+    const atrasada = etapaAberta(etapa) && dias > DIAS_ATRASO;
     const detalhes = config.camposPrincipais
       .filter(n => n !== 'Bairro / Localidade' && n !== 'Status')
       .map(n => {
@@ -220,7 +214,7 @@ export function ServicoDetailPage() {
       })
       .filter(Boolean);
     return {
-      row, status, situacao, dias, atrasada, detalhes,
+      row, etapa, dias, atrasada, detalhes,
       bairro: texto(row, 'Bairro / Localidade'),
       logradouro: texto(row, 'Logradouro / Referência'),
       equipe: texto(row, 'Equipe / Turma'),
@@ -228,30 +222,32 @@ export function ServicoDetailPage() {
   });
 
   const total = itens.length;
-  const conta = (f: Filtro) => f === 'todas' ? total : f === 'atrasadas' ? itens.filter(i => i.atrasada).length : itens.filter(i => i.situacao === f).length;
-  const concluidas = conta('concluida');
-  const abertasAgora = itens.filter(i => i.situacao === 'aberta' || i.situacao === 'execucao').length;
+  const conta = (f: Filtro) => f === 'todas' ? total : f === 'atrasadas' ? itens.filter(i => i.atrasada).length : itens.filter(i => i.etapa === f).length;
+  const abertasAgora = itens.filter(i => etapaAberta(i.etapa)).length;
   const atrasadas = conta('atrasadas');
+  const aConferir = conta('EXECUTADA');
+  const finalizadas = conta('FINALIZADA');
   const comFoto = itens.filter(i => (i.row.fotos ?? 0) > 0).length;
   const diasNoMes = new Date(year, month, 0).getDate();
   const porDia = Array.from({ length: diasNoMes }, (_, d) => itens.filter(i => Number(i.row.data.slice(8, 10)) === d + 1).length);
   const ehMesAtual = year === hoje().year && month === hoje().month;
   const serieAteHoje = ehMesAtual ? porDia.slice(0, new Date().getDate()) : porDia;
-  const diasComRegistro = porDia.filter(Boolean).length;
 
   const termo = busca.trim().toLowerCase();
   const visiveis = itens.filter(i =>
-    (filtro === 'todas' || (filtro === 'atrasadas' ? i.atrasada : i.situacao === filtro)) &&
-    (!termo || [i.bairro, i.logradouro, i.equipe, i.row.fiscal ?? '', numeroOS(i.row.id, i.row.data), ...i.detalhes]
+    (filtro === 'todas' || (filtro === 'atrasadas' ? i.atrasada : i.etapa === filtro)) &&
+    (!termo || [i.bairro, i.logradouro, i.equipe, i.row.fiscal ?? '', numeroDaOS(i.row), ...i.detalhes]
       .some(t => t.toLowerCase().includes(termo))),
   );
 
-  const FILTROS: { id: Filtro; rotulo: string; cor: string }[] = [
+  const FILTROS: { id: Filtro; rotulo: string; cor: string; esconderSeVazio?: boolean }[] = [
     { id: 'todas', rotulo: 'Todas', cor: 'var(--ob-faint)' },
-    { id: 'atrasadas', rotulo: 'Atrasadas', cor: 'var(--ob-rose)' },
-    { id: 'aberta', rotulo: 'Abertas', cor: 'var(--ob-blue)' },
-    { id: 'execucao', rotulo: 'Em execução', cor: 'var(--ob-amber)' },
-    { id: 'concluida', rotulo: 'Concluídas', cor: 'var(--ob-green)' },
+    { id: 'atrasadas', rotulo: 'Atrasadas', cor: 'var(--ob-rose)', esconderSeVazio: true },
+    { id: 'AGUARDANDO_APROVACAO', rotulo: 'Aguardando aprovação', cor: 'var(--ob-violeta)', esconderSeVazio: !session.obras.exigeAprovacaoOS },
+    { id: 'REGISTRADA', rotulo: 'Registradas', cor: 'var(--ob-blue)' },
+    { id: 'EXECUTADA', rotulo: 'A conferir', cor: 'var(--ob-amber)', esconderSeVazio: !session.obras.exigeConferencia },
+    { id: 'FINALIZADA', rotulo: 'Finalizadas', cor: 'var(--ob-green)' },
+    { id: 'CANCELADA', rotulo: 'Canceladas', cor: 'var(--ob-faint)', esconderSeVazio: true },
   ];
 
   const ABAS: { id: typeof aba; rotulo: string; icone: React.ReactNode }[] = [
@@ -304,15 +300,15 @@ export function ServicoDetailPage() {
       <section className="ob-kpis" aria-label="Resumo do mês">
         {loading && rows.length === 0 ? [1, 2, 3, 4].map(n => <KpiCarregando key={n} />) : (
           <>
-            <Kpi i={2} rotulo="Registradas no mês" valor={total} cor="var(--serv-cor)"
-              nota={total === 0 ? 'nenhuma ainda' : `${diasComRegistro} ${diasComRegistro === 1 ? 'dia com registro' : 'dias com registro'}`}
-              tom="neutro" grafico={<Sparkline valores={serieAteHoje} cor="var(--serv-cor)" />} />
-            <Kpi i={3} rotulo="Abertas agora" valor={abertasAgora} cor="var(--ob-blue)"
-              nota={atrasadas > 0 ? `${atrasadas} ${atrasadas === 1 ? 'passou' : 'passaram'} de ${DIAS_ATRASO} dias` : 'nenhuma atrasada'}
-              tom={atrasadas > 0 ? 'ruim' : 'ok'} grafico={null} />
-            <Kpi i={4} rotulo="Concluídas" valor={concluidas} cor="var(--ob-green)"
-              nota={total ? `${Math.round(concluidas / total * 100)}% do mês` : 'sem registros'}
-              tom={total > 0 && concluidas === total ? 'ok' : 'neutro'} grafico={<Anel pct={total ? concluidas / total * 100 : null} cor="var(--ob-green)" />} />
+            <Kpi i={2} rotulo="Abertas agora" valor={abertasAgora} cor="var(--ob-blue)"
+              nota={atrasadas > 0 ? `${atrasadas} ${atrasadas === 1 ? 'passou' : 'passaram'} de ${DIAS_ATRASO} dias` : `${total} ${total === 1 ? 'registrada' : 'registradas'} no mês`}
+              tom={atrasadas > 0 ? 'ruim' : 'neutro'} grafico={<Sparkline valores={serieAteHoje} cor="var(--ob-blue)" />} />
+            <Kpi i={3} rotulo="A conferir" valor={aConferir} cor="var(--ob-amber)"
+              nota={!session.obras.exigeConferencia ? 'conferência desligada' : aConferir ? (podeConferir ? 'baixas esperando você' : 'aguardando o coordenador') : 'nenhuma baixa pendente'}
+              tom={aConferir ? 'alerta' : 'ok'} grafico={null} />
+            <Kpi i={4} rotulo="Finalizadas" valor={finalizadas} cor="var(--ob-green)"
+              nota={total ? `${Math.round(finalizadas / total * 100)}% do mês` : 'sem registros'}
+              tom={total > 0 && finalizadas === total ? 'ok' : 'neutro'} grafico={<Anel pct={total ? finalizadas / total * 100 : null} cor="var(--ob-green)" />} />
             <Kpi i={5} rotulo="Com foto" valor={total ? Math.round(comFoto / total * 100) : null} unidade="%" cor="var(--ob-amber)"
               nota={total === 0 ? 'sem registros' : total - comFoto > 0 ? `${total - comFoto} sem foto` : 'todas com prova'}
               tom={total === 0 ? 'neutro' : total - comFoto > 0 ? 'alerta' : 'ok'} grafico={<Anel pct={total ? comFoto / total * 100 : null} cor="var(--ob-amber)" />} />
@@ -346,10 +342,10 @@ export function ServicoDetailPage() {
       {aba === 'registros' && (
         <section className="ob-card ob-reveal" style={{ '--i': 7 } as React.CSSProperties} aria-label="Ocorrências do mês">
           <div className="ob-filtros">
-            <div className="ob-chips" role="group" aria-label="Filtrar por situação">
+            <div className="ob-chips" role="group" aria-label="Filtrar por etapa">
               {FILTROS.map(f => {
                 const n = conta(f.id);
-                if (f.id === 'atrasadas' && n === 0) return null;
+                if (f.esconderSeVazio && n === 0) return null;
                 return (
                   <button key={f.id} type="button" className={`ob-chip${filtro === f.id ? ' is-ativo' : ''}${f.id === 'atrasadas' ? ' is-alerta' : ''}`}
                     onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}>
@@ -390,14 +386,14 @@ export function ServicoDetailPage() {
                 const { row } = i;
                 const ocupado = saving === row.id;
                 return (
-                  <article key={row.id} className={`ob-oc ob-reveal${i.atrasada ? ' is-atrasada' : ''}${i.situacao === 'concluida' ? ' is-concluida' : ''}`}
+                  <article key={row.id} className={`ob-oc ob-reveal${i.atrasada ? ' is-atrasada' : ''}${i.etapa === 'FINALIZADA' ? ' is-concluida' : ''}`}
                     style={{ '--i': Math.min(idx, 12) } as React.CSSProperties}>
-                    <button type="button" className="ob-oc-abrir" onClick={() => setRowOS(row)} aria-label={`Abrir ${numeroOS(row.id, row.data)}`}>
+                    <button type="button" className="ob-oc-abrir" onClick={() => setRowOS(row)} aria-label={`Abrir ${numeroDaOS(row)}`}>
                       <FotoThumb entityId={entityId} fotoId={row.fotoId} quando={row.criadoEm} cor={config.cor} icone={config.icon} tamanho={88} contagem={row.fotos} />
                       <span className="ob-oc-info">
                         <span className="ob-oc-topo">
-                          <span className="ob-oc-os">{numeroOS(row.id, row.data)}</span>
-                          <Badge situacao={i.situacao} titulo={i.status || undefined} />
+                          <span className="ob-oc-os">{numeroDaOS(row)}</span>
+                          <EtapaBadge etapa={i.etapa} />
                           {i.atrasada && <span className="ob-badge is-atrasada"><i />há {i.dias} dias</span>}
                         </span>
                         <strong className="ob-oc-local">{i.bairro || 'Sem bairro informado'}</strong>
@@ -406,25 +402,38 @@ export function ServicoDetailPage() {
                           {dataBr(row.data)}
                           {row.fiscal && <> · {nomeCurto(row.fiscal)}</>}
                           {i.equipe && <> · {i.equipe}</>}
+                          {i.etapa === 'EXECUTADA' && row.executadoPor && <> · baixa por {nomeCurto(row.executadoPor)}</>}
                           {row.lat != null && <span className="ob-tag tom-ok">GPS</span>}
                         </span>
                       </span>
                     </button>
                     <div className="ob-oc-acoes">
+                      {i.etapa === 'AGUARDANDO_APROVACAO' && podeAprovar && (
+                        <button type="button" className="ob-acao is-aprovar" disabled={ocupado} onClick={() => void acaoOS(row, 'aprovar', undefined, `${numeroDaOS(row)} aprovada.`)}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><polyline points="20 6 9 17 4 12"/></svg>
+                          Aprovar
+                        </button>
+                      )}
+                      {i.etapa === 'REGISTRADA' && (
+                        <button type="button" className="ob-acao is-baixa" disabled={ocupado} onClick={() => setRowConcluindo(row)}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><polyline points="20 6 9 17 4 12"/></svg>
+                          Dar baixa
+                        </button>
+                      )}
+                      {i.etapa === 'EXECUTADA' && podeConferir && (
+                        <button type="button" className="ob-acao is-conferir" disabled={ocupado} onClick={() => { setRowConferindo(row); setObsConferencia(''); }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                          Conferir
+                        </button>
+                      )}
                       <button type="button" className="ob-icone-btn" data-dica="Ordem de serviço" aria-label="Ordem de serviço" onClick={() => setRowOS(row)}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                       </button>
                       <button type="button" className="ob-icone-btn" data-dica="Editar" aria-label="Editar" disabled={ocupado} onClick={() => { setEditRow(row); setModalOpen(true); }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
-                      {i.situacao !== 'concluida' ? (
-                        <button type="button" className="ob-icone-btn is-concluir" data-dica="Dar baixa" aria-label="Dar baixa" disabled={ocupado} onClick={() => setRowConcluindo(row)}>
-                          {ocupado
-                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sv-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-                            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><polyline points="20 6 9 17 4 12"/></svg>}
-                        </button>
-                      ) : (
-                        <button type="button" className="ob-icone-btn" data-dica="Reabrir" aria-label="Reabrir" disabled={ocupado} onClick={() => handleReabrir(row)}>
+                      {(i.etapa === 'FINALIZADA' || i.etapa === 'CANCELADA') && podeConferir && (
+                        <button type="button" className="ob-icone-btn" data-dica="Reabrir" aria-label="Reabrir" disabled={ocupado} onClick={() => void handleReabrir(row)}>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                         </button>
                       )}
@@ -438,6 +447,33 @@ export function ServicoDetailPage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* conferência do coordenador */}
+      {rowConferindo && (
+        <Dialogo
+          titulo={`Conferir ${numeroDaOS(rowConferindo)}`}
+          subtitulo="Veja as fotos da baixa na OS. Se estiver tudo certo, finalize. Se faltar algo, devolva ao fiscal com uma observação."
+          onFechar={() => setRowConferindo(null)}
+          acoes={<>
+            <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => { const r = rowConferindo; setRowConferindo(null); setRowOS(r); }}>Ver OS e fotos</button>
+            <button type="button" className="ob-btn-ghost ob-btn-alto ob-btn-perigo-suave" disabled={saving === rowConferindo.id}
+              onClick={() => { const r = rowConferindo; setRowConferindo(null); void acaoOS(r, 'reabrir', obsConferencia || 'Devolvida na conferência', `${numeroDaOS(r)} devolvida ao fiscal.`); }}>
+              Devolver ao fiscal
+            </button>
+            <button type="button" className="ob-acao is-baixa" disabled={saving === rowConferindo.id}
+              onClick={() => { const r = rowConferindo; setRowConferindo(null); void acaoOS(r, 'finalizar', obsConferencia || undefined, `${numeroDaOS(r)} finalizada.`); }}>
+              Conferido — finalizar
+            </button>
+          </>}
+        >
+          <dl>
+            <dt>Baixa por</dt><dd>{rowConferindo.executadoPor ?? '—'}</dd>
+            <dt>Em</dt><dd>{rowConferindo.executadoEm ? new Date(rowConferindo.executadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</dd>
+            <dt>Fotos</dt><dd>{rowConferindo.fotos ?? 0}</dd>
+          </dl>
+          <textarea value={obsConferencia} onChange={e => setObsConferencia(e.target.value)} placeholder="Observação (opcional) — ex.: faltou foto do depois" maxLength={1000} />
+        </Dialogo>
       )}
 
       {/* Modal de confirmação de exclusão */}

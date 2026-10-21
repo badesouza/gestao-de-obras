@@ -2,24 +2,11 @@ import type { PrismaClient } from '../../../generated/prisma/index.js';
 import { z } from 'zod';
 import { AppError } from '../../shared/errors.js';
 import { createRegistroDiario } from '../tenant/centros-custo/registro-diario.service.js';
+import { hojeBrasilia, proximoNumero } from '../../shared/sequencia.js';
 
 /* ── Central do Munícipe ─────────────────────────────────────────
    Pedido feito pelo cidadão (link / QR Code, sem login) → a equipe
    analisa e converte em ocorrência do serviço certo, ou recusa.     */
-
-const FUSO_MS = -3 * 3600_000;
-
-/** Próximo número da sequência (atômico, sem repetição) */
-export async function proximoNumero(prisma: PrismaClient, entityId: string, chave: string): Promise<number> {
-  const rows = await prisma.$queryRaw<{ ultimo: number }[]>`
-    INSERT INTO sequencias (entity_id, chave, ultimo, updated_at)
-    VALUES (${entityId}, ${chave}, 1, now())
-    ON CONFLICT (entity_id, chave) DO UPDATE SET ultimo = sequencias.ultimo + 1, updated_at = now()
-    RETURNING ultimo`;
-  return Number(rows[0]!.ultimo);
-}
-
-const hojeBrasilia = () => new Date(Date.now() + FUSO_MS).toISOString().slice(0, 10);
 
 const soDigitos = (s: string) => s.replace(/\D/g, '');
 
@@ -194,7 +181,6 @@ export async function converterEmOcorrencia(prisma: PrismaClient, entityId: stri
   por('Bairro / Localidade', s.bairro);
   por('Logradouro / Referência', [s.logradouro, s.referencia].filter(Boolean).join(' — '));
   por('Origem da Demanda', 'Munícipe');
-  por('Status', 'Pendente');
   por('Observações', `Pedido do munícipe — protocolo ${s.protocolo}\n${s.descricao}\nSolicitante: ${s.nome} · ${s.telefone}`);
 
   const registro = await createRegistroDiario(prisma, userId, entityId, centroCustoId, { data: hojeBrasilia(), values: valores });

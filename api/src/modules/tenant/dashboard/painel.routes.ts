@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { handleAppError } from '../../../shared/errors.js';
 import { requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { obterConfig } from '../ordens/ordens.service.js';
 
 /* ── Sala de Situação ─────────────────────────────────────────────
    Agrega todas as ocorrências da entidade em números para o secretário:
@@ -9,20 +10,12 @@ import { requireTenantAuth } from '../../../plugins/auth-tenant.js';
 
 const PROPS = ['Status', 'Bairro / Localidade', 'Logradouro / Referência', 'Equipe / Turma', 'Tipo de Serviço'];
 const DIAS_ATRASO = 7;
-const META_DIAS = 5;
 const LIMITE_GPS_M = 2000;
 const DIAS_SERIE = 14;
 const FUSO_MS = -3 * 3600_000; // Brasília
 
 type Situacao = 'aberta' | 'execucao' | 'concluida' | 'cancelada';
 
-function situacaoDe(status: string): Situacao {
-  const s = status.toLowerCase();
-  if (s.includes('conclu') || s.includes('executad') || s.includes('finaliz')) return 'concluida';
-  if (s.includes('cancel')) return 'cancelada';
-  if (s.includes('andamento') || s.includes('parcial') || s.includes('execu')) return 'execucao';
-  return 'aberta';
-}
 
 /** Meia-noite (horário de Brasília) do dia de `d`, como instante UTC */
 function inicioDia(d: Date): Date {
@@ -56,11 +49,12 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
       const mes0 = (() => { const l = new Date(agora.getTime() + FUSO_MS); return new Date(Date.UTC(l.getUTCFullYear(), l.getUTCMonth(), 1) - FUSO_MS); })();
       const janela0 = new Date(hoje0.getTime() - 180 * dia);
 
-      const [registros, bairros, equipesCadastro, pedidosNovos] = await Promise.all([
+      const [registros, bairros, equipesCadastro, pedidosNovos, cfgObras] = await Promise.all([
         fastify.prisma.registroDiario.findMany({
           where: { entityId, createdAt: { gte: janela0 } },
           select: {
             id: true, data: true, createdAt: true, updatedAt: true, lat: true, lng: true,
+            etapa: true, executadoEm: true, finalizadoEm: true,
             centroCusto: { select: { id: true, nome: true } },
             createdBy: { select: { id: true, name: true } },
             valores: {
@@ -83,6 +77,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
           orderBy: { ordem: 'asc' },
         }),
         fastify.prisma.solicitacaoMunicipe.count({ where: { entityId, status: 'NOVA' } }),
+        obterConfig(fastify.prisma, entityId),
       ]);
 
       const itens = registros.map(r => {
@@ -101,15 +96,19 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
           equipe: v['Equipe / Turma'] ?? '',
           tipo: v['Tipo de Serviço'] ?? '',
           status,
-          situacao: situacaoDe(status),
+          etapa: r.etapa,
+          executadoEm: r.executadoEm,
+          situacao: (r.etapa === 'FINALIZADA' ? 'concluida' : r.etapa === 'EXECUTADA' ? 'execucao' : r.etapa === 'CANCELADA' ? 'cancelada' : 'aberta') as Situacao,
           fotoId: r.midias[0]?.id ?? null,
           fotos: r._count.midias,
         };
       });
 
       const ativos = itens.filter(i => i.situacao !== 'cancelada');
-      const abertos = ativos.filter(i => i.situacao === 'aberta' || i.situacao === 'execucao');
-      const concluidos = ativos.filter(i => i.situacao === 'concluida');
+      /* abertas = ainda não executadas; executadas = baixa dada (finalizada ou aguardando conferência) */
+      const abertos = ativos.filter(i => i.situacao === 'aberta');
+      const aConferir = ativos.filter(i => i.situacao === 'execucao');
+      const concluidos = ativos.filter(i => i.executadoEm != null).map(i => ({ ...i, atualizadoEm: i.executadoEm! }));
       const doMes = ativos.filter(i => i.criadoEm >= mes0);
 
       /* ── KPIs ── */
@@ -137,7 +136,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
       /* ── Chegando do campo ── */
       const feed = itens.slice(0, 8).map(i => ({
         id: i.id, servico: i.servico, bairro: i.bairro, logradouro: i.logradouro, tipo: i.tipo,
-        status: i.status, situacao: i.situacao, criadoEm: i.criadoEm.toISOString(),
+        status: i.status, situacao: i.situacao, etapa: i.etapa, criadoEm: i.criadoEm.toISOString(),
         fiscal: i.fiscal.name, fotoId: i.fotoId, fotos: i.fotos, lat: i.lat, lng: i.lng,
       }));
 
@@ -198,10 +197,10 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
         agora: agora.toISOString(),
         kpis: {
           abertas: abertos.length,
-          emExecucao: abertos.filter(i => i.situacao === 'execucao').length,
+          emExecucao: aConferir.length,
           atrasadas: atrasados.length,
           concluidasSemana, concluidasSemanaAnterior,
-          tempoMedioDias, metaDias: META_DIAS,
+          tempoMedioDias, metaDias: cfgObras.metaDias,
           comFotoPct, semFoto: semFoto.length,
           registradasHoje: deHoje.length,
           totalMes: doMes.length,

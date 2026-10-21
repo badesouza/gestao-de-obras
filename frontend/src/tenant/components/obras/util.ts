@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { centralApi, mapaApi, type Situacao } from '../../../lib/api-client';
+import { centralApi, mapaApi, type Etapa, type RegistroDiarioRow, type Situacao } from '../../../lib/api-client';
 import { CENTRO_IDS, SERVICOS_CONFIG, type ServicoConfig } from '../../pages/servico-config';
 
 /* ── utilitários da linguagem visual nova (Sala de Situação e telas de serviço) ── */
@@ -31,8 +31,25 @@ export const servicoDoCentro = (centroId: string): ServicoConfig | undefined => 
   return slug ? SERVICOS_CONFIG[slug] : undefined;
 };
 
-/** Número da OS como aparece na impressão */
+/** Número da OS como aparece na impressão (o oficial, quando existe) */
 export const numeroOS = (id: string, dataISO: string) => `OS-${dataISO.slice(0, 4)}-${id.slice(0, 6).toUpperCase()}`;
+export const numeroDaOS = (row: Pick<RegistroDiarioRow, 'id' | 'data' | 'numeroOS'>) => row.numeroOS ?? numeroOS(row.id, row.data);
+
+/* ── etapas da ordem de serviço ── */
+export const ETAPA: Record<Etapa, { rotulo: string; classe: string; cor: string }> = {
+  AGUARDANDO_APROVACAO: { rotulo: 'Aguardando aprovação', classe: 'is-aprovacao',  cor: 'var(--ob-violeta)' },
+  REGISTRADA:           { rotulo: 'Registrada',           classe: 'is-aberta',     cor: 'var(--ob-blue)' },
+  EXECUTADA:            { rotulo: 'Executada · conferir', classe: 'is-execucao',   cor: 'var(--ob-amber)' },
+  FINALIZADA:           { rotulo: 'Finalizada',           classe: 'is-concluida',  cor: 'var(--ob-green)' },
+  CANCELADA:            { rotulo: 'Cancelada',            classe: 'is-cancelada',  cor: 'var(--ob-faint)' },
+};
+export const etapaAberta = (e: Etapa) => e === 'AGUARDANDO_APROVACAO' || e === 'REGISTRADA';
+/** Para registros antigos sem etapa, deduz pelo status de texto */
+export const etapaDe = (row: Pick<RegistroDiarioRow, 'etapa'>, statusTexto?: string): Etapa => {
+  if (row.etapa) return row.etapa;
+  const s = situacaoDe(statusTexto);
+  return s === 'concluida' ? 'FINALIZADA' : s === 'cancelada' ? 'CANCELADA' : 'REGISTRADA';
+};
 
 export const reduzMovimento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 

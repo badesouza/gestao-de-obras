@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { assertAcessoServico } from '../ordens/ordens.service.js';
 import { z } from 'zod';
 import {
   PERMISSION_CENTROS_CUSTO_MANAGE,
@@ -278,6 +279,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const query = monthQuerySchema.parse(request.query);
         const result = await listRegistrosDiarios(
           fastify.prisma,
@@ -299,6 +301,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const body = upsertRegistroDiarioSchema.parse(request.body);
         const row = await createRegistroDiario(
           fastify.prisma,
@@ -323,6 +326,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
           id: string;
           registroId: string;
         };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const body = upsertRegistroDiarioSchema.parse(request.body);
         const row = await updateRegistroDiario(
           fastify.prisma,
@@ -348,6 +352,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
           id: string;
           registroId: string;
         };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         await deleteRegistroDiario(
           fastify.prisma,
           request.user.sub,

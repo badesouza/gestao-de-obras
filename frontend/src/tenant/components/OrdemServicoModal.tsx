@@ -211,7 +211,16 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
     </>
   );
 
-  const numeroOS = gerarNumeroOS(row.id, row.data);
+  const numeroOS = row.numeroOS ?? gerarNumeroOS(row.id, row.data);
+  const quando = (iso?: string | null) => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const andamento = [
+    { nome: 'Registrada', feito: true, info: [quando(row.criadoEm), row.fiscal].filter(Boolean).join(' · ') },
+    ...(row.aprovadoEm || row.etapa === 'AGUARDANDO_APROVACAO'
+      ? [{ nome: 'Aprovada', feito: !!row.aprovadoEm, info: [quando(row.aprovadoEm), row.aprovadoPor].filter(Boolean).join(' · ') || 'aguardando aprovação' }]
+      : []),
+    { nome: 'Executada', feito: !!row.executadoEm, info: [quando(row.executadoEm), row.executadoPor].filter(Boolean).join(' · ') || 'aguardando baixa do fiscal' },
+    { nome: 'Finalizada', feito: !!row.finalizadoEm, info: [quando(row.finalizadoEm), row.finalizadoPor].filter(Boolean).join(' · ') || (row.etapa === 'CANCELADA' ? 'OS cancelada' : 'aguardando conferência') },
+  ];
   const municipio = session.entity.municipalityName ?? '';
   const uf = session.entity.uf ?? '';
 
@@ -268,6 +277,17 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
               <div className="os-data-emissao">Emitida em {formatDataBr(new Date().toISOString().slice(0,10))}</div>
             </div>
           </div>
+
+          {/* Andamento da OS */}
+          <ol className="os-andamento" aria-label="Andamento da ordem de serviço">
+            {andamento.map(a => (
+              <li key={a.nome} className={a.feito ? 'is-feito' : undefined}>
+                <i />
+                <strong>{a.nome}</strong>
+                <span>{a.info}</span>
+              </li>
+            ))}
+          </ol>
 
           <div className="os-divider" />
 

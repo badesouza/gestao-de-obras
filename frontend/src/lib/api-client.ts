@@ -348,13 +348,16 @@ export interface TenantSession {
   entity: { id: string; name: string; status: string; municipalityName: string | null; uf: string | null };
   role: { code: string; name: string };
   permissions: string[];
+  /** serviços (centros) que o usuário atende; null = todos */
+  servicosPermitidos: string[] | null;
+  obras: { podeAprovar: boolean; podeConferir: boolean; exigeAprovacaoOS: boolean; exigeConferencia: boolean; metaDias: number };
 }
 
 /* ── Sala de Situação ── */
 export type Situacao = 'aberta' | 'execucao' | 'concluida' | 'cancelada';
 export interface PainelFeedItem {
   id: string; servico: { id: string; nome: string }; bairro: string; logradouro: string; tipo: string;
-  status: string; situacao: Situacao; criadoEm: string; fiscal: string; fotoId: string | null; fotos: number;
+  status: string; situacao: Situacao; etapa: Etapa; criadoEm: string; fiscal: string; fotoId: string | null; fotos: number;
   lat: number | null; lng: number | null;
 }
 export interface PainelData {
@@ -604,7 +607,38 @@ export interface RegistroDiarioRow {
   fiscal?: string;
   fotoId?: string | null;
   fotos?: number;
+  numeroOS?: string | null;
+  etapa?: Etapa;
+  aprovadoEm?: string | null;
+  aprovadoPor?: string | null;
+  executadoEm?: string | null;
+  executadoPor?: string | null;
+  finalizadoEm?: string | null;
+  finalizadoPor?: string | null;
 }
+
+/* ── Ordem de serviço: etapas, regras e vínculos ── */
+export type Etapa = 'AGUARDANDO_APROVACAO' | 'REGISTRADA' | 'EXECUTADA' | 'FINALIZADA' | 'CANCELADA';
+export type AcaoOS = 'aprovar' | 'executar' | 'finalizar' | 'reabrir' | 'cancelar';
+export type PapelCodigo = 'ADMIN' | 'COORDENADOR' | 'FISCAL' | 'ENGINEER' | 'OPERATOR';
+export interface ConfiguracaoObras {
+  exigeAprovacaoOS: boolean; aprovadores: PapelCodigo[];
+  exigeConferencia: boolean; conferentes: PapelCodigo[]; metaDias: number;
+}
+
+export const ordensApi = {
+  acao: (entityId: string, registroId: string, acao: AcaoOS, observacao?: string) =>
+    tenantRequest<{ etapa: Etapa }>(entityId, `/api/tenant/v1/registros/${registroId}/etapa`, {
+      method: 'POST', body: JSON.stringify({ acao, ...(observacao ? { observacao } : {}) }),
+    }),
+  config: (entityId: string) => tenantRequest<ConfiguracaoObras>(entityId, '/api/tenant/v1/configuracoes/obras'),
+  salvarConfig: (entityId: string, cfg: ConfiguracaoObras) =>
+    tenantRequest<ConfiguracaoObras>(entityId, '/api/tenant/v1/configuracoes/obras', { method: 'PUT', body: JSON.stringify(cfg) }),
+  servicosDoUsuario: (entityId: string, userId: string) =>
+    tenantRequest<{ centroIds: string[] }>(entityId, `/api/tenant/v1/users/${userId}/servicos`),
+  definirServicos: (entityId: string, userId: string, centroIds: string[]) =>
+    tenantRequest<{ centroIds: string[] }>(entityId, `/api/tenant/v1/users/${userId}/servicos`, { method: 'PUT', body: JSON.stringify({ centroIds }) }),
+};
 
 export interface ProducaoDiariaDia {
   day: number;

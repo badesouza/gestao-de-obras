@@ -605,7 +605,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
     e.preventDefault();
     setError('');
     for (const c of config.campos) {
-      if (!c.obrigatorio) continue;
+      if (!c.obrigatorio || c.nome === 'Status') continue;
       const val = values[c.nome];
       if (c.tipo === 'boolean') continue;
       if (!val || String(val).trim() === '') {
@@ -764,7 +764,8 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
     );
   };
 
-  const camposNormais = config.campos.filter(c => c.tipo !== 'boolean');
+  /* a etapa da OS (Status) é controlada pelo sistema: não aparece no formulário */
+  const camposNormais = config.campos.filter(c => c.tipo !== 'boolean' && c.nome !== 'Status');
   const camposBool    = config.campos.filter(c => c.tipo === 'boolean');
 
   return createPortal(

@@ -106,6 +106,8 @@ model Entity {
   fornecedores                  Fornecedor[]
   sequencias                    Sequencia[]
   solicitacoesMunicipe          SolicitacaoMunicipe[]
+  configuracaoObras             ConfiguracaoObras?
+  usuarioServicos               UsuarioServico[]
 
   @@index([status])
   @@map("entities")
@@ -239,6 +241,10 @@ model TenantUser {
   pedidosCompraCreated            PedidoCompra[]            @relation("PedidoCompraCreatedBy")
   pedidoCompraRecebimentosCreated PedidoCompraRecebimento[] @relation("PedidoCompraRecebimentoCreatedBy")
   solicitacoesMunicipeAnalisadas  SolicitacaoMunicipe[]     @relation("SolicitacaoMunicipeAnalisadaPor")
+  osAprovadas                     RegistroDiario[]          @relation("OSAprovadaPor")
+  osExecutadas                    RegistroDiario[]          @relation("OSExecutadaPor")
+  osFinalizadas                   RegistroDiario[]          @relation("OSFinalizadaPor")
+  servicos                        UsuarioServico[]
 
   @@unique([entityId, email])
   @@index([entityId])
@@ -387,6 +393,7 @@ model CentroCusto {
   licitacoes         CentroCustoLicitacao[]
   propriedadeConfigs CentroCustoPropriedadeConfig[]
   registrosDiarios   RegistroDiario[]
+  usuarios           UsuarioServico[]
 
   @@unique([entityId, nome])
   @@index([entityId, status])
@@ -468,6 +475,20 @@ model RegistroDiario {
   midias              RegistroMidia[]
   solicitacaoMunicipe SolicitacaoMunicipe?
 
+  numeroOS        String?     @map("numero_os") @db.VarChar(20)
+  etapa           EtapaOS     @default(REGISTRADA)
+  aprovadoEm      DateTime?   @map("aprovado_em")
+  aprovadoPorId   String?     @map("aprovado_por_id")
+  executadoEm     DateTime?   @map("executado_em")
+  executadoPorId  String?     @map("executado_por_id")
+  finalizadoEm    DateTime?   @map("finalizado_em")
+  finalizadoPorId String?     @map("finalizado_por_id")
+  aprovadoPor     TenantUser? @relation("OSAprovadaPor", fields: [aprovadoPorId], references: [id])
+  executadoPor    TenantUser? @relation("OSExecutadaPor", fields: [executadoPorId], references: [id])
+  finalizadoPor   TenantUser? @relation("OSFinalizadaPor", fields: [finalizadoPorId], references: [id])
+
+  @@unique([entityId, numeroOS])
+  @@index([entityId, etapa])
   @@index([centroCustoId, data])
   @@index([entityId, centroCustoId, data])
   @@index([entityId, lat, lng])
@@ -748,4 +769,50 @@ model SolicitacaoMunicipeFoto {
 
   @@index([solicitacaoId])
   @@map("solicitacao_municipe_fotos")
+}
+
+/**
+ * ── Etapas da ordem de serviço ──
+ */
+enum EtapaOS {
+  AGUARDANDO_APROVACAO
+  REGISTRADA
+  EXECUTADA
+  FINALIZADA
+  CANCELADA
+}
+
+/**
+ * ── Regras da secretaria (configuráveis por entidade) ──
+ */
+model ConfiguracaoObras {
+  entityId         String   @id @map("entity_id")
+  exigeAprovacaoOS Boolean  @default(false) @map("exige_aprovacao_os")
+  aprovadores      String[] @default(["ADMIN", "COORDENADOR"])
+  exigeConferencia Boolean  @default(true) @map("exige_conferencia")
+  conferentes      String[] @default(["ADMIN", "COORDENADOR"])
+  metaDias         Int      @default(5) @map("meta_dias")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  entity Entity @relation(fields: [entityId], references: [id])
+
+  @@map("configuracoes_obras")
+}
+
+/**
+ * ── Serviços que cada usuário atende (nenhum = todos) ──
+ */
+model UsuarioServico {
+  userId        String   @map("user_id")
+  centroCustoId String   @map("centro_custo_id")
+  entityId      String   @map("entity_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user        TenantUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  centroCusto CentroCusto @relation(fields: [centroCustoId], references: [id], onDelete: Cascade)
+  entity      Entity      @relation(fields: [entityId], references: [id])
+
+  @@id([userId, centroCustoId])
+  @@index([entityId])
+  @@map("usuario_servicos")
 }

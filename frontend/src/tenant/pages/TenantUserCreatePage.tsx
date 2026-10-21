@@ -8,7 +8,9 @@ import { useTenant } from '../TenantContext';
 
 const ROLES = [
   { code: 'ADMIN', name: 'Administrador' },
-  { code: 'ENGINEER', name: 'Engenheiro/Fiscal' },
+  { code: 'COORDENADOR', name: 'Coordenador — aprova e confere as OS' },
+  { code: 'FISCAL', name: 'Fiscal — registra e dá baixa em campo' },
+  { code: 'ENGINEER', name: 'Engenheiro' },
   { code: 'OPERATOR', name: 'Operador' },
 ] as const;
 

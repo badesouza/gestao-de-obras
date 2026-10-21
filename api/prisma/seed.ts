@@ -16,6 +16,8 @@ import {
   TENANT_ROLE_ADMIN,
   TENANT_ROLE_ENGINEER,
   TENANT_ROLE_OPERATOR,
+  TENANT_ROLE_COORDENADOR,
+  TENANT_ROLE_FISCAL,
 } from '../src/shared/constants.js';
 
 const prisma = createPrismaClient();
@@ -47,6 +49,29 @@ const ROLES = [
       PERMISSION_DASHBOARD_VIEW,
       PERMISSION_LICITACOES_VIEW,
       PERMISSION_LICITACOES_ITEMS_IMPORT,
+      PERMISSION_CENTROS_CUSTO_VIEW,
+      PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT,
+    ],
+  },
+  {
+    code: TENANT_ROLE_COORDENADOR,
+    name: 'Coordenador',
+    description: 'Aprova e confere as ordens de serviço',
+    permissions: [
+      PERMISSION_DASHBOARD_VIEW,
+      PERMISSION_USERS_VIEW,
+      PERMISSION_LICITACOES_VIEW,
+      PERMISSION_CENTROS_CUSTO_VIEW,
+      PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT,
+    ],
+  },
+  {
+    code: TENANT_ROLE_FISCAL,
+    name: 'Fiscal',
+    description: 'Registra ocorrências e dá baixa em campo',
+    permissions: [
+      PERMISSION_DASHBOARD_VIEW,
+      PERMISSION_LICITACOES_VIEW,
       PERMISSION_CENTROS_CUSTO_VIEW,
       PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT,
     ],

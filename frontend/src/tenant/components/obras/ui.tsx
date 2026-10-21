@@ -1,5 +1,7 @@
-import type { Situacao } from '../../../lib/api-client';
-import { SITUACAO, useContador, useFotoUrl, horaDe } from './util';
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import type { Etapa, Situacao } from '../../../lib/api-client';
+import { ETAPA, SITUACAO, useContador, useFotoUrl, horaDe } from './util';
 import '../../styles/obras-ui.css';
 
 /* ── peças visuais compartilhadas ── */
@@ -85,5 +87,32 @@ export function FotoThumb({ entityId, fotoId, quando, cor, icone, tamanho = 80, 
       {url && quando && <span className="ob-thumb-hora"><b>{horaDe(quando)}</b><i /></span>}
       {url && contagem != null && contagem > 1 && <span className="ob-thumb-qtd">{contagem}</span>}
     </span>
+  );
+}
+
+export function EtapaBadge({ etapa }: { etapa: Etapa }) {
+  const e = ETAPA[etapa];
+  return <span className={`ob-badge ${e.classe}`}><i />{e.rotulo}</span>;
+}
+
+/** Janela de confirmação no visual novo (Esc fecha) */
+export function Dialogo({ titulo, subtitulo, children, acoes, onFechar }: {
+  titulo: string; subtitulo?: string; children?: React.ReactNode; acoes: React.ReactNode; onFechar: () => void;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onFechar]);
+  return createPortal(
+    <div className="ob-dialogo-fundo" onClick={onFechar}>
+      <div className="ob-dialogo ob-claro" role="dialog" aria-modal="true" aria-label={titulo} onClick={e => e.stopPropagation()}>
+        <h2>{titulo}</h2>
+        {subtitulo && <p className="ob-dialogo-sub">{subtitulo}</p>}
+        {children}
+        <div className="ob-dialogo-acoes">{acoes}</div>
+      </div>
+    </div>,
+    document.body,
   );
 }

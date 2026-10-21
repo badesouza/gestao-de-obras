@@ -1,3 +1,4 @@
+import { obterConfig, poderesDoPapel, servicosDoUsuario } from '../ordens/ordens.service.js';
 import bcrypt from 'bcryptjs';
 import type { PrismaClient, Prisma } from '../../../../generated/prisma/index.js';
 import {
@@ -117,6 +118,7 @@ export async function getTenantUserProfile(
   }
 
   const permissions = await getTenantUserPermissions(prisma, user.id);
+  const [cfg, servicos] = await Promise.all([obterConfig(prisma, entityId), servicosDoUsuario(prisma, user.id)]);
 
   return {
     id: user.id,
@@ -129,6 +131,13 @@ export async function getTenantUserProfile(
       name: user.role.name,
     },
     permissions,
+    servicosPermitidos: servicos.length ? servicos : null,
+    obras: {
+      ...poderesDoPapel(cfg, user.role.code),
+      exigeAprovacaoOS: cfg.exigeAprovacaoOS,
+      exigeConferencia: cfg.exigeConferencia,
+      metaDias: cfg.metaDias,
+    },
   };
 }
 

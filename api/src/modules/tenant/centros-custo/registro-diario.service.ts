@@ -1,6 +1,7 @@
 import type { PrismaClient, PropriedadeTipo } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
+import { iniciarOrdemServico, sincronizarStatusTexto } from '../ordens/ordens.service.js';
 import {
   assertCentroActive,
   getCentroForEntity,
@@ -195,6 +196,9 @@ export async function listRegistrosDiarios(
         include: { itens: true, propriedade: true },
       },
       createdBy: { select: { name: true } },
+      aprovadoPor: { select: { name: true } },
+      executadoPor: { select: { name: true } },
+      finalizadoPor: { select: { name: true } },
       midias: { where: { tipo: 'foto' }, orderBy: { createdAt: 'asc' }, take: 1, select: { id: true } },
       _count: { select: { midias: true } },
     },
@@ -211,6 +215,14 @@ export async function listRegistrosDiarios(
       fiscal: row.createdBy.name,
       fotoId: row.midias[0]?.id ?? null,
       fotos: row._count.midias,
+      numeroOS: row.numeroOS,
+      etapa: row.etapa,
+      aprovadoEm: row.aprovadoEm?.toISOString() ?? null,
+      aprovadoPor: row.aprovadoPor?.name ?? null,
+      executadoEm: row.executadoEm?.toISOString() ?? null,
+      executadoPor: row.executadoPor?.name ?? null,
+      finalizadoEm: row.finalizadoEm?.toISOString() ?? null,
+      finalizadoPor: row.finalizadoPor?.name ?? null,
     })),
   };
 }
@@ -247,6 +259,9 @@ export async function createRegistroDiario(
     input.values,
     activeConfigs,
   );
+
+  /* número oficial da OS e etapa inicial (conforme as regras da secretaria) */
+  await iniciarOrdemServico(prisma, entityId, registro.id, centroId);
 
   await writeTenantAudit(prisma, {
     entityId,
@@ -305,6 +320,9 @@ export async function updateRegistroDiario(
     input.values,
     activeConfigs,
   );
+
+  /* o status segue a etapa da OS: editar o formulário não muda a etapa */
+  await sincronizarStatusTexto(prisma, entityId, registroId, centroId, existing.etapa);
 
   await writeTenantAudit(prisma, {
     entityId,

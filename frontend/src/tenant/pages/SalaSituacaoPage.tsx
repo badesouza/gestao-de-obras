@@ -3,9 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { tenantApi, type PainelData } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { MapaServicos } from '../components/MapaServicos';
-import { SERVICOS_CONFIG } from './servico-config';
+import { CENTRO_IDS, SERVICOS_CONFIG } from './servico-config';
 import { useOnline } from '../../lib/offline/pwa';
-import { Anel, Badge, FotoThumb, Kpi, KpiCarregando, Medidor, Sparkline } from '../components/obras/ui';
+import { Anel, EtapaBadge, FotoThumb, Kpi, KpiCarregando, Medidor, Sparkline } from '../components/obras/ui';
 import { haQuanto, iniciais, nomeCurto, servicoDoCentro, slugDoCentro } from '../components/obras/util';
 
 /* ── Sala de Situação ─────────────────────────────────────────────
@@ -23,7 +23,7 @@ function dataLonga(d: Date) {
   return `${dia.charAt(0).toUpperCase()}${dia.slice(1).replace('-feira', '')}, ${d.getDate()} de ${MESES[d.getMonth()]}`;
 }
 
-function MenuNova({ entityId }: { entityId: string }) {
+function MenuNova({ entityId, permitidos }: { entityId: string; permitidos: string[] | null }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -42,7 +42,7 @@ function MenuNova({ entityId }: { entityId: string }) {
       {aberto && (
         <div className="ob-menu">
           <span className="ob-menu-titulo">Qual serviço?</span>
-          {Object.values(SERVICOS_CONFIG).map((s, i) => (
+          {Object.values(SERVICOS_CONFIG).filter(s => !permitidos || permitidos.includes(CENTRO_IDS[s.slug])).map((s, i) => (
             <button key={s.slug} type="button" className="ob-menu-item ob-reveal" style={{ '--i': i, '--serv-cor': s.cor } as React.CSSProperties}
               onClick={() => navigate(`/t/${entityId}/servicos/${s.slug}?nova=1`)}>
               <span className="ob-menu-icone">{s.icon}</span>
@@ -111,7 +111,7 @@ export function SalaSituacaoPage() {
               <span><b>{dados.fiscais.total}</b> {dados.fiscais.total === 1 ? 'fiscal registrou' : 'fiscais registraram'} hoje</span>
             </div>
           )}
-          <MenuNova entityId={entityId} />
+          <MenuNova entityId={entityId} permitidos={session.servicosPermitidos} />
         </div>
       </header>
 
@@ -120,7 +120,7 @@ export function SalaSituacaoPage() {
         {!k ? [1, 2, 3, 4].map(n => <KpiCarregando key={n} />) : (
           <>
             <Kpi i={1} rotulo="Abertas agora" valor={k.abertas} cor="var(--ob-blue)"
-              nota={k.atrasadas > 0 ? `${k.atrasadas} ${k.atrasadas === 1 ? 'passou' : 'passaram'} de 7 dias` : 'nenhuma atrasada'}
+              nota={k.atrasadas > 0 ? `${k.atrasadas} ${k.atrasadas === 1 ? 'passou' : 'passaram'} de 7 dias` : k.emExecucao > 0 ? `${k.emExecucao} executadas aguardando conferência` : 'nenhuma atrasada'}
               tom={k.atrasadas > 0 ? 'ruim' : 'ok'}
               grafico={<Sparkline valores={dados!.serie.map(s => s.registradas)} cor="var(--ob-blue)" />} />
             <Kpi i={2} rotulo="Concluídas na semana" valor={k.concluidasSemana} cor="var(--ob-green)"
@@ -178,7 +178,7 @@ export function SalaSituacaoPage() {
                       <span className="ob-feed-local">{[f.bairro, f.logradouro].filter(Boolean).join(' · ') || 'Sem local informado'}</span>
                       <span className="ob-feed-meta">{nomeCurto(f.fiscal)} · {haQuanto(f.criadoEm, agora.getTime())}</span>
                       <span className="ob-feed-tags">
-                        <Badge situacao={f.situacao} />
+                        <EtapaBadge etapa={f.etapa} />
                         {f.lat != null && <span className="ob-tag tom-ok">GPS</span>}
                         {f.fotos === 0 && <span className="ob-tag tom-alerta">sem foto</span>}
                       </span>
@@ -263,8 +263,8 @@ export function SalaSituacaoPage() {
               })}
             {dados && dados.porServico.length > 0 && (
               <div className="ob-legenda">
-                <span><i style={{ background: 'var(--ob-green)' }} />concluída</span>
-                <span><i style={{ background: 'var(--ob-amber)' }} />em execução</span>
+                <span><i style={{ background: 'var(--ob-green)' }} />finalizada</span>
+                <span><i style={{ background: 'var(--ob-amber)' }} />executada · a conferir</span>
                 <span><i style={{ background: 'var(--ob-blue)' }} />aberta</span>
               </div>
             )}
