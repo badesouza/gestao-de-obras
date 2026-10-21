@@ -1,4 +1,5 @@
 import { obterConfig, poderesDoPapel, servicosDoUsuario } from '../ordens/ordens.service.js';
+import { poderesCompra } from '../compras/compras-fluxo.service.js';
 import bcrypt from 'bcryptjs';
 import type { PrismaClient, Prisma } from '../../../../generated/prisma/index.js';
 import {
@@ -134,6 +135,8 @@ export async function getTenantUserProfile(
     servicosPermitidos: servicos.length ? servicos : null,
     obras: {
       ...poderesDoPapel(cfg, user.role.code),
+      ...poderesCompra(cfg, user.role.code),
+      exigeAprovacaoCompra: cfg.exigeAprovacaoCompra,
       exigeAprovacaoOS: cfg.exigeAprovacaoOS,
       exigeConferencia: cfg.exigeConferencia,
       metaDias: cfg.metaDias,

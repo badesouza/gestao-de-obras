@@ -33,7 +33,7 @@ export const createSolicitacaoSchema = z.object({
 });
 
 export const pedidosQuerySchema = z.object({
-  status: z.enum(['DRAFT', 'SENT', 'PARTIAL', 'RECEIVED', 'CANCELLED']).optional(),
+  status: z.enum(['DRAFT', 'EM_REVISAO', 'AGUARDANDO_APROVACAO', 'APROVADO', 'SENT', 'PARTIAL', 'RECEIVED', 'CANCELLED']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
 });

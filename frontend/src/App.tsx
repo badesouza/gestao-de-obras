@@ -30,6 +30,8 @@ import { ultimoTenant } from './lib/offline/pwa';
 import { CentralMunicipePage } from './municipe/CentralMunicipePage';
 import { CentralMunicipeAdminPage } from './tenant/pages/CentralMunicipeAdminPage';
 import { ConfiguracoesPage } from './tenant/pages/ConfiguracoesPage';
+import { PedidosCompraPage } from './tenant/pages/PedidosCompraPage';
+import { SaldosPage } from './tenant/pages/SaldosPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
@@ -63,6 +65,8 @@ function App() {
           <Route path="servicos" element={<ServicosPage />} />
           <Route path="central-municipe" element={<CentralMunicipeAdminPage />} />
           <Route path="configuracoes" element={<ConfiguracoesPage />} />
+          <Route path="pedidos" element={<PedidosCompraPage />} />
+          <Route path="saldos" element={<SaldosPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
           <Route path="compras" element={<ComprasPage />} />
           <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />

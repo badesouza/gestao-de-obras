@@ -58,7 +58,11 @@ export function ConfiguracoesPage() {
     if (!cfg) return;
     setSalvando(true); setMsg(null);
     try {
-      const r = await ordensApi.salvarConfig(entityId, { ...cfg, aprovadores: comAdmin(cfg.aprovadores), conferentes: comAdmin(cfg.conferentes) });
+      const r = await ordensApi.salvarConfig(entityId, {
+        ...cfg,
+        aprovadores: comAdmin(cfg.aprovadores), conferentes: comAdmin(cfg.conferentes),
+        revisoresCompra: comAdmin(cfg.revisoresCompra), aprovadoresCompra: comAdmin(cfg.aprovadoresCompra),
+      });
       setCfg(r); setSalvo(JSON.stringify(r));
       setMsg({ tipo: 'ok', texto: 'Regras salvas. Valem para as próximas OS; cada pessoa vê a mudança no próximo acesso.' });
     } catch (e) {
@@ -82,8 +86,8 @@ export function ConfiguracoesPage() {
           </span>
           <div className="ob-head-texto">
             <span className="ob-eyebrow ob-eyebrow-serv">Configurações</span>
-            <h1 className="ob-h1">Regras das ordens de serviço</h1>
-            <p className="ob-sub">Defina o caminho de cada OS e quem pode aprovar e conferir.</p>
+            <h1 className="ob-h1">Regras da secretaria</h1>
+            <p className="ob-sub">Defina o caminho de cada OS e de cada compra, e quem pode aprovar e conferir.</p>
           </div>
         </div>
         {podeEditar && (
@@ -140,6 +144,22 @@ export function ConfiguracoesPage() {
             </section>
 
             <section className="ob-card cf-bloco ob-reveal" style={{ '--i': 4 } as React.CSSProperties}>
+              <div className="cf-linha">
+                <div>
+                  <h2>Revisão e aprovação das compras</h2>
+                  <p>Todo pedido de compra é revisado e aprovado antes de ir ao fornecedor. Quem revisa não aprova o mesmo pedido.</p>
+                </div>
+                <Interruptor ligado={cfg.exigeAprovacaoCompra} onMudar={v => podeEditar && set('exigeAprovacaoCompra', v)} rotulo="Exigir revisão e aprovação das compras" />
+              </div>
+              {cfg.exigeAprovacaoCompra && <>
+                <span className="cf-rotulo">Quem revisa</span>
+                <EscolhaPapeis valor={cfg.revisoresCompra} onMudar={v => set('revisoresCompra', v)} desabilitado={!podeEditar} />
+                <span className="cf-rotulo">Quem aprova</span>
+                <EscolhaPapeis valor={cfg.aprovadoresCompra} onMudar={v => set('aprovadoresCompra', v)} desabilitado={!podeEditar} />
+              </>}
+            </section>
+
+            <section className="ob-card cf-bloco ob-reveal" style={{ '--i': 5 } as React.CSSProperties}>
               <div className="cf-linha">
                 <div>
                   <h2>Meta de atendimento</h2>

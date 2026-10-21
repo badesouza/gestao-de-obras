@@ -197,6 +197,19 @@ export function SalaSituacaoPage() {
           <div className="ob-alertas">
             {!dados ? <span className="ob-skeleton" style={{ height: 180 }} /> : (
               <>
+                {(() => {
+                  const c = dados.comprasPendentes;
+                  const minhas = (session.obras.podeRevisarCompra ? c.emRevisao : 0) + (session.obras.podeAprovarCompra ? c.aguardandoAprovacao : 0);
+                  return minhas > 0 && (
+                    <Link to={`${base}/pedidos`} className="ob-alerta tom-alerta ob-alerta-link">
+                      <span className="ob-alerta-num">{minhas}</span>
+                      <div className="ob-alerta-texto">
+                        <strong>Compras esperando você</strong>
+                        <span>{[session.obras.podeRevisarCompra && c.emRevisao ? `${c.emRevisao} para revisar` : '', session.obras.podeAprovarCompra && c.aguardandoAprovacao ? `${c.aguardandoAprovacao} para aprovar` : ''].filter(Boolean).join(' · ')}</span>
+                      </div>
+                    </Link>
+                  );
+                })()}
                 {dados.pedidosMunicipeNovos > 0 && (
                   <Link to={`${base}/central-municipe`} className="ob-alerta tom-alerta ob-alerta-link">
                     <span className="ob-alerta-num">{dados.pedidosMunicipeNovos}</span>

@@ -350,7 +350,10 @@ export interface TenantSession {
   permissions: string[];
   /** serviços (centros) que o usuário atende; null = todos */
   servicosPermitidos: string[] | null;
-  obras: { podeAprovar: boolean; podeConferir: boolean; exigeAprovacaoOS: boolean; exigeConferencia: boolean; metaDias: number };
+  obras: {
+    podeAprovar: boolean; podeConferir: boolean; exigeAprovacaoOS: boolean; exigeConferencia: boolean; metaDias: number;
+    podeRevisarCompra: boolean; podeAprovarCompra: boolean; exigeAprovacaoCompra: boolean;
+  };
 }
 
 /* ── Sala de Situação ── */
@@ -379,6 +382,7 @@ export interface PainelData {
   equipes: { nome: string; hoje: number; ultimo: string | null }[];
   fiscais: { total: number; nomes: string[] };
   pedidosMunicipeNovos: number;
+  comprasPendentes: { emRevisao: number; aguardandoAprovacao: number; aprovadosParaEnviar: number };
 }
 
 export interface TenantDashboard {
@@ -460,7 +464,8 @@ export interface LicitacaoItem {
 }
 
 export type SolicitacaoServicoStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CONSOLIDATED';
-export type PedidoCompraStatus = 'DRAFT' | 'SENT' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+export type PedidoCompraStatus = 'DRAFT' | 'EM_REVISAO' | 'AGUARDANDO_APROVACAO' | 'APROVADO' | 'SENT' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+export type AcaoPedido = 'enviar_revisao' | 'revisar' | 'aprovar' | 'devolver' | 'enviar_fornecedor';
 
 export interface CompraSolicitacao {
   id: string;
@@ -501,6 +506,16 @@ export interface PedidoCompra {
   createdAt: string;
   updatedAt: string;
   createdBy: UserRef;
+  enviadoRevisaoEm?: string | null;
+  revisadoEm?: string | null;
+  revisadoPor?: UserRef | null;
+  aprovadoEm?: string | null;
+  aprovadoPor?: UserRef | null;
+  devolvidoEm?: string | null;
+  devolvidoMotivo?: string | null;
+  fornecedores?: string[];
+  licitacoes?: string[];
+  servicos?: string[];
   valorTotal: string;
   quantidadeTotal: string;
   quantidadeRecebida: string;
@@ -624,6 +639,16 @@ export type PapelCodigo = 'ADMIN' | 'COORDENADOR' | 'FISCAL' | 'ENGINEER' | 'OPE
 export interface ConfiguracaoObras {
   exigeAprovacaoOS: boolean; aprovadores: PapelCodigo[];
   exigeConferencia: boolean; conferentes: PapelCodigo[]; metaDias: number;
+  exigeAprovacaoCompra: boolean; revisoresCompra: PapelCodigo[]; aprovadoresCompra: PapelCodigo[];
+}
+
+export interface SaldoLicitacao {
+  id: string; identificacao: string; objeto: string; fornecedor: string | null;
+  valores: { contratado: string; pedido: string; reservado: string; recebido: string; disponivel: string };
+  itens: {
+    id: string; categoria: string | null; descricao: string; unidade: string; valorUnitario: string;
+    contratado: string | null; pedido: string; reservado: string; recebido: string; disponivel: string | null;
+  }[];
 }
 
 export const ordensApi = {
@@ -862,6 +887,11 @@ export const tenantApi = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    fluxoPedido: (entityId: string, pedidoId: string, acao: AcaoPedido, motivo?: string) =>
+      tenantRequest<{ status: PedidoCompraStatus }>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}/fluxo`, {
+        method: 'POST', body: JSON.stringify({ acao, ...(motivo ? { motivo } : {}) }),
+      }),
+    saldos: (entityId: string) => tenantRequest<{ licitacoes: SaldoLicitacao[] }>(entityId, '/api/tenant/v1/compras/saldos'),
     sendPedido: (entityId: string, pedidoId: string) =>
       tenantRequest<PedidoCompra>(entityId, `/api/tenant/v1/compras/pedidos/${pedidoId}/send`, { method: 'POST' }),
     cancelPedido: (entityId: string, pedidoId: string) =>

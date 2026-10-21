@@ -6,16 +6,19 @@ import type {
 import { Prisma } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
+import { statusInicialDoPedido } from './compras-fluxo.service.js';
 
 type Tx = Prisma.TransactionClient;
 
 const pedidoInclude = {
   createdBy: { select: { id: true, name: true } },
+  revisadoPor: { select: { id: true, name: true } },
+  aprovadoPor: { select: { id: true, name: true } },
   itens: {
     include: {
       licitacaoItem: {
         include: {
-          licitacao: { select: { id: true, identificacao: true, objeto: true } },
+          licitacao: { select: { id: true, identificacao: true, objeto: true, fornecedor: { select: { razaoSocial: true } } } },
         },
       },
       origens: true,
@@ -149,7 +152,7 @@ function pedidoStatusFromItens(
   itens: Array<{ quantidadeTotal: Prisma.Decimal; recebimentos: Array<{ quantidade: Prisma.Decimal }> }>,
   current: PedidoCompraStatus,
 ): PedidoCompraStatus {
-  if (current === 'DRAFT' || current === 'CANCELLED') return current;
+  if (current !== 'SENT' && current !== 'PARTIAL' && current !== 'RECEIVED') return current;
   const totalPedido = itens.reduce((sum, item) => sum.plus(item.quantidadeTotal), new Prisma.Decimal(0));
   const totalRecebido = itens.reduce(
     (sum, item) => sum.plus(item.recebimentos.reduce((s, r) => s.plus(r.quantidade), new Prisma.Decimal(0))),
@@ -210,6 +213,16 @@ function toPedidoDto(pedido: Awaited<ReturnType<typeof getPedidoById>>) {
     status: pedido.status,
     observacoes: pedido.observacoes,
     sentAt: pedido.sentAt?.toISOString() ?? null,
+    enviadoRevisaoEm: pedido.enviadoRevisaoEm?.toISOString() ?? null,
+    revisadoEm: pedido.revisadoEm?.toISOString() ?? null,
+    revisadoPor: pedido.revisadoPor,
+    aprovadoEm: pedido.aprovadoEm?.toISOString() ?? null,
+    aprovadoPor: pedido.aprovadoPor,
+    devolvidoEm: pedido.devolvidoEm?.toISOString() ?? null,
+    devolvidoMotivo: pedido.devolvidoMotivo,
+    fornecedores: Array.from(new Set(pedido.itens.map(i => i.licitacaoItem.licitacao.fornecedor?.razaoSocial).filter((x): x is string => !!x))),
+    licitacoes: Array.from(new Set(pedido.itens.map(i => i.licitacaoItem.licitacao.identificacao))),
+    servicos: Array.from(new Set(pedido.itens.flatMap(i => i.origens.map(o => o.servicoNome)))),
     createdAt: pedido.createdAt.toISOString(),
     updatedAt: pedido.updatedAt.toISOString(),
     createdBy: pedido.createdBy,
@@ -220,12 +233,22 @@ function toPedidoDto(pedido: Awaited<ReturnType<typeof getPedidoById>>) {
   };
 }
 
+/** Próximo número (atômico e sem repetição, mesmo se algum foi excluído).
+    O contador nunca fica abaixo do maior número já usado. */
 async function nextNumero(prisma: Tx | PrismaClient, entityId: string, prefix: string, table: 'solicitacao' | 'pedido') {
   const year = new Date().getFullYear();
-  const count = table === 'solicitacao'
-    ? await prisma.solicitacaoServico.count({ where: { entityId, numero: { startsWith: `${prefix}-${year}-` } } })
-    : await prisma.pedidoCompra.count({ where: { entityId, numero: { startsWith: `${prefix}-${year}-` } } });
-  return `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
+  const chave = `${prefix}-${year}`;
+  const where = { entityId, numero: { startsWith: `${chave}-` } };
+  const existentes = table === 'solicitacao'
+    ? await prisma.solicitacaoServico.findMany({ where, select: { numero: true } })
+    : await prisma.pedidoCompra.findMany({ where, select: { numero: true } });
+  const maior = existentes.reduce((m, r) => Math.max(m, Number(r.numero.split('-').pop()) || 0), 0);
+  const rows = await prisma.$queryRaw<{ ultimo: number }[]>`
+    INSERT INTO sequencias (entity_id, chave, ultimo, updated_at)
+    VALUES (${entityId}, ${chave}, ${maior + 1}, now())
+    ON CONFLICT (entity_id, chave) DO UPDATE SET ultimo = GREATEST(sequencias.ultimo, ${maior}) + 1, updated_at = now()
+    RETURNING ultimo`;
+  return `${chave}-${String(Number(rows[0]!.ultimo)).padStart(4, '0')}`;
 }
 
 export async function getSolicitacaoById(prisma: PrismaClient | Tx, entityId: string, id: string) {
@@ -482,13 +505,15 @@ export async function createPedidoFromSolicitacoes(
     }
 
     const numero = await nextNumero(tx, entityId, 'PC', 'pedido');
+    const statusInicial = await statusInicialDoPedido(tx, entityId, body.send);
     const now = new Date();
     const created = await tx.pedidoCompra.create({
       data: {
         entityId,
         numero,
-        status: body.send ? 'SENT' : 'DRAFT',
-        sentAt: body.send ? now : null,
+        status: statusInicial,
+        sentAt: statusInicial === 'SENT' ? now : null,
+        enviadoRevisaoEm: statusInicial === 'EM_REVISAO' ? now : null,
         observacoes: body.observacoes ?? null,
         createdByUserId: actorId,
       },
@@ -589,7 +614,11 @@ export async function createPedidoFromSolicitacoes(
 export async function sendPedido(prisma: PrismaClient, actorId: string, entityId: string, id: string) {
   const pedido = await prisma.$transaction(async (tx) => {
     const current = await getPedidoById(tx, entityId, id);
-    if (current.status !== 'DRAFT') throw new AppError(409, 'STATUS_INVALIDO', 'Somente pedido em rascunho pode ser enviado');
+    const cfg = await tx.configuracaoObras.findUnique({ where: { entityId }, select: { exigeAprovacaoCompra: true } });
+    const exige = cfg?.exigeAprovacaoCompra ?? true;
+    if (!(current.status === 'APROVADO' || (current.status === 'DRAFT' && !exige))) {
+      throw new AppError(409, 'STATUS_INVALIDO', exige ? 'O pedido precisa ser revisado e aprovado antes de ir ao fornecedor' : 'Somente pedido em rascunho pode ser enviado');
+    }
     const updated = await tx.pedidoCompra.update({
       where: { id },
       data: { status: 'SENT', sentAt: new Date() },
@@ -686,7 +715,7 @@ export async function createRecebimento(
       include: { pedidoCompra: true, recebimentos: true },
     });
     if (!item) throw new AppError(404, 'NOT_FOUND', 'Item do pedido não encontrado');
-    if (item.pedidoCompra.status === 'DRAFT' || item.pedidoCompra.status === 'CANCELLED') {
+    if (!['SENT', 'PARTIAL', 'RECEIVED'].includes(item.pedidoCompra.status)) {
       throw new AppError(409, 'STATUS_INVALIDO', 'Pedido ainda não está disponível para recebimento');
     }
     const quantidade = decimal(body.quantidade);

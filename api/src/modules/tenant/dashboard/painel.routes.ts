@@ -49,7 +49,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
       const mes0 = (() => { const l = new Date(agora.getTime() + FUSO_MS); return new Date(Date.UTC(l.getUTCFullYear(), l.getUTCMonth(), 1) - FUSO_MS); })();
       const janela0 = new Date(hoje0.getTime() - 180 * dia);
 
-      const [registros, bairros, equipesCadastro, pedidosNovos, cfgObras] = await Promise.all([
+      const [registros, bairros, equipesCadastro, pedidosNovos, cfgObras, pedidosFluxo] = await Promise.all([
         fastify.prisma.registroDiario.findMany({
           where: { entityId, createdAt: { gte: janela0 } },
           select: {
@@ -78,6 +78,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
         }),
         fastify.prisma.solicitacaoMunicipe.count({ where: { entityId, status: 'NOVA' } }),
         obterConfig(fastify.prisma, entityId),
+        fastify.prisma.pedidoCompra.groupBy({ by: ['status'], where: { entityId, status: { in: ['EM_REVISAO', 'AGUARDANDO_APROVACAO', 'APROVADO'] } }, _count: { _all: true } }),
       ]);
 
       const itens = registros.map(r => {
@@ -212,6 +213,11 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
         equipes,
         fiscais: { total: fiscaisMap.size, nomes: Array.from(fiscaisMap.values()) },
         pedidosMunicipeNovos: pedidosNovos,
+        comprasPendentes: {
+          emRevisao: pedidosFluxo.find(x => x.status === 'EM_REVISAO')?._count._all ?? 0,
+          aguardandoAprovacao: pedidosFluxo.find(x => x.status === 'AGUARDANDO_APROVACAO')?._count._all ?? 0,
+          aprovadosParaEnviar: pedidosFluxo.find(x => x.status === 'APROVADO')?._count._all ?? 0,
+        },
       });
     } catch (e) {
       return handleAppError(reply, e);

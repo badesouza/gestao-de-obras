@@ -32,6 +32,10 @@ function statusPedidoLabel(status: string): string {
   if (status === 'RECEIVED') return 'Atendido';
   if (status === 'SENT') return 'Enviado';
   if (status === 'DRAFT') return 'Rascunho';
+  if (status === 'EM_REVISAO') return 'Em revisão';
+  if (status === 'AGUARDANDO_APROVACAO') return 'Aguardando aprovação';
+  if (status === 'APROVADO') return 'Aprovado — enviar ao fornecedor';
+  if (status === 'CANCELLED') return 'Cancelado';
   return status;
 }
 

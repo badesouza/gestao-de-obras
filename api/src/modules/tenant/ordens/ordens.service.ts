@@ -24,13 +24,16 @@ export async function obterConfig(prisma: PrismaClient, entityId: string) {
 
 export async function salvarConfig(
   prisma: PrismaClient, entityId: string, userId: string,
-  dados: { exigeAprovacaoOS: boolean; aprovadores: string[]; exigeConferencia: boolean; conferentes: string[]; metaDias: number },
+  dados: {
+    exigeAprovacaoOS: boolean; aprovadores: string[]; exigeConferencia: boolean; conferentes: string[]; metaDias: number;
+    exigeAprovacaoCompra: boolean; revisoresCompra: string[]; aprovadoresCompra: string[];
+  },
 ) {
   const filtra = (l: string[]) => Array.from(new Set(l.filter(p => (PAPEIS_CONFIGURAVEIS as readonly string[]).includes(p))));
   const cfg = await prisma.configuracaoObras.upsert({
     where: { entityId },
-    update: { ...dados, aprovadores: filtra(dados.aprovadores), conferentes: filtra(dados.conferentes) },
-    create: { entityId, ...dados, aprovadores: filtra(dados.aprovadores), conferentes: filtra(dados.conferentes) },
+    update: { ...dados, aprovadores: filtra(dados.aprovadores), conferentes: filtra(dados.conferentes), revisoresCompra: filtra(dados.revisoresCompra), aprovadoresCompra: filtra(dados.aprovadoresCompra) },
+    create: { entityId, ...dados, aprovadores: filtra(dados.aprovadores), conferentes: filtra(dados.conferentes), revisoresCompra: filtra(dados.revisoresCompra), aprovadoresCompra: filtra(dados.aprovadoresCompra) },
   });
   await writeTenantAudit(prisma, { entityId, userId, action: 'CONFIG_OBRAS_UPDATED', resource: 'configuracao_obras', newValue: dados });
   return cfg;

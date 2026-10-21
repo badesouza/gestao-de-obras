@@ -43,6 +43,9 @@ enum SolicitacaoServicoStatus {
 
 enum PedidoCompraStatus {
   DRAFT
+  EM_REVISAO
+  AGUARDANDO_APROVACAO
+  APROVADO
   SENT
   PARTIAL
   RECEIVED
@@ -245,6 +248,8 @@ model TenantUser {
   osExecutadas                    RegistroDiario[]          @relation("OSExecutadaPor")
   osFinalizadas                   RegistroDiario[]          @relation("OSFinalizadaPor")
   servicos                        UsuarioServico[]
+  pedidosRevisados                PedidoCompra[]            @relation("PedidoRevisadoPor")
+  pedidosAprovados                PedidoCompra[]            @relation("PedidoAprovadoPor")
 
   @@unique([entityId, email])
   @@index([entityId])
@@ -614,15 +619,24 @@ model SolicitacaoServicoItem {
 }
 
 model PedidoCompra {
-  id              String             @id @default(uuid())
-  entityId        String             @map("entity_id")
-  numero          String             @db.VarChar(30)
-  status          PedidoCompraStatus @default(DRAFT)
-  observacoes     String?            @db.VarChar(2000)
-  createdByUserId String             @map("created_by_user_id")
-  sentAt          DateTime?          @map("sent_at")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  id               String             @id @default(uuid())
+  entityId         String             @map("entity_id")
+  numero           String             @db.VarChar(30)
+  status           PedidoCompraStatus @default(DRAFT)
+  observacoes      String?            @db.VarChar(2000)
+  createdByUserId  String             @map("created_by_user_id")
+  sentAt           DateTime?          @map("sent_at")
+  enviadoRevisaoEm DateTime?          @map("enviado_revisao_em")
+  revisadoEm       DateTime?          @map("revisado_em")
+  revisadoPorId    String?            @map("revisado_por_id")
+  aprovadoEm       DateTime?          @map("aprovado_em")
+  aprovadoPorId    String?            @map("aprovado_por_id")
+  devolvidoEm      DateTime?          @map("devolvido_em")
+  devolvidoMotivo  String?            @map("devolvido_motivo") @db.VarChar(1000)
+  revisadoPor      TenantUser?        @relation("PedidoRevisadoPor", fields: [revisadoPorId], references: [id])
+  aprovadoPor      TenantUser?        @relation("PedidoAprovadoPor", fields: [aprovadoPorId], references: [id])
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
 
   entity    Entity             @relation(fields: [entityId], references: [id])
   createdBy TenantUser         @relation("PedidoCompraCreatedBy", fields: [createdByUserId], references: [id])
@@ -786,13 +800,16 @@ enum EtapaOS {
  * ── Regras da secretaria (configuráveis por entidade) ──
  */
 model ConfiguracaoObras {
-  entityId         String   @id @map("entity_id")
-  exigeAprovacaoOS Boolean  @default(false) @map("exige_aprovacao_os")
-  aprovadores      String[] @default(["ADMIN", "COORDENADOR"])
-  exigeConferencia Boolean  @default(true) @map("exige_conferencia")
-  conferentes      String[] @default(["ADMIN", "COORDENADOR"])
-  metaDias         Int      @default(5) @map("meta_dias")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  entityId             String   @id @map("entity_id")
+  exigeAprovacaoOS     Boolean  @default(false) @map("exige_aprovacao_os")
+  aprovadores          String[] @default(["ADMIN", "COORDENADOR"])
+  exigeConferencia     Boolean  @default(true) @map("exige_conferencia")
+  conferentes          String[] @default(["ADMIN", "COORDENADOR"])
+  metaDias             Int      @default(5) @map("meta_dias")
+  exigeAprovacaoCompra Boolean  @default(true) @map("exige_aprovacao_compra")
+  revisoresCompra      String[] @default(["ADMIN", "COORDENADOR"]) @map("revisores_compra")
+  aprovadoresCompra    String[] @default(["ADMIN"]) @map("aprovadores_compra")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   entity Entity @relation(fields: [entityId], references: [id])
 

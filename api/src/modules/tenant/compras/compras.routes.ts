@@ -1,4 +1,7 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { AppError } from '../../../shared/errors.js';
+import { acaoPedido, saldosDasLicitacoes } from './compras-fluxo.service.js';
 import {
   PERMISSION_CENTROS_CUSTO_MANAGE,
   PERMISSION_CENTROS_CUSTO_VIEW,
@@ -103,6 +106,35 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
       }
     });
   }
+
+  /* lançamento → revisão → aprovação → envio ao fornecedor */
+  fastify.post('/compras/pedidos/:id/fluxo', { preHandler: canView }, async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const r = z.object({
+        acao: z.enum(['enviar_revisao', 'revisar', 'aprovar', 'devolver', 'enviar_fornecedor']),
+        motivo: z.string().trim().max(1000).optional(),
+      }).safeParse(request.body);
+      if (!r.success) throw new AppError(400, 'VALIDATION_ERROR', 'Ação inválida');
+      const user = await fastify.prisma.tenantUser.findUnique({
+        where: { id: request.user.sub },
+        select: { role: { select: { code: true, permissions: { select: { permission: { select: { code: true } } } } } } },
+      });
+      if (!user) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
+      const podeLancar = user.role.permissions.some(x => x.permission.code === PERMISSION_CENTROS_CUSTO_MANAGE);
+      return reply.send(await acaoPedido(fastify.prisma, request.user.entityId!, { id: request.user.sub, roleCode: user.role.code, podeLancar }, id, r.data.acao, r.data.motivo));
+    } catch (error) {
+      return handleAppError(reply, error);
+    }
+  });
+
+  fastify.get('/compras/saldos', { preHandler: canView }, async (request, reply) => {
+    try {
+      return reply.send({ licitacoes: await saldosDasLicitacoes(fastify.prisma, request.user.entityId!) });
+    } catch (error) {
+      return handleAppError(reply, error);
+    }
+  });
 
   fastify.get('/compras/pedidos', { preHandler: canView }, async (request, reply) => {
     try {

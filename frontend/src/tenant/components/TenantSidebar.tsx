@@ -100,6 +100,22 @@ function IconRegras() {
   );
 }
 
+function IconSaldos() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>
+    </svg>
+  );
+}
+
+function IconPedidos() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    </svg>
+  );
+}
+
 function IconCompras() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -118,8 +134,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: 'servicos',            label: 'Serviços Urbanos',  permission: 'centros_custo.view', icon: <IconServicos /> },
   { to: 'licitacoes',          label: 'Licitações',        permission: 'licitacoes.view',    icon: <IconLicitacoes /> },
   { to: 'compras',             label: 'Compras',           permission: 'centros_custo.view', icon: <IconCompras /> },
+  { to: 'pedidos',             label: 'Pedidos de compra', permission: 'centros_custo.view', icon: <IconPedidos /> },
+  { to: 'saldos',              label: 'Saldos dos contratos', permission: 'centros_custo.view', icon: <IconSaldos /> },
   { to: 'users',               label: 'Usuários',          permission: 'users.view',         icon: <IconUsers /> },
-  { to: 'configuracoes',       label: 'Regras das OS',     permission: 'users.manage',       icon: <IconRegras /> },
+  { to: 'configuracoes',       label: 'Regras',            permission: 'users.manage',       icon: <IconRegras /> },
 ];
 
 interface TenantSidebarProps {

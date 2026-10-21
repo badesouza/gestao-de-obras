@@ -51,6 +51,9 @@ export async function registerOrdensRoutes(fastify: FastifyInstance) {
         exigeConferencia: z.boolean(),
         conferentes: z.array(papel).min(1, 'Escolha pelo menos um perfil que confere'),
         metaDias: z.number().int().min(1, 'Meta mínima de 1 dia').max(90),
+        exigeAprovacaoCompra: z.boolean().default(true),
+        revisoresCompra: z.array(papel).default(['ADMIN', 'COORDENADOR']),
+        aprovadoresCompra: z.array(papel).default(['ADMIN']),
       }), req.body);
       return reply.send(await salvarConfig(fastify.prisma, req.user.entityId!, req.user.sub, dados));
     } catch (e) { return handleAppError(reply, e); }
