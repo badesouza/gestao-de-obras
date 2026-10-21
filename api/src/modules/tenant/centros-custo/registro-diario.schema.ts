@@ -11,6 +11,8 @@ const cellValueSchema = z.object({
 export const upsertRegistroDiarioSchema = z.object({
   data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   values: z.record(z.string().uuid(), cellValueSchema).optional(),
+  /* centro de custo onde a despesa é apropriada; ausente = padrão do serviço */
+  centroDeCustoId: z.string().uuid().nullable().optional(),
 });
 
 export const monthQuerySchema = z.object({

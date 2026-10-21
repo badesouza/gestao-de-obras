@@ -111,6 +111,7 @@ model Entity {
   solicitacoesMunicipe          SolicitacaoMunicipe[]
   configuracaoObras             ConfiguracaoObras?
   usuarioServicos               UsuarioServico[]
+  centrosDeCusto                CentroDeCusto[]
 
   @@index([status])
   @@map("entities")
@@ -393,12 +394,14 @@ model CentroCusto {
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
 
-  entity             Entity                         @relation(fields: [entityId], references: [id])
-  createdBy          TenantUser                     @relation("CentroCustoCreatedBy", fields: [createdByUserId], references: [id])
-  licitacoes         CentroCustoLicitacao[]
-  propriedadeConfigs CentroCustoPropriedadeConfig[]
-  registrosDiarios   RegistroDiario[]
-  usuarios           UsuarioServico[]
+  entity                Entity                         @relation(fields: [entityId], references: [id])
+  createdBy             TenantUser                     @relation("CentroCustoCreatedBy", fields: [createdByUserId], references: [id])
+  licitacoes            CentroCustoLicitacao[]
+  propriedadeConfigs    CentroCustoPropriedadeConfig[]
+  registrosDiarios      RegistroDiario[]
+  usuarios              UsuarioServico[]
+  centroDeCustoPadraoId String?                        @map("centro_de_custo_padrao_id")
+  centroDeCustoPadrao   CentroDeCusto?                 @relation("ServicoCentroPadrao", fields: [centroDeCustoPadraoId], references: [id], onDelete: SetNull)
 
   @@unique([entityId, nome])
   @@index([entityId, status])
@@ -480,17 +483,19 @@ model RegistroDiario {
   midias              RegistroMidia[]
   solicitacaoMunicipe SolicitacaoMunicipe?
 
-  numeroOS        String?     @map("numero_os") @db.VarChar(20)
-  etapa           EtapaOS     @default(REGISTRADA)
-  aprovadoEm      DateTime?   @map("aprovado_em")
-  aprovadoPorId   String?     @map("aprovado_por_id")
-  executadoEm     DateTime?   @map("executado_em")
-  executadoPorId  String?     @map("executado_por_id")
-  finalizadoEm    DateTime?   @map("finalizado_em")
-  finalizadoPorId String?     @map("finalizado_por_id")
-  aprovadoPor     TenantUser? @relation("OSAprovadaPor", fields: [aprovadoPorId], references: [id])
-  executadoPor    TenantUser? @relation("OSExecutadaPor", fields: [executadoPorId], references: [id])
-  finalizadoPor   TenantUser? @relation("OSFinalizadaPor", fields: [finalizadoPorId], references: [id])
+  numeroOS        String?        @map("numero_os") @db.VarChar(20)
+  etapa           EtapaOS        @default(REGISTRADA)
+  aprovadoEm      DateTime?      @map("aprovado_em")
+  aprovadoPorId   String?        @map("aprovado_por_id")
+  executadoEm     DateTime?      @map("executado_em")
+  executadoPorId  String?        @map("executado_por_id")
+  finalizadoEm    DateTime?      @map("finalizado_em")
+  finalizadoPorId String?        @map("finalizado_por_id")
+  aprovadoPor     TenantUser?    @relation("OSAprovadaPor", fields: [aprovadoPorId], references: [id])
+  executadoPor    TenantUser?    @relation("OSExecutadaPor", fields: [executadoPorId], references: [id])
+  finalizadoPor   TenantUser?    @relation("OSFinalizadaPor", fields: [finalizadoPorId], references: [id])
+  centroDeCustoId String?        @map("centro_de_custo_id")
+  centroDeCusto   CentroDeCusto? @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
 
   @@unique([entityId, numeroOS])
   @@index([entityId, etapa])
@@ -596,17 +601,21 @@ model SolicitacaoServico {
 }
 
 model SolicitacaoServicoItem {
-  id                    String   @id @default(uuid())
-  entityId              String   @map("entity_id")
-  solicitacaoServicoId  String   @map("solicitacao_servico_id")
-  licitacaoItemId       String   @map("licitacao_item_id")
-  descricaoSnapshot     String   @map("descricao_snapshot") @db.VarChar(500)
-  unidadeMedidaSnapshot String   @map("unidade_medida_snapshot") @db.VarChar(50)
-  valorUnitarioSnapshot Decimal  @map("valor_unitario_snapshot") @db.Decimal(15, 4)
-  quantidade            Decimal  @db.Decimal(15, 4)
-  valorTotal            Decimal  @map("valor_total") @db.Decimal(15, 4)
-  observacoes           String?  @db.VarChar(1000)
-  createdAt             DateTime @default(now()) @map("created_at")
+  id                    String         @id @default(uuid())
+  entityId              String         @map("entity_id")
+  solicitacaoServicoId  String         @map("solicitacao_servico_id")
+  licitacaoItemId       String         @map("licitacao_item_id")
+  descricaoSnapshot     String         @map("descricao_snapshot") @db.VarChar(500)
+  unidadeMedidaSnapshot String         @map("unidade_medida_snapshot") @db.VarChar(50)
+  valorUnitarioSnapshot Decimal        @map("valor_unitario_snapshot") @db.Decimal(15, 4)
+  quantidade            Decimal        @db.Decimal(15, 4)
+  valorTotal            Decimal        @map("valor_total") @db.Decimal(15, 4)
+  observacoes           String?        @db.VarChar(1000)
+  servicoSlug           String?        @map("servico_slug") @db.VarChar(80)
+  servicoNome           String?        @map("servico_nome") @db.VarChar(160)
+  centroDeCustoId       String?        @map("centro_de_custo_id")
+  centroDeCusto         CentroDeCusto? @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
+  createdAt             DateTime       @default(now()) @map("created_at")
 
   entity             Entity                   @relation(fields: [entityId], references: [id])
   solicitacaoServico SolicitacaoServico       @relation(fields: [solicitacaoServicoId], references: [id], onDelete: Cascade)
@@ -671,15 +680,17 @@ model PedidoCompraItem {
 }
 
 model PedidoCompraItemOrigem {
-  id                       String  @id @default(uuid())
-  entityId                 String  @map("entity_id")
-  pedidoCompraItemId       String  @map("pedido_compra_item_id")
-  solicitacaoServicoId     String  @map("solicitacao_servico_id")
-  solicitacaoServicoItemId String  @map("solicitacao_servico_item_id")
-  servicoSlug              String  @map("servico_slug") @db.VarChar(80)
-  servicoNome              String  @map("servico_nome") @db.VarChar(160)
-  quantidade               Decimal @db.Decimal(15, 4)
-  valorTotal               Decimal @map("valor_total") @db.Decimal(15, 4)
+  id                       String         @id @default(uuid())
+  entityId                 String         @map("entity_id")
+  pedidoCompraItemId       String         @map("pedido_compra_item_id")
+  solicitacaoServicoId     String         @map("solicitacao_servico_id")
+  solicitacaoServicoItemId String         @map("solicitacao_servico_item_id")
+  servicoSlug              String         @map("servico_slug") @db.VarChar(80)
+  servicoNome              String         @map("servico_nome") @db.VarChar(160)
+  quantidade               Decimal        @db.Decimal(15, 4)
+  valorTotal               Decimal        @map("valor_total") @db.Decimal(15, 4)
+  centroDeCustoId          String?        @map("centro_de_custo_id")
+  centroDeCusto            CentroDeCusto? @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
 
   entity                 Entity                 @relation(fields: [entityId], references: [id])
   pedidoCompraItem       PedidoCompraItem       @relation(fields: [pedidoCompraItemId], references: [id], onDelete: Cascade)
@@ -832,4 +843,43 @@ model UsuarioServico {
   @@id([userId, centroCustoId])
   @@index([entityId])
   @@map("usuario_servicos")
+}
+
+/**
+ * ── Centro de custo DE VERDADE: onde a despesa é apropriada ──
+ * Atenção: o model antigo `CentroCusto` (tabela centros_custo) representa, na prática,
+ * o SERVIÇO (Tapa-Buracos, Roçagem…). Este aqui é o centro de custo contábil.
+ */
+enum TipoCentroDeCusto {
+  SECRETARIA
+  SETOR
+  PROGRAMA
+  OBRA
+  OUTRO
+}
+
+model CentroDeCusto {
+  id          String            @id @default(uuid())
+  entityId    String            @map("entity_id")
+  codigo      String            @db.VarChar(20)
+  nome        String            @db.VarChar(200)
+  tipo        TipoCentroDeCusto @default(SETOR)
+  descricao   String?           @db.VarChar(1000)
+  responsavel String?           @db.VarChar(160)
+  ativo       Boolean           @default(true)
+  paiId       String?           @map("pai_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  entity           Entity                   @relation(fields: [entityId], references: [id])
+  pai              CentroDeCusto?           @relation("CentroDeCustoHierarquia", fields: [paiId], references: [id], onDelete: SetNull)
+  filhos           CentroDeCusto[]          @relation("CentroDeCustoHierarquia")
+  servicosPadrao   CentroCusto[]            @relation("ServicoCentroPadrao")
+  registros        RegistroDiario[]
+  solicitacaoItens SolicitacaoServicoItem[]
+  origensPedido    PedidoCompraItemOrigem[]
+
+  @@unique([entityId, codigo])
+  @@index([entityId, ativo])
+  @@map("centros_de_custo")
 }

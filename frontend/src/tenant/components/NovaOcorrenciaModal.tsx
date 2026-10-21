@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useId, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import L from 'leaflet';
-import { tenantApi, cadastrosAuxiliaresApi, mapaApi, type CentroCustoDetail, type RegistroDiarioRow, type BairroCoord } from '../../lib/api-client';
+import { tenantApi, cadastrosAuxiliaresApi, mapaApi, centrosDeCustoApi, type CentroCustoDetail, type CentroDeCusto, type RegistroDiarioRow, type BairroCoord } from '../../lib/api-client';
 import { type ServicoConfig, type CampoConfig } from '../pages/servico-config';
 import { CENTRO_IDS } from '../pages/servico-config';
 import { CameraCarimbo, type LocalFoto } from './camera/CameraCarimbo';
@@ -262,6 +262,9 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
   const [equipes,      setEquipes]      = useState<string[]>([]);
   const [veiculos,     setVeiculos]     = useState<string[]>([]);
   const [equipamentos, setEquipamentos] = useState<string[]>([]);
+  const [centrosCusto, setCentrosCusto] = useState<CentroDeCusto[]>([]);
+  /* centro de custo: o da ocorrência (edição) ou o padrão do serviço */
+  const [centroDeCustoId, setCentroDeCustoId] = useState<string | null>(editRow ? (editRow.centroDeCusto?.id ?? '') : null);
 
   useEffect(() => {
     Promise.all([
@@ -277,6 +280,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
       setVeiculos(v.items.filter(i => i.ativo).map(i => i.nome));
       setEquipamentos(eq.items.filter(i => i.ativo).map(i => i.nome));
     }).catch(() => {});
+    centrosDeCustoApi.listar(entityId).then(r => setCentrosCusto(r.itens.filter(c => c.ativo))).catch(() => {});
   }, [entityId]);
 
   /* mantém ref sincronizada para leitura dentro de closures do Leaflet */
@@ -581,7 +585,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
     return out;
   };
 
-  type Payload = { data: string; values: ReturnType<typeof buildCellValues> };
+  type Payload = { data: string; values: ReturnType<typeof buildCellValues>; centroDeCustoId?: string | null };
   type Progresso = { registroId?: string; coordsEnviadas?: boolean; fotosEnviadas: number };
 
   /* sem internet: guarda a ocorrência (com fotos) no aparelho; a CentralOffline envia depois */
@@ -614,7 +618,8 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
       }
     }
     setSaving(true);
-    const payload: Payload = { data, values: buildCellValues() };
+    const centroEscolhido = centroDeCustoId ?? centrosCusto.find(c => c.servicos.some(s => s.id === centroId))?.id ?? null;
+    const payload: Payload = { data, values: buildCellValues(), ...(centroEscolhido !== null || isEdit ? { centroDeCustoId: centroEscolhido || null } : {}) };
     const progresso: Progresso = { fotosEnviadas: 0 };
     try {
       if (!isEdit && !navigator.onLine) {
@@ -998,6 +1003,20 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
               {camposNormais
                 .filter(c => c.nome !== 'Bairro / Localidade' && c.nome !== 'Logradouro / Referência')
                 .map((c, i) => renderCampo(c, i + 10))}
+
+              {centrosCusto.length > 0 && (() => {
+                const padrao = centrosCusto.find(c => c.servicos.some(s => s.id === centroId));
+                const valor = centroDeCustoId ?? padrao?.id ?? '';
+                return (
+                  <label className="sv-modal-field">
+                    <span className="sv-modal-label">Centro de custo{padrao && valor === padrao.id && <span style={{ fontWeight: 400, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>— padrão do serviço</span>}</span>
+                    <select value={valor} onChange={e => setCentroDeCustoId(e.target.value)}>
+                      <option value="">Sem centro de custo</option>
+                      {centrosCusto.map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}
+                    </select>
+                  </label>
+                );
+              })()}
 
               {camposBool.length > 0 && (
                 <div className="sv-modal-bools">

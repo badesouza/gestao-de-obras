@@ -630,6 +630,7 @@ export interface RegistroDiarioRow {
   executadoPor?: string | null;
   finalizadoEm?: string | null;
   finalizadoPor?: string | null;
+  centroDeCusto?: { id: string; codigo: string; nome: string } | null;
 }
 
 /* ── Ordem de serviço: etapas, regras e vínculos ── */
@@ -641,6 +642,22 @@ export interface ConfiguracaoObras {
   exigeConferencia: boolean; conferentes: PapelCodigo[]; metaDias: number;
   exigeAprovacaoCompra: boolean; revisoresCompra: PapelCodigo[]; aprovadoresCompra: PapelCodigo[];
 }
+
+/* ── Centros de custo (onde a despesa é apropriada; diferente de serviço) ── */
+export type TipoCentroDeCusto = 'SECRETARIA' | 'SETOR' | 'PROGRAMA' | 'OBRA' | 'OUTRO';
+export interface CentroDeCusto {
+  id: string; codigo: string; nome: string; tipo: TipoCentroDeCusto; descricao: string | null; responsavel: string | null;
+  ativo: boolean; paiId: string | null; ocorrencias: number; ocorrenciasMes: number; valorComprometido: string;
+  servicos: { id: string; nome: string }[];
+}
+type DadosCentroDeCusto = { codigo: string; nome: string; tipo: TipoCentroDeCusto; descricao?: string | null; responsavel?: string | null; ativo?: boolean; paiId?: string | null };
+export const centrosDeCustoApi = {
+  listar: (entityId: string) => tenantRequest<{ itens: CentroDeCusto[]; valorSemCentro: string }>(entityId, '/api/tenant/v1/centros-de-custo'),
+  criar: (entityId: string, dados: DadosCentroDeCusto) => tenantRequest<CentroDeCusto>(entityId, '/api/tenant/v1/centros-de-custo', { method: 'POST', body: JSON.stringify(dados) }),
+  atualizar: (entityId: string, id: string, dados: DadosCentroDeCusto) => tenantRequest<CentroDeCusto>(entityId, `/api/tenant/v1/centros-de-custo/${id}`, { method: 'PUT', body: JSON.stringify(dados) }),
+  remover: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/centros-de-custo/${id}`, { method: 'DELETE' }),
+  definirServicos: (entityId: string, id: string, servicoIds: string[]) => tenantRequest<void>(entityId, `/api/tenant/v1/centros-de-custo/${id}/servicos`, { method: 'PUT', body: JSON.stringify({ servicoIds }) }),
+};
 
 export interface SaldoLicitacao {
   id: string; identificacao: string; objeto: string; fornecedor: string | null;
@@ -859,7 +876,8 @@ export const tenantApi = {
       justificativa: string;
       observacoes?: string | null;
       submit: boolean;
-      itens: Array<{ licitacaoItemId: string; quantidade: string; observacoes?: string | null }>;
+      centroDeCustoId?: string | null;
+      itens: Array<{ licitacaoItemId: string; quantidade: string; observacoes?: string | null; servicoSlug?: string | null; servicoNome?: string | null; centroDeCustoId?: string | null }>;
     }) =>
       tenantRequest<CompraSolicitacao>(entityId, '/api/tenant/v1/compras/solicitacoes', {
         method: 'POST',
@@ -973,7 +991,7 @@ export const tenantApi = {
     createRegistro: (
       entityId: string,
       centroId: string,
-      body: { data: string; values?: Record<string, CellValue> },
+      body: { data: string; values?: Record<string, CellValue>; centroDeCustoId?: string | null },
     ) =>
       tenantRequest<RegistroDiarioRow>(
         entityId,
@@ -984,7 +1002,7 @@ export const tenantApi = {
       entityId: string,
       centroId: string,
       registroId: string,
-      body: { data: string; values?: Record<string, CellValue> },
+      body: { data: string; values?: Record<string, CellValue>; centroDeCustoId?: string | null },
     ) =>
       tenantRequest<RegistroDiarioRow>(
         entityId,

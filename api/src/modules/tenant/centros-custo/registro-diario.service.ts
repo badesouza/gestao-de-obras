@@ -2,6 +2,7 @@ import type { PrismaClient, PropriedadeTipo } from '../../../../generated/prisma
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { iniciarOrdemServico, sincronizarStatusTexto } from '../ordens/ordens.service.js';
+import { assertCentroValido, centroPadraoDoServico } from '../centros-de-custo/centros-de-custo.service.js';
 import {
   assertCentroActive,
   getCentroForEntity,
@@ -199,6 +200,7 @@ export async function listRegistrosDiarios(
       aprovadoPor: { select: { name: true } },
       executadoPor: { select: { name: true } },
       finalizadoPor: { select: { name: true } },
+      centroDeCusto: { select: { id: true, codigo: true, nome: true } },
       midias: { where: { tipo: 'foto' }, orderBy: { createdAt: 'asc' }, take: 1, select: { id: true } },
       _count: { select: { midias: true } },
     },
@@ -223,6 +225,7 @@ export async function listRegistrosDiarios(
       executadoPor: row.executadoPor?.name ?? null,
       finalizadoEm: row.finalizadoEm?.toISOString() ?? null,
       finalizadoPor: row.finalizadoPor?.name ?? null,
+      centroDeCusto: row.centroDeCusto,
     })),
   };
 }
@@ -241,10 +244,14 @@ export async function createRegistroDiario(
 
   const data = parseDateOnly(input.data);
 
+  if (input.centroDeCustoId) await assertCentroValido(prisma, entityId, input.centroDeCustoId);
+  const centroDeCustoId = input.centroDeCustoId ?? await centroPadraoDoServico(prisma, entityId, centroId);
+
   const registro = await prisma.registroDiario.create({
     data: {
       centroCustoId: centroId,
       entityId,
+      centroDeCustoId,
       data,
       createdByUserId: actorId,
       updatedByUserId: actorId,
@@ -320,6 +327,11 @@ export async function updateRegistroDiario(
     input.values,
     activeConfigs,
   );
+
+  if (input.centroDeCustoId !== undefined) {
+    if (input.centroDeCustoId) await assertCentroValido(prisma, entityId, input.centroDeCustoId);
+    await prisma.registroDiario.update({ where: { id: registroId }, data: { centroDeCustoId: input.centroDeCustoId } });
+  }
 
   /* o status segue a etapa da OS: editar o formulário não muda a etapa */
   await sincronizarStatusTexto(prisma, entityId, registroId, centroId, existing.etapa);

@@ -32,6 +32,7 @@ import { CentralMunicipeAdminPage } from './tenant/pages/CentralMunicipeAdminPag
 import { ConfiguracoesPage } from './tenant/pages/ConfiguracoesPage';
 import { PedidosCompraPage } from './tenant/pages/PedidosCompraPage';
 import { SaldosPage } from './tenant/pages/SaldosPage';
+import { CentrosDeCustoPage } from './tenant/pages/CentrosDeCustoPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
@@ -67,6 +68,7 @@ function App() {
           <Route path="configuracoes" element={<ConfiguracoesPage />} />
           <Route path="pedidos" element={<PedidosCompraPage />} />
           <Route path="saldos" element={<SaldosPage />} />
+          <Route path="centros-de-custo" element={<CentrosDeCustoPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
           <Route path="compras" element={<ComprasPage />} />
           <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />

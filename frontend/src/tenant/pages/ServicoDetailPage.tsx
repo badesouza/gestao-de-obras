@@ -402,6 +402,7 @@ export function ServicoDetailPage() {
                           {dataBr(row.data)}
                           {row.fiscal && <> · {nomeCurto(row.fiscal)}</>}
                           {i.equipe && <> · {i.equipe}</>}
+                          {row.centroDeCusto && <span className="ob-tag" title={row.centroDeCusto.nome}>CC {row.centroDeCusto.codigo}</span>}
                           {i.etapa === 'EXECUTADA' && row.executadoPor && <> · baixa por {nomeCurto(row.executadoPor)}</>}
                           {row.lat != null && <span className="ob-tag tom-ok">GPS</span>}
                         </span>

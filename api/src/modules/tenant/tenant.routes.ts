@@ -4,6 +4,7 @@ import { registerTenantDashboardRoutes } from './dashboard/dashboard.routes.js';
 import { registerPainelRoutes } from './dashboard/painel.routes.js';
 import { registerCentralTenantRoutes } from '../central-municipe/central.routes.js';
 import { registerOrdensRoutes } from './ordens/ordens.routes.js';
+import { registerCentrosDeCustoRoutes } from './centros-de-custo/centros-de-custo.routes.js';
 import { registerCentroCustoRoutes } from './centros-custo/centro-custo.routes.js';
 import { registerLicitacaoRoutes } from './licitacoes/licitacao.routes.js';
 import { registerTenantUserRoutes } from './users/user.routes.js';
@@ -21,6 +22,7 @@ export async function registerTenantRoutes(fastify: FastifyInstance) {
   await registerPainelRoutes(fastify);
   await registerCentralTenantRoutes(fastify);
   await registerOrdensRoutes(fastify);
+  await registerCentrosDeCustoRoutes(fastify);
   await registerTenantUserRoutes(fastify);
   await registerLicitacaoRoutes(fastify);
   await registerCentroCustoRoutes(fastify);

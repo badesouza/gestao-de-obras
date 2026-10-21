@@ -13,7 +13,7 @@ export interface ItemFila {
   centroId: string;
   servico: string;
   cor: string;
-  payload: { data: string; values?: Record<string, CellValue> };
+  payload: { data: string; values?: Record<string, CellValue>; centroDeCustoId?: string | null };
   resumo: string;
   coords?: { lat: number; lng: number; label?: string };
   fotos: FotoFila[];

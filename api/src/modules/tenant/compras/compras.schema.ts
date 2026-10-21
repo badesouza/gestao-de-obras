@@ -29,7 +29,12 @@ export const createSolicitacaoSchema = z.object({
     licitacaoItemId: z.string().uuid(),
     quantidade: decimalString,
     observacoes: z.string().max(1000).optional().nullable(),
+    servicoSlug: z.string().min(1).max(80).optional().nullable(),
+    servicoNome: z.string().min(1).max(160).optional().nullable(),
+    centroDeCustoId: z.string().uuid().optional().nullable(),
   })).min(1),
+  /* centro de custo para os itens que não informarem o seu */
+  centroDeCustoId: z.string().uuid().optional().nullable(),
 });
 
 export const pedidosQuerySchema = z.object({

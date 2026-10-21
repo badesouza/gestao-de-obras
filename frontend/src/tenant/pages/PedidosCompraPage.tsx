@@ -177,7 +177,7 @@ export function PedidosCompraPage() {
               const revisouEste = p.revisadoPor?.id === session.id && session.role.code !== 'ADMIN';
               const expandido = aberto === p.id;
               return (
-                <article key={p.id} className={`ob-oc cp-pedido ob-reveal${p.status === 'DRAFT' && p.devolvidoMotivo ? ' is-devolvido' : ''}`} style={{ '--i': Math.min(idx, 12) } as React.CSSProperties}>
+                <article key={p.id} className={`ob-oc pc-pedido ob-reveal${p.status === 'DRAFT' && p.devolvidoMotivo ? ' is-devolvido' : ''}`} style={{ '--i': Math.min(idx, 12) } as React.CSSProperties}>
                   <div className="cp-linha">
                     <button type="button" className="cp-abrir" onClick={() => setAberto(expandido ? null : p.id)} aria-expanded={expandido}>
                       <span className="cp-topo">

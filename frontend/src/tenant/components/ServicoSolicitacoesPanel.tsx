@@ -11,9 +11,9 @@ import {
   ShoppingCart,
   Trash2,
 } from 'lucide-react';
-import { tenantApi, type Licitacao, type LicitacaoItem } from '../../lib/api-client';
+import { tenantApi, centrosDeCustoApi, type CentroDeCusto, type Licitacao, type LicitacaoItem } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
-import type { ServicoConfig } from '../pages/servico-config';
+import { CENTRO_IDS, type ServicoConfig } from '../pages/servico-config';
 import { dinheiro, formatarData } from './compras-data';
 import type { CompraSolicitacao, SolicitacaoServicoStatus } from '../../lib/api-client';
 import { ConfirmModal } from './ConfirmModal';
@@ -174,6 +174,13 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
   const [draftItems, setDraftItems] = useState<DraftSolicitacaoItem[]>([]);
   const [prioridade, setPrioridade] = useState<'Alta' | 'Media' | 'Baixa'>('Media');
   const [justificativa, setJustificativa] = useState(`Reposicao de materiais para execucao do servico de ${config.nome}.`);
+  const [centrosCusto, setCentrosCusto] = useState<CentroDeCusto[]>([]);
+  const [centroDeCustoId, setCentroDeCustoId] = useState<string | null>(null);
+  useEffect(() => {
+    centrosDeCustoApi.listar(entityId).then(r => setCentrosCusto(r.itens.filter(c => c.ativo))).catch(() => {});
+  }, [entityId]);
+  const centroPadrao = centrosCusto.find(c => c.servicos.some(sv => sv.id === CENTRO_IDS[config.slug]));
+  const centroSelecionado = centroDeCustoId ?? centroPadrao?.id ?? '';
   const [loadingLic, setLoadingLic] = useState(true);
   const [loadingItems, setLoadingItems] = useState(false);
   const [saving, setSaving] = useState<'draft' | 'submit' | null>(null);
@@ -306,6 +313,7 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
         prioridade,
         justificativa,
         submit,
+        centroDeCustoId: centroSelecionado || null,
         itens: draftItems.map((item) => ({
           licitacaoItemId: item.licitacaoItemId,
           quantidade: item.quantidade,
@@ -436,6 +444,15 @@ function NovaSolicitacaoPreview({ config, onSaved }: { config: ServicoConfig; on
         </div>
       ) : null}
       <div className="cp-form-grid cp-justificativa-grid">
+        {centrosCusto.length > 0 && (
+          <label className="is-wide">
+            <span>Centro de custo {centroPadrao && centroSelecionado === centroPadrao.id ? '(padrão do serviço)' : ''}</span>
+            <select value={centroSelecionado} onChange={(event) => setCentroDeCustoId(event.target.value)}>
+              <option value="">Sem centro de custo</option>
+              {centrosCusto.map((c) => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}
+            </select>
+          </label>
+        )}
         <label className="is-wide">
           <span>Justificativa</span>
           <textarea value={justificativa} onChange={(event) => setJustificativa(event.target.value)} />

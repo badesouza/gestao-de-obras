@@ -295,7 +295,11 @@ export async function createSolicitacao(
     justificativa: string;
     observacoes?: string | null;
     submit: boolean;
-    itens: Array<{ licitacaoItemId: string; quantidade: string; observacoes?: string | null }>;
+    itens: Array<{
+      licitacaoItemId: string; quantidade: string; observacoes?: string | null;
+      servicoSlug?: string | null; servicoNome?: string | null; centroDeCustoId?: string | null;
+    }>;
+    centroDeCustoId?: string | null;
   },
 ) {
   const solicitacao = await prisma.$transaction(async (tx) => {
@@ -323,6 +327,11 @@ export async function createSolicitacao(
       requestedByItemId.set(input.licitacaoItemId, current.plus(decimal(input.quantidade)));
     });
     await assertSaldoDisponivel(tx, entityId, itemIds, licitacaoItems, requestedByItemId);
+    const centrosInformados = [body.centroDeCustoId, ...body.itens.map(i => i.centroDeCustoId)].filter((x): x is string => !!x);
+    if (centrosInformados.length) {
+      const validos = await tx.centroDeCusto.count({ where: { entityId, ativo: true, id: { in: Array.from(new Set(centrosInformados)) } } });
+      if (validos !== new Set(centrosInformados).size) throw new AppError(422, 'CENTRO_INVALIDO', 'Centro de custo inválido ou desativado');
+    }
 
     const now = new Date();
     const numero = await nextNumero(tx, entityId, 'SS', 'solicitacao');
@@ -353,6 +362,9 @@ export async function createSolicitacao(
               quantidade,
               valorTotal: quantidade.mul(valorUnitario),
               observacoes: input.observacoes ?? null,
+              servicoSlug: input.servicoSlug ?? null,
+              servicoNome: input.servicoNome ?? null,
+              centroDeCustoId: input.centroDeCustoId ?? body.centroDeCustoId ?? null,
             };
           }),
         },
@@ -531,6 +543,7 @@ export async function createPedidoFromSolicitacoes(
         solicitacaoItemId: string;
         servicoSlug: string;
         servicoNome: string;
+        centroDeCustoId: string | null;
         quantidade: Prisma.Decimal;
         valorTotal: Prisma.Decimal;
       }>;
@@ -542,8 +555,9 @@ export async function createPedidoFromSolicitacoes(
         const origin = {
           solicitacaoId: solicitacao.id,
           solicitacaoItemId: item.id,
-          servicoSlug: solicitacao.servicoSlug,
-          servicoNome: solicitacao.servicoNome,
+          servicoSlug: item.servicoSlug ?? solicitacao.servicoSlug,
+          servicoNome: item.servicoNome ?? solicitacao.servicoNome,
+          centroDeCustoId: item.centroDeCustoId,
           quantidade: item.quantidade,
           valorTotal: item.valorTotal,
         };
@@ -587,6 +601,7 @@ export async function createPedidoFromSolicitacoes(
           solicitacaoServicoItemId: origin.solicitacaoItemId,
           servicoSlug: origin.servicoSlug,
           servicoNome: origin.servicoNome,
+          centroDeCustoId: origin.centroDeCustoId,
           quantidade: origin.quantidade,
           valorTotal: origin.valorTotal,
         })),
