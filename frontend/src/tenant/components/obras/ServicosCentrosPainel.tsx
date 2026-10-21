@@ -69,7 +69,7 @@ export function ServicosCentrosPainel({ entityId, centros, podeGerir, onMudou }:
       <div className="sc-cab">
         <div>
           <h2 className="sc-titulo">Centro de custo de cada serviço</h2>
-          <p className="sc-sub">Cada serviço escolhe o centro de custo onde lança as despesas. Ajuste tudo aqui e salve de uma vez — ou dentro de cada serviço.</p>
+          <p className="sc-sub">Cada serviço escolhe o centro de custo onde lança as despesas. Ajuste tudo aqui e salve de uma vez — ou ao abrir cada serviço aqui na Estrutura.</p>
         </div>
         {podeGerir && semCentro.length > 0 && (
           <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => setEstrutura(raizSugerida())}>Montar estrutura sugerida</button>

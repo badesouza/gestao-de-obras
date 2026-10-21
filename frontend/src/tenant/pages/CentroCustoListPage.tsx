@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { tenantApi, type CentroCusto } from '../../lib/api-client';
+import { centrosDeCustoApi, tenantApi, type CentroCusto, type CentroDeCusto } from '../../lib/api-client';
+import { ServicosCentrosPainel } from '../components/obras/ServicosCentrosPainel';
+import '../styles/obras-ui.css';
+import '../styles/compras-ui.css';
 import { useTenant, useTenantPermission } from '../TenantContext';
 
 function formatDate(iso: string): string {
@@ -15,6 +18,11 @@ function StatusDot({ status }: { status: 'ACTIVE' | 'INACTIVE' }) {
 
 export function CentroCustoListPage() {
   const { entityId } = useTenant();
+  const podeGerirCentro = useTenantPermission('centros_custo.manage');
+  const [centrosCusto, setCentrosCusto] = useState<CentroDeCusto[] | null>(null);
+  const [avisoCentro, setAvisoCentro] = useState('');
+  const carregarCentros = useCallback(() => centrosDeCustoApi.listar(entityId).then(r => setCentrosCusto(r.itens)).catch(() => setCentrosCusto([])), [entityId]);
+  useEffect(() => { void carregarCentros(); }, [carregarCentros]);
   const navigate = useNavigate();
   const canManage = useTenantPermission('centros_custo.manage');
   const canManagePropriedades = useTenantPermission('centros_custo.propriedades.manage');
@@ -120,6 +128,15 @@ export function CentroCustoListPage() {
           </div>
         </div>
       </div>
+
+      {/* Centro de custo de cada serviço (configuração) */}
+      {centrosCusto && (
+        <div className="ob-claro sc-embutido">
+          {avisoCentro && <div className="cp-aviso" role="status">{avisoCentro}</div>}
+          <ServicosCentrosPainel entityId={entityId} centros={centrosCusto} podeGerir={podeGerirCentro}
+            onMudou={a => { setAvisoCentro(a); setTimeout(() => setAvisoCentro(''), 6000); void carregarCentros(); }} />
+        </div>
+      )}
 
       {/* Painel principal */}
       <div className="tn-panel">

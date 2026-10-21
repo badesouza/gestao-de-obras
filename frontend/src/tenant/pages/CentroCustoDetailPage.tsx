@@ -3,6 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import { ApiError, tenantApi, type CentroCustoDetail, type Licitacao } from '../../lib/api-client';
 import { Button } from '../../components/ui/Button';
 import { useTenant, useTenantPermission } from '../TenantContext';
+import { CentroDoServico } from '../components/obras/CentroDoServico';
+import { SLUG_POR_CENTRO_ID } from './servico-config';
+import '../styles/obras-ui.css';
+import '../styles/compras-ui.css';
 import { TenantPageHeader } from '../components/TenantPageHeader';
 import { CentroCustoHeader } from '../components/centros-custo/CentroCustoHeader';
 import { CentroCustoHomePanel } from '../components/centros-custo/CentroCustoHomePanel';
@@ -16,6 +20,7 @@ import { useCentroCustoMonthNav } from '../hooks/useCentroCustoMonthNav';
 export function CentroCustoDetailPage() {
   const { centroId } = useParams<{ centroId: string }>();
   const { entityId } = useTenant();
+  const podeGerirCentroCusto = useTenantPermission('centros_custo.manage');
   const canManage = useTenantPermission('centros_custo.manage');
   const canEditRegistros = useTenantPermission('centros_custo.registros.edit');
   const { tab, year, month, monthLabel, setTab, goPrevMonth, goNextMonth } =
@@ -140,6 +145,10 @@ export function CentroCustoDetailPage() {
       />
 
       <CentroCustoHeader centro={centro} />
+
+      <div className="ob-claro" style={{ '--serv-cor': '#7C3AED', background: 'transparent' } as React.CSSProperties}>
+        <CentroDoServico entityId={entityId} servicoId={centroId} slug={SLUG_POR_CENTRO_ID[centroId] ?? ''} nomeServico={centro.nome} podeGerir={podeGerirCentroCusto} />
+      </div>
 
       <CentroCustoTabs
         tab={tab}

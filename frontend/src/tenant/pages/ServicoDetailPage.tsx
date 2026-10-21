@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { tenantApi, mapaApi, ordensApi, type AcaoOS, type CentroCustoDetail, type Etapa, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
-import { useTenant, useTenantPermission } from '../TenantContext';
-import { CentroDoServico } from '../components/obras/CentroDoServico';
-import '../styles/compras-ui.css';
+import { useTenant } from '../TenantContext';
 import { ToastContainer } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { SERVICOS_CONFIG, CENTRO_IDS, type ServicoConfig } from './servico-config';
@@ -51,7 +49,6 @@ export function ServicoDetailPage() {
 
   const config: ServicoConfig | undefined = SERVICOS_CONFIG[slug ?? ''];
   const centroId = CENTRO_IDS[slug ?? ''];
-  const podeGerirCentro = useTenantPermission('centros_custo.manage');
 
   const { toasts, showToast, closeToast } = useToast();
   const [centro, setCentro] = useState<CentroCustoDetail | null>(null);
@@ -277,7 +274,6 @@ export function ServicoDetailPage() {
             <span className="ob-eyebrow ob-eyebrow-serv">Serviço urbano</span>
             <h1 className="ob-h1">{config.nome}</h1>
             <p className="ob-sub">{config.descricao}</p>
-            {centroId && <CentroDoServico entityId={entityId} servicoId={centroId} slug={config.slug} nomeServico={config.nome} podeGerir={podeGerirCentro} />}
           </div>
         </div>
         <div className="ob-head-acoes">

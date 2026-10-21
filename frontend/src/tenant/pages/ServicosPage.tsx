@@ -1,10 +1,6 @@
-import { useTenant, useTenantPermission } from '../TenantContext';
-import { ServicosCentrosPainel } from '../components/obras/ServicosCentrosPainel';
-import { centrosDeCustoApi, type CentroDeCusto } from '../../lib/api-client';
-import '../styles/obras-ui.css';
-import '../styles/compras-ui.css';
+import { useTenant } from '../TenantContext';
 import { CENTRO_IDS } from './servico-config';
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useMemo, useState, type MouseEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -217,15 +213,8 @@ export function ServicosPage() {
     setAjudaCor(cor);
   }, []);
 
-  const { session, entityId: entidade } = useTenant();
-  const podeGerirCentro = useTenantPermission('centros_custo.manage');
-  const [centrosCusto, setCentrosCusto] = useState<CentroDeCusto[] | null>(null);
-  const [avisoCentro, setAvisoCentro] = useState('');
-  const carregarCentros = useCallback(() => centrosDeCustoApi.listar(entidade).then(r => setCentrosCusto(r.itens)).catch(() => setCentrosCusto([])), [entidade]);
-  useEffect(() => { void carregarCentros(); }, [carregarCentros]);
+  const { session } = useTenant();
   const permitidos = session.servicosPermitidos;
-  /* o painel de centros de custo é de quem vê todos os serviços */
-  const permitidosSoAlguns = !!permitidos;
   const meus = useMemo(() => permitidos ? SERVICOS.filter(s => permitidos.includes(CENTRO_IDS[s.slug])) : SERVICOS, [permitidos]);
 
   const filtered = useMemo(() => {
@@ -305,14 +294,6 @@ export function ServicosPage() {
           <small>Frentes de trabalho</small>
         </div>
       </div>
-
-      {centrosCusto && !permitidosSoAlguns && (
-        <div className="ob-claro sc-embutido">
-          {avisoCentro && <div className="cp-aviso" role="status">{avisoCentro}</div>}
-          <ServicosCentrosPainel entityId={entidade} centros={centrosCusto} podeGerir={podeGerirCentro}
-            onMudou={a => { setAvisoCentro(a); setTimeout(() => setAvisoCentro(''), 6000); void carregarCentros(); }} />
-        </div>
-      )}
 
       <section className="tn-panel sv-services-panel">
         <div className="tn-panel-head sv-services-head">

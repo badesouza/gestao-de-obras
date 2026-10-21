@@ -335,3 +335,6 @@ export const CENTRO_IDS: Record<string, string> = {
   'tapa-buracos':     '6cd588b8-a313-4f16-9dcd-04c488f713bc',
   'varricao':         '0e9678e5-8394-4b31-8514-2d6b36d9ea1c',
 };
+
+/* id do serviço → slug */
+export const SLUG_POR_CENTRO_ID: Record<string, string> = Object.fromEntries(Object.entries(CENTRO_IDS).map(([slug, id]) => [id, slug]));
