@@ -76,7 +76,7 @@ export function Badge({ situacao, titulo }: { situacao: Situacao; titulo?: strin
 /** Miniatura da foto carimbada, com a hora no canto (a parte de baixo, onde fica o carimbo, aparece) */
 export function FotoThumb({ entityId, fotoId, quando, cor, icone, tamanho = 80, contagem, origem = 'registro' }: {
   entityId: string; fotoId: string | null | undefined; quando?: string; cor: string;
-  icone?: React.ReactNode; tamanho?: number; contagem?: number; origem?: 'registro' | 'central';
+  icone?: React.ReactNode; tamanho?: number; contagem?: number; origem?: 'registro' | 'central' | 'orcamento';
 }) {
   const url = useFotoUrl(entityId, fotoId, origem);
   return (

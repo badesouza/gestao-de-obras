@@ -112,6 +112,7 @@ model Entity {
   configuracaoObras             ConfiguracaoObras?
   usuarioServicos               UsuarioServico[]
   centrosDeCusto                CentroDeCusto[]
+  orcamentos                    Orcamento[]
 
   @@index([status])
   @@map("entities")
@@ -251,6 +252,9 @@ model TenantUser {
   servicos                        UsuarioServico[]
   pedidosRevisados                PedidoCompra[]            @relation("PedidoRevisadoPor")
   pedidosAprovados                PedidoCompra[]            @relation("PedidoAprovadoPor")
+  orcamentosCriados               Orcamento[]               @relation("OrcamentoCriadoPor")
+  orcamentosRevisados             Orcamento[]               @relation("OrcamentoRevisadoPor")
+  orcamentosAprovados             Orcamento[]               @relation("OrcamentoAprovadoPor")
 
   @@unique([entityId, email])
   @@index([entityId])
@@ -375,6 +379,7 @@ model LicitacaoItem {
   registroValores         RegistroDiarioValorItem[]
   solicitacaoServicoItens SolicitacaoServicoItem[]
   pedidoCompraItens       PedidoCompraItem[]
+  orcamentoItens          OrcamentoItem[]
 
   @@index([licitacaoId, status])
   @@index([entityId, licitacaoId])
@@ -644,6 +649,8 @@ model PedidoCompra {
   devolvidoMotivo  String?            @map("devolvido_motivo") @db.VarChar(1000)
   revisadoPor      TenantUser?        @relation("PedidoRevisadoPor", fields: [revisadoPorId], references: [id])
   aprovadoPor      TenantUser?        @relation("PedidoAprovadoPor", fields: [aprovadoPorId], references: [id])
+  orcamentoId      String?            @map("orcamento_id")
+  orcamento        Orcamento?         @relation(fields: [orcamentoId], references: [id], onDelete: SetNull)
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
@@ -878,8 +885,99 @@ model CentroDeCusto {
   registros        RegistroDiario[]
   solicitacaoItens SolicitacaoServicoItem[]
   origensPedido    PedidoCompraItemOrigem[]
+  orcamentos       Orcamento[]
+  orcamentoItens   OrcamentoItem[]
 
   @@unique([entityId, codigo])
   @@index([entityId, ativo])
   @@map("centros_de_custo")
+}
+
+/**
+ * ── Orçamentação: fotos do local + materiais dos contratos → pedido de compra ──
+ */
+enum OrcamentoStatus {
+  RASCUNHO
+  EM_REVISAO
+  AGUARDANDO_APROVACAO
+  APROVADO
+  CONVERTIDO
+  CANCELADO
+}
+
+model Orcamento {
+  id              String          @id @default(uuid())
+  entityId        String          @map("entity_id")
+  numero          String          @db.VarChar(20)
+  titulo          String          @db.VarChar(200)
+  descricao       String?         @db.VarChar(2000)
+  bairro          String?         @db.VarChar(150)
+  logradouro      String?         @db.VarChar(300)
+  lat             Float?
+  lng             Float?
+  servicoSlug     String?         @map("servico_slug") @db.VarChar(80)
+  servicoNome     String?         @map("servico_nome") @db.VarChar(160)
+  centroDeCustoId String?         @map("centro_de_custo_id")
+  status          OrcamentoStatus @default(RASCUNHO)
+  enviadoEm       DateTime?       @map("enviado_em")
+  revisadoEm      DateTime?       @map("revisado_em")
+  revisadoPorId   String?         @map("revisado_por_id")
+  aprovadoEm      DateTime?       @map("aprovado_em")
+  aprovadoPorId   String?         @map("aprovado_por_id")
+  devolvidoEm     DateTime?       @map("devolvido_em")
+  devolvidoMotivo String?         @map("devolvido_motivo") @db.VarChar(1000)
+  convertidoEm    DateTime?       @map("convertido_em")
+  createdByUserId String          @map("created_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  entity        Entity          @relation(fields: [entityId], references: [id])
+  centroDeCusto CentroDeCusto?  @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
+  createdBy     TenantUser      @relation("OrcamentoCriadoPor", fields: [createdByUserId], references: [id])
+  revisadoPor   TenantUser?     @relation("OrcamentoRevisadoPor", fields: [revisadoPorId], references: [id])
+  aprovadoPor   TenantUser?     @relation("OrcamentoAprovadoPor", fields: [aprovadoPorId], references: [id])
+  itens         OrcamentoItem[]
+  fotos         OrcamentoFoto[]
+  pedidos       PedidoCompra[]
+
+  @@unique([entityId, numero])
+  @@index([entityId, status])
+  @@map("orcamentos")
+}
+
+model OrcamentoItem {
+  id                    String   @id @default(uuid())
+  orcamentoId           String   @map("orcamento_id")
+  licitacaoItemId       String   @map("licitacao_item_id")
+  descricaoSnapshot     String   @map("descricao_snapshot") @db.VarChar(500)
+  unidadeMedidaSnapshot String   @map("unidade_medida_snapshot") @db.VarChar(50)
+  valorUnitarioSnapshot Decimal  @map("valor_unitario_snapshot") @db.Decimal(15, 4)
+  quantidade            Decimal  @db.Decimal(15, 4)
+  valorTotal            Decimal  @map("valor_total") @db.Decimal(15, 4)
+  servicoSlug           String?  @map("servico_slug") @db.VarChar(80)
+  servicoNome           String?  @map("servico_nome") @db.VarChar(160)
+  centroDeCustoId       String?  @map("centro_de_custo_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  orcamento     Orcamento      @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  licitacaoItem LicitacaoItem  @relation(fields: [licitacaoItemId], references: [id])
+  centroDeCusto CentroDeCusto? @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
+
+  @@index([orcamentoId])
+  @@map("orcamento_itens")
+}
+
+model OrcamentoFoto {
+  id           String   @id @default(uuid())
+  orcamentoId  String   @map("orcamento_id")
+  nomeArquivo  String   @map("nome_arquivo") @db.VarChar(255)
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  tamanhoBytes Int      @map("tamanho_bytes")
+  dados        Bytes
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  orcamento Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+
+  @@index([orcamentoId])
+  @@map("orcamento_fotos")
 }

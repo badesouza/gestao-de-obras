@@ -659,6 +659,66 @@ export const centrosDeCustoApi = {
   definirServicos: (entityId: string, id: string, servicoIds: string[]) => tenantRequest<void>(entityId, `/api/tenant/v1/centros-de-custo/${id}/servicos`, { method: 'PUT', body: JSON.stringify({ servicoIds }) }),
 };
 
+/* ── Orçamentação: fotos do local + materiais dos contratos → pedido ── */
+export type OrcamentoStatus = 'RASCUNHO' | 'EM_REVISAO' | 'AGUARDANDO_APROVACAO' | 'APROVADO' | 'CONVERTIDO' | 'CANCELADO';
+export type AcaoOrcamento = 'enviar' | 'revisar' | 'aprovar' | 'devolver' | 'cancelar';
+type CentroCurto = { id: string; codigo: string; nome: string };
+export interface OrcamentoResumo {
+  id: string; numero: string; titulo: string; descricao: string | null;
+  bairro: string | null; logradouro: string | null; lat: number | null; lng: number | null;
+  servicoSlug: string | null; servicoNome: string | null; centroDeCusto: CentroCurto | null;
+  status: OrcamentoStatus; valorTotal: string; qtdItens: number; qtdFotos: number;
+  criadoEm: string; criadoPor: string; enviadoEm: string | null;
+  revisadoEm: string | null; revisadoPor: string | null; revisadoPorId: string | null; aprovadoEm: string | null; aprovadoPor: string | null;
+  devolvidoEm: string | null; devolvidoMotivo: string | null; convertidoEm: string | null;
+  pedidos: { id: string; numero: string; status: PedidoCompraStatus }[];
+  capaFotoId: string | null;
+}
+export interface OrcamentoItem {
+  id: string; licitacaoItemId: string; descricao: string; unidade: string; categoria: string | null;
+  valorUnitario: string; quantidade: string; valorTotal: string;
+  servicoSlug: string | null; servicoNome: string | null; centroDeCusto: CentroCurto | null;
+  licitacao: { id: string; identificacao: string; objeto: string; fornecedor: string | null };
+}
+export interface Orcamento extends OrcamentoResumo {
+  itens: OrcamentoItem[];
+  fotos: { id: string; nome: string; criadoEm: string }[];
+}
+export interface DadosOrcamento {
+  titulo: string; descricao?: string | null; bairro?: string | null; logradouro?: string | null;
+  lat?: number | null; lng?: number | null; servicoSlug: string; servicoNome: string; centroDeCustoId?: string | null;
+  itens: { licitacaoItemId: string; quantidade: string; servicoSlug?: string | null; servicoNome?: string | null; centroDeCustoId?: string | null }[];
+}
+export interface ResumoOrcamentos {
+  rascunho: number; emRevisao: number; aguardandoAprovacao: number; aprovados: number; convertidos: number;
+  valorEmAberto: string; valorConvertidoMes: string;
+}
+export const orcamentosApi = {
+  listar: (entityId: string) => tenantRequest<OrcamentoResumo[]>(entityId, '/api/tenant/v1/orcamentos'),
+  resumo: (entityId: string) => tenantRequest<ResumoOrcamentos>(entityId, '/api/tenant/v1/orcamentos/resumo'),
+  obter: (entityId: string, id: string) => tenantRequest<Orcamento>(entityId, `/api/tenant/v1/orcamentos/${id}`),
+  criar: (entityId: string, dados: DadosOrcamento) => tenantRequest<Orcamento>(entityId, '/api/tenant/v1/orcamentos', { method: 'POST', body: JSON.stringify(dados) }),
+  atualizar: (entityId: string, id: string, dados: DadosOrcamento) => tenantRequest<Orcamento>(entityId, `/api/tenant/v1/orcamentos/${id}`, { method: 'PUT', body: JSON.stringify(dados) }),
+  enviarFotos: (entityId: string, id: string, fotos: File[]) => {
+    const form = new FormData();
+    fotos.forEach(f => form.append('fotos', f, f.name));
+    return tenantUpload<Orcamento>(entityId, `/api/tenant/v1/orcamentos/${id}/fotos`, form);
+  },
+  removerFoto: (entityId: string, id: string, fotoId: string) => tenantRequest<Orcamento>(entityId, `/api/tenant/v1/orcamentos/${id}/fotos/${fotoId}`, { method: 'DELETE' }),
+  fluxo: (entityId: string, id: string, acao: AcaoOrcamento, motivo?: string) =>
+    tenantRequest<Orcamento>(entityId, `/api/tenant/v1/orcamentos/${id}/fluxo`, { method: 'POST', body: JSON.stringify({ acao, ...(motivo ? { motivo } : {}) }) }),
+  gerarPedido: (entityId: string, id: string) =>
+    tenantRequest<{ pedidos: { id: string; numero: string }[]; orcamento: Orcamento }>(entityId, `/api/tenant/v1/orcamentos/${id}/gerar-pedido`, { method: 'POST' }),
+  fotoBlob: async (entityId: string, fotoId: string): Promise<string> => {
+    const token = getTenantToken(entityId);
+    const headers = new Headers({ 'X-Tenant-Id': entityId });
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const res = await fetch(`/api/tenant/v1/orcamentos/fotos/${fotoId}`, { headers });
+    if (!res.ok) throw new Error('Falha ao carregar foto');
+    return URL.createObjectURL(await res.blob());
+  },
+};
+
 export interface SaldoLicitacao {
   id: string; identificacao: string; objeto: string; fornecedor: string | null;
   valores: { contratado: string; pedido: string; reservado: string; recebido: string; disponivel: string };

@@ -33,6 +33,7 @@ import { ConfiguracoesPage } from './tenant/pages/ConfiguracoesPage';
 import { PedidosCompraPage } from './tenant/pages/PedidosCompraPage';
 import { SaldosPage } from './tenant/pages/SaldosPage';
 import { CentrosDeCustoPage } from './tenant/pages/CentrosDeCustoPage';
+import { OrcamentosPage, OrcamentoEditorPage } from './tenant/pages/OrcamentosPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
@@ -69,6 +70,8 @@ function App() {
           <Route path="pedidos" element={<PedidosCompraPage />} />
           <Route path="saldos" element={<SaldosPage />} />
           <Route path="centros-de-custo" element={<CentrosDeCustoPage />} />
+          <Route path="orcamentos" element={<OrcamentosPage />} />
+          <Route path="orcamentos/:orcamentoId" element={<OrcamentoEditorPage />} />
           <Route path="servicos/:slug" element={<ServicoDetailPage />} />
           <Route path="compras" element={<ComprasPage />} />
           <Route path="cadastros-auxiliares" element={<CadastrosAuxiliaresPage />} />

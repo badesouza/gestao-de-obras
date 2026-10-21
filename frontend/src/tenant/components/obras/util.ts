@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { centralApi, mapaApi, type Etapa, type RegistroDiarioRow, type Situacao } from '../../../lib/api-client';
+import { centralApi, orcamentosApi, mapaApi, type Etapa, type RegistroDiarioRow, type Situacao } from '../../../lib/api-client';
 import { CENTRO_IDS, SERVICOS_CONFIG, type ServicoConfig } from '../../pages/servico-config';
 
 /* ── utilitários da linguagem visual nova (Sala de Situação e telas de serviço) ── */
@@ -74,12 +74,12 @@ export function useContador(alvo: number, duracao = 1100) {
 
 /** Foto autenticada: baixa como blob e libera ao desmontar.
     origem 'registro' = foto de ocorrência; 'central' = foto enviada pelo munícipe */
-export function useFotoUrl(entityId: string, fotoId: string | null | undefined, origem: 'registro' | 'central' = 'registro') {
+export function useFotoUrl(entityId: string, fotoId: string | null | undefined, origem: 'registro' | 'central' | 'orcamento' = 'registro') {
   const [foto, setFoto] = useState<{ id: string; url: string } | null>(null);
   useEffect(() => {
     if (!fotoId) return;
     let viva = true, atual: string | null = null;
-    (origem === 'central' ? centralApi.fotoBlob(entityId, fotoId) : mapaApi.fetchMidiaBlob(entityId, fotoId))
+    (origem === 'central' ? centralApi.fotoBlob(entityId, fotoId) : origem === 'orcamento' ? orcamentosApi.fotoBlob(entityId, fotoId) : mapaApi.fetchMidiaBlob(entityId, fotoId))
       .then(u => { if (viva) { atual = u; setFoto({ id: fotoId, url: u }); } else URL.revokeObjectURL(u); })
       .catch(() => {});
     return () => { viva = false; if (atual) URL.revokeObjectURL(atual); };

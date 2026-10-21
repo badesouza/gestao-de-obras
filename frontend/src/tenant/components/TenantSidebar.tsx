@@ -108,6 +108,14 @@ function IconSaldos() {
   );
 }
 
+function IconOrcamentos() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
+    </svg>
+  );
+}
+
 function IconPedidos() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -134,6 +142,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: 'centros-custo',       label: 'Estrutura dos serviços', permission: 'centros_custo.manage', icon: <IconCadastros /> },
   { to: 'servicos',            label: 'Serviços Urbanos',  permission: 'centros_custo.view', icon: <IconServicos /> },
   { to: 'licitacoes',          label: 'Licitações',        permission: 'licitacoes.view',    icon: <IconLicitacoes /> },
+  { to: 'orcamentos',          label: 'Orçamentos',        permission: 'centros_custo.view', icon: <IconOrcamentos /> },
   { to: 'compras',             label: 'Compras',           permission: 'centros_custo.view', icon: <IconCompras /> },
   { to: 'pedidos',             label: 'Pedidos de compra', permission: 'centros_custo.view', icon: <IconPedidos /> },
   { to: 'saldos',              label: 'Saldos dos contratos', permission: 'centros_custo.view', icon: <IconSaldos /> },

@@ -17,6 +17,7 @@ const PAGE_TITLES: Record<string, string> = {
   configuracoes:   'Regras',
   pedidos:         'Pedidos de compra',
   saldos:          'Saldos dos contratos',
+  orcamentos:      'Orçamentos',
   'centros-de-custo': 'Centros de custo',
   users:           'Usuários',
   licitacoes:      'Licitações',

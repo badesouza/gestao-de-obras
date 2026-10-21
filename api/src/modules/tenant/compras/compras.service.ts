@@ -10,6 +10,11 @@ import { statusInicialDoPedido } from './compras-fluxo.service.js';
 
 type Tx = Prisma.TransactionClient;
 
+/** Roda dentro da transação recebida, ou abre uma nova */
+function emTransacao<T>(prisma: PrismaClient | Tx, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return '$transaction' in prisma ? (prisma as PrismaClient).$transaction(fn) : fn(prisma);
+}
+
 const pedidoInclude = {
   createdBy: { select: { id: true, name: true } },
   revisadoPor: { select: { id: true, name: true } },
@@ -284,7 +289,7 @@ export async function listSolicitacoes(
 }
 
 export async function createSolicitacao(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Tx,
   actorId: string,
   entityId: string,
   body: {
@@ -302,7 +307,7 @@ export async function createSolicitacao(
     centroDeCustoId?: string | null;
   },
 ) {
-  const solicitacao = await prisma.$transaction(async (tx) => {
+  const solicitacao = await emTransacao(prisma, async (tx) => {
     const licitacao = await tx.licitacao.findFirst({
       where: { id: body.licitacaoId, entityId, status: 'ACTIVE' },
     });
@@ -498,12 +503,12 @@ export async function listPedidos(
 }
 
 export async function createPedidoFromSolicitacoes(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Tx,
   actorId: string,
   entityId: string,
   body: { solicitacaoIds: string[]; observacoes?: string | null; send: boolean },
 ) {
-  const pedido = await prisma.$transaction(async (tx) => {
+  const pedido = await emTransacao(prisma, async (tx) => {
     const solicitacoes = await tx.solicitacaoServico.findMany({
       where: { id: { in: body.solicitacaoIds }, entityId },
       include: { itens: true },
