@@ -66,6 +66,18 @@ export async function registerCentrosDeCustoRoutes(fastify: FastifyInstance) {
       return reply.send(await salvarVinculos(fastify.prisma, req.user.entityId!, req.user.sub, b.vinculos, b.aplicarAntigos));
     } catch (e) { return handleAppError(reply, e); }
   });
+  /* o serviço escolhe o seu centro de custo */
+  fastify.put('/servicos/:id/centro-de-custo', { preHandler: podeGerir }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const b = validar(z.object({
+        centroDeCustoId: z.string().uuid().nullable(),
+        slug: z.string().max(80).default(''),
+        aplicarAntigos: z.boolean().default(false),
+      }), req.body);
+      return reply.send(await salvarVinculos(fastify.prisma, req.user.entityId!, req.user.sub, [{ servicoId: id, slug: b.slug, centroDeCustoId: b.centroDeCustoId }], b.aplicarAntigos));
+    } catch (e) { return handleAppError(reply, e); }
+  });
   fastify.post('/centros-de-custo/estrutura-sugerida', { preHandler: podeGerir }, async (req, reply) => {
     try {
       const b = validar(z.object({

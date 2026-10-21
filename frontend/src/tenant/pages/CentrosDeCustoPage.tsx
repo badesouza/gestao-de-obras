@@ -3,7 +3,7 @@ import { ApiError, centrosDeCustoApi, type CentroDeCusto, type TipoCentroDeCusto
 import { useTenant, useTenantPermission } from '../TenantContext';
 import { Dialogo, Kpi, KpiCarregando } from '../components/obras/ui';
 import { CENTRO_IDS, SERVICOS_CONFIG } from './servico-config';
-import { ServicosCentrosPainel } from '../components/obras/ServicosCentrosPainel';
+import { Link } from 'react-router-dom';
 import '../styles/compras-ui.css';
 
 /* ── Centros de custo: onde cada despesa e cada serviço é apropriado ── */
@@ -60,7 +60,6 @@ export function CentrosDeCustoPage() {
     try {
       const corpo = { codigo: form.codigo.trim(), nome: form.nome.trim(), tipo: form.tipo, responsavel: form.responsavel.trim() || null, descricao: form.descricao.trim() || null, paiId: form.paiId || null, ativo: form.ativo };
       const c = form.id ? await centrosDeCustoApi.atualizar(entityId, form.id, corpo) : await centrosDeCustoApi.criar(entityId, corpo);
-      await centrosDeCustoApi.definirServicos(entityId, c.id, form.servicos);
       setForm(null); setAviso(`Centro de custo ${c.codigo} salvo.`);
       await carregar();
     } catch (e) {
@@ -111,13 +110,12 @@ export function CentrosDeCustoPage() {
             <Kpi i={4} rotulo="Serviços sem centro padrão" valor={servicosSemCentro.length} cor={servicosSemCentro.length ? 'var(--ob-amber)' : 'var(--ob-green)'}
               nota={servicosSemCentro.length ? servicosSemCentro.slice(0, 2).map(s => s.nome).join(', ') + (servicosSemCentro.length > 2 ? '…' : '') : 'todos vinculados'}
               tom={servicosSemCentro.length ? 'alerta' : 'ok'} grafico={null} />
+            {servicosSemCentro.length > 0 && <Link to={`/t/${entityId}/servicos`} className="sc-link-servicos">Definir nos Serviços Urbanos →</Link>}
           </>
         )}
       </section>
 
       {aviso && <div className="cp-aviso" role="status">{aviso}</div>}
-
-      {dados && <ServicosCentrosPainel entityId={entityId} centros={centros} podeGerir={podeGerir} onMudou={a => { setAviso(a); void carregar(); }} />}
 
       <section className="ob-card ob-reveal" style={{ '--i': 5 } as React.CSSProperties} aria-label="Centros de custo">
         <div className="ob-filtros">
@@ -194,19 +192,13 @@ export function CentrosDeCustoPage() {
                 {centros.filter(c => c.id !== form.id).map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}
               </select>
             </label>
-            <div className="cc-campo cc-largo"><span>Centro padrão destes serviços</span>
-              <div className="cc-tipos">
-                {SERVICOS.map(s => {
-                  const outro = centros.find(c => c.id !== form.id && c.servicos.some(x => x.id === s.id));
-                  const on = form.servicos.includes(s.id);
-                  return (
-                    <button key={s.id} type="button" className={`ob-chip${on ? ' is-ativo' : ''}`} title={outro && !on ? `Hoje está em ${outro.codigo}; marcar aqui move para este centro` : undefined}
-                      onClick={() => setForm({ ...form, servicos: on ? form.servicos.filter(x => x !== s.id) : [...form.servicos, s.id] })}>
-                      <i style={{ background: s.cor }} />{s.nome}{outro && !on ? <span>{outro.codigo}</span> : null}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="cc-campo cc-largo"><span>Serviços que lançam neste centro</span>
+              <p className="sc-nota" style={{ margin: 0 }}>
+                {form.servicos.length
+                  ? SERVICOS.filter(s => form.servicos.includes(s.id)).map(s => s.nome).join(', ')
+                  : 'Nenhum serviço ainda.'}{' '}
+                A escolha é feita em cada serviço, em <Link to={`/t/${entityId}/servicos`}>Serviços Urbanos</Link>.
+              </p>
             </div>
             {form.id && <label className="cc-ativo"><input type="checkbox" checked={form.ativo} onChange={e => setForm({ ...form, ativo: e.target.checked })} /> Ativo (desmarque para não aparecer em novos lançamentos)</label>}
           </div>

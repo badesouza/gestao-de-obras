@@ -668,6 +668,8 @@ export const centrosDeCustoApi = {
     tenantRequest<VinculoServico[]>(entityId, '/api/tenant/v1/centros-de-custo/vinculos/consulta', { method: 'POST', body: JSON.stringify({ slugs }) }),
   salvarVinculos: (entityId: string, vinculos: { servicoId: string; slug: string; centroDeCustoId: string | null }[], aplicarAntigos: boolean) =>
     tenantRequest<{ ocorrencias: number; solicitacoes: number; pedidos: number; orcamentos: number }>(entityId, '/api/tenant/v1/centros-de-custo/vinculos', { method: 'PUT', body: JSON.stringify({ vinculos, aplicarAntigos }) }),
+  definirCentroDoServico: (entityId: string, servicoId: string, d: { centroDeCustoId: string | null; slug: string; aplicarAntigos: boolean }) =>
+    tenantRequest<{ ocorrencias: number; solicitacoes: number; pedidos: number; orcamentos: number }>(entityId, `/api/tenant/v1/servicos/${servicoId}/centro-de-custo`, { method: 'PUT', body: JSON.stringify(d) }),
   estruturaSugerida: (entityId: string, d: { codigoSecretaria: string; nomeSecretaria: string }) =>
     tenantRequest<{ criados: { codigo: string; nome: string }[] }>(entityId, '/api/tenant/v1/centros-de-custo/estrutura-sugerida', { method: 'POST', body: JSON.stringify(d) }),
 };

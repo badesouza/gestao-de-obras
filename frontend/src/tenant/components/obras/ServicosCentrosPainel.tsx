@@ -68,8 +68,8 @@ export function ServicosCentrosPainel({ entityId, centros, podeGerir, onMudou }:
     <section className="ob-card ob-reveal sc-painel" style={{ '--i': 4 } as React.CSSProperties} aria-label="Serviços e centros de custo">
       <div className="sc-cab">
         <div>
-          <h2 className="sc-titulo">Serviços urbanos → centro de custo</h2>
-          <p className="sc-sub">Cada serviço lança as despesas no seu centro padrão. Ajuste tudo aqui e salve de uma vez.</p>
+          <h2 className="sc-titulo">Centro de custo de cada serviço</h2>
+          <p className="sc-sub">Cada serviço escolhe o centro de custo onde lança as despesas. Ajuste tudo aqui e salve de uma vez — ou dentro de cada serviço.</p>
         </div>
         {podeGerir && semCentro.length > 0 && (
           <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => setEstrutura(raizSugerida())}>Montar estrutura sugerida</button>
