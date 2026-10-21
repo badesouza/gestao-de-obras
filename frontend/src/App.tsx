@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { PlatformGuard } from './platform/PlatformGuard';
 import { LoginPage } from './platform/pages/LoginPage';
 import { EntityListPage } from './platform/pages/EntityListPage';
@@ -10,9 +10,6 @@ import { TenantLoginPage } from './tenant/pages/TenantLoginPage';
 import { TenantGuard } from './tenant/TenantGuard';
 import { TenantPermissionGuard } from './tenant/TenantPermissionGuard';
 import { SalaSituacaoPage } from './tenant/pages/SalaSituacaoPage';
-import { TenantUserListPage } from './tenant/pages/TenantUserListPage';
-import { TenantUserCreatePage } from './tenant/pages/TenantUserCreatePage';
-import { TenantUserDetailPage } from './tenant/pages/TenantUserDetailPage';
 import { TenantForbiddenPage } from './tenant/pages/TenantForbiddenPage';
 import { LicitacaoListPage } from './tenant/pages/LicitacaoListPage';
 import { LicitacaoCreatePage } from './tenant/pages/LicitacaoCreatePage';
@@ -37,11 +34,21 @@ import { OrcamentosPage, OrcamentoEditorPage } from './tenant/pages/OrcamentosPa
 import { CadastrosInicioPage } from './tenant/pages/cadastros/CadastrosInicioPage';
 import { OrgaoPage } from './tenant/pages/cadastros/OrgaoPage';
 import { LugaresPage } from './tenant/pages/cadastros/LugaresPage';
+import { PessoasPage } from './tenant/pages/cadastros/PessoasPage';
+import { AcessosPage } from './tenant/pages/cadastros/AcessosPage';
+import { EquipesPage } from './tenant/pages/cadastros/EquipesPage';
+import { LinkAcessoPage } from './municipe/LinkAcessoPage';
 
 /** Entrada do app instalado: abre direto na última prefeitura usada */
 function InicioApp() {
   const id = ultimoTenant();
   return <Navigate to={id ? `/t/${id}/servicos` : '/platform/login'} replace />;
+}
+
+/** /t/:id/users/:userId (tela antiga) → Pessoas com a pessoa aberta */
+function RedirecionaUsuario() {
+  const { id, userId } = useParams<{ id: string; userId: string }>();
+  return <Navigate to={`/t/${id}/cadastros/pessoas?editar=${userId}`} replace />;
 }
 
 /** Application router root */
@@ -52,6 +59,7 @@ function App() {
         <Route path="/" element={<Navigate to="/platform/login" replace />} />
         <Route path="/app" element={<InicioApp />} />
         <Route path="/s/:id" element={<CentralMunicipePage />} />
+        <Route path="/acesso/:token" element={<LinkAcessoPage />} />
         <Route path="/platform/login" element={<LoginPage />} />
         <Route path="/platform" element={<PlatformGuard />}>
           <Route index element={<Navigate to="/platform/entities" replace />} />
@@ -99,11 +107,13 @@ function App() {
             <Route path="centros-custo/propriedades" element={<PropriedadeCatalogPage />} />
           </Route>
           <Route element={<TenantPermissionGuard permission="users.view" />}>
-            <Route path="users" element={<TenantUserListPage />} />
-            <Route path="users/:userId" element={<TenantUserDetailPage />} />
-          </Route>
-          <Route element={<TenantPermissionGuard permission="users.manage" />}>
-            <Route path="users/new" element={<TenantUserCreatePage />} />
+            <Route path="cadastros/pessoas" element={<PessoasPage />} />
+            <Route path="cadastros/pessoas/:userId/acessos" element={<AcessosPage />} />
+            <Route path="cadastros/equipes" element={<EquipesPage />} />
+            {/* telas antigas de usuários: agora é o passo Pessoas */}
+            <Route path="users" element={<Navigate to="../cadastros/pessoas" replace />} />
+            <Route path="users/new" element={<Navigate to="../../cadastros/pessoas" replace />} />
+            <Route path="users/:userId" element={<RedirecionaUsuario />} />
           </Route>
         </Route>
 

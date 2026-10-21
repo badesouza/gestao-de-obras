@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
-import { PERMISSION_CENTROS_CUSTO_MANAGE, PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
-import { requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
+import { requireAcesso, requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
 import { saveCoatOfArmsUpload } from '../../platform/uploads/upload.service.js';
 import {
   atualizarBairro, colarBairros, criarBairro, criarMacrozona, definirBrasao, listarLugares,
@@ -33,7 +33,8 @@ const nomeSchema = z.object({ nome: z.string().trim().min(1, 'Informe o nome').m
 export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
   const podeVer = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_VIEW)];
-  const podeMexer = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_MANAGE)];
+  const podeOrgao = [tenantAuth, requireAcesso(fastify.prisma, 'cad.orgao')];
+  const podeLugares = [tenantAuth, requireAcesso(fastify.prisma, 'cad.lugares')];
 
   fastify.get('/cadastros/resumo', { preHandler: podeVer }, async (req, reply) => {
     try { return reply.send(await resumoCadastros(fastify.prisma, req.user.entityId!)); }
@@ -46,14 +47,14 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.put('/cadastros/orgao', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.put('/cadastros/orgao', { preHandler: podeOrgao }, async (req, reply) => {
     try {
       const d = orgaoSchema.parse(req.body);
       return reply.send(await salvarOrgao(fastify.prisma, req.user.entityId!, { ...d, email: d.email || null }));
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.post('/cadastros/orgao/brasao', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.post('/cadastros/orgao/brasao', { preHandler: podeOrgao }, async (req, reply) => {
     try {
       const file = await req.file();
       if (!file) throw new AppError(400, 'VALIDATION_ERROR', 'Arquivo não enviado');
@@ -62,7 +63,7 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.delete('/cadastros/orgao/brasao', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.delete('/cadastros/orgao/brasao', { preHandler: podeOrgao }, async (req, reply) => {
     try { return reply.send(await definirBrasao(fastify.prisma, req.user.entityId!, null)); }
     catch (e) { return handleAppError(reply, e); }
   });
@@ -73,19 +74,19 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.post('/cadastros/lugares/macrozonas', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.post('/cadastros/lugares/macrozonas', { preHandler: podeLugares }, async (req, reply) => {
     try { return reply.code(201).send(await criarMacrozona(fastify.prisma, req.user.entityId!, nomeSchema.parse(req.body).nome)); }
     catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.put('/cadastros/lugares/macrozonas/:id', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.put('/cadastros/lugares/macrozonas/:id', { preHandler: podeLugares }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await renomearMacrozona(fastify.prisma, req.user.entityId!, id, nomeSchema.parse(req.body).nome));
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.delete('/cadastros/lugares/macrozonas/:id', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.delete('/cadastros/lugares/macrozonas/:id', { preHandler: podeLugares }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       await removerMacrozona(fastify.prisma, req.user.entityId!, id);
@@ -93,26 +94,26 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.post('/cadastros/lugares/bairros', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.post('/cadastros/lugares/bairros', { preHandler: podeLugares }, async (req, reply) => {
     try { return reply.code(201).send(await criarBairro(fastify.prisma, req.user.entityId!, bairroSchema.parse(req.body))); }
     catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.put('/cadastros/lugares/bairros/:id', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.put('/cadastros/lugares/bairros/:id', { preHandler: podeLugares }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await atualizarBairro(fastify.prisma, req.user.entityId!, id, bairroSchema.parse(req.body)));
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.delete('/cadastros/lugares/bairros/:id', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.delete('/cadastros/lugares/bairros/:id', { preHandler: podeLugares }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await removerBairro(fastify.prisma, req.user.entityId!, id));
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.post('/cadastros/lugares/bairros/colar', { preHandler: podeMexer }, async (req, reply) => {
+  fastify.post('/cadastros/lugares/bairros/colar', { preHandler: podeLugares }, async (req, reply) => {
     try {
       const d = z.object({
         texto: z.string().max(20000),

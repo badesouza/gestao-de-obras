@@ -154,7 +154,12 @@ export function ServicoDetailPage() {
       setSaving(null);
     }
   };
-  const handleReabrir = (row: RegistroDiarioRow) => acaoOS(row, 'reabrir', undefined, 'OS reaberta.');
+  const handleReabrir = (row: RegistroDiarioRow) => {
+    const motivo = window.prompt('Por que reabrir esta OS? (fica registrado)')?.trim();
+    if (!motivo) return;
+    if (motivo.length < 5) { window.alert('Explique o motivo com pelo menos 5 letras.'); return; }
+    return acaoOS(row, 'reabrir', motivo, 'OS reaberta.');
+  };
 
   /* excluir */
   const handleDelete = async (id: string) => {

@@ -1,3 +1,4 @@
+import { MODELOS, TODAS_CHAVES } from '../../../shared/acessos.js';
 import type {
   Prisma,
   PrismaClient,
@@ -168,6 +169,8 @@ export async function createTenantUser(
       name: input.name.trim(),
       email: input.email.toLowerCase(),
       passwordHash,
+      acessos: MODELOS[input.roleCode]?.admin ? TODAS_CHAVES : (MODELOS[input.roleCode]?.chaves ?? []),
+      adminGeral: !!MODELOS[input.roleCode]?.admin,
     },
     include: { role: true },
   });

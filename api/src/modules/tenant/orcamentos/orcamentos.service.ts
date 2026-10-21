@@ -4,7 +4,7 @@ import { AppError } from '../../../shared/errors.js';
 import { proximoNumero } from '../../../shared/sequencia.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { obterConfig } from '../ordens/ordens.service.js';
-import { poderesCompra } from '../compras/compras-fluxo.service.js';
+import { poderesCompra, type AtorCompra } from '../compras/compras-fluxo.service.js';
 import { createPedidoFromSolicitacoes, createSolicitacao } from '../compras/compras.service.js';
 import { assertItensVigentes } from '../contratos/contratos.service.js';
 
@@ -244,12 +244,13 @@ export async function removerFoto(prisma: PrismaClient, entityId: string, id: st
 /** Revisão e aprovação — mesmas regras e mesmos perfis das compras */
 export async function acaoOrcamento(
   prisma: PrismaClient, entityId: string,
-  ator: { id: string; roleCode: string; podeLancar: boolean },
+  ator: AtorCompra,
   id: string, acao: AcaoOrcamento, motivo?: string,
 ) {
   const o = await buscar(prisma, entityId, id);
   const cfg = await obterConfig(prisma, entityId);
-  const { podeRevisarCompra, podeAprovarCompra } = poderesCompra(cfg, ator.roleCode);
+  const { podeRevisarCompra, podeAprovarCompra } = poderesCompra(ator);
+  const podeOrcar = ator.admin || ator.acessos.includes('compras.orcar') || ator.acessos.includes('compras.lancar');
   const agora = new Date();
   const negar = (m: string): never => { throw new AppError(403, 'FORBIDDEN', m); };
   const invalido = (): never => { throw new AppError(409, 'STATUS_INVALIDO', `O orçamento ${o.numero} não está na etapa certa para isso`); };
@@ -258,7 +259,7 @@ export async function acaoOrcamento(
   switch (acao) {
     case 'enviar':
       if (o.status !== 'RASCUNHO') invalido();
-      if (!ator.podeLancar) negar('Seu perfil não lança orçamentos');
+      if (!podeOrcar) negar('Você não tem acesso para fazer orçamentos');
       if (!o.itens.length) throw new AppError(422, 'SEM_ITENS', 'Inclua ao menos um material antes de enviar');
       dados = cfg.exigeAprovacaoCompra
         ? { status: 'EM_REVISAO', enviadoEm: agora, devolvidoEm: null, devolvidoMotivo: null }
@@ -266,24 +267,24 @@ export async function acaoOrcamento(
       break;
     case 'revisar':
       if (o.status !== 'EM_REVISAO') invalido();
-      if (!podeRevisarCompra) negar('Seu perfil não revisa orçamentos');
+      if (!podeRevisarCompra) negar('Você não tem acesso para revisar orçamentos');
       dados = { status: 'AGUARDANDO_APROVACAO', revisadoEm: agora, revisadoPorId: ator.id };
       break;
     case 'aprovar':
       if (o.status !== 'AGUARDANDO_APROVACAO') invalido();
-      if (!podeAprovarCompra) negar('Seu perfil não aprova orçamentos');
-      if (o.revisadoPorId === ator.id && ator.roleCode !== 'ADMIN') negar('Quem revisou o orçamento não pode aprová-lo');
+      if (!podeAprovarCompra) negar('Você não tem acesso para aprovar orçamentos');
+      if (o.revisadoPorId === ator.id && !ator.admin) negar('Quem revisou o orçamento não pode aprová-lo');
       dados = { status: 'APROVADO', aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'devolver':
       if (o.status !== 'EM_REVISAO' && o.status !== 'AGUARDANDO_APROVACAO') invalido();
-      if (!podeRevisarCompra && !podeAprovarCompra) negar('Seu perfil não devolve orçamentos');
+      if (!podeRevisarCompra && !podeAprovarCompra) negar('Você não tem acesso para devolver orçamentos');
       if (!motivo || motivo.trim().length < 5) throw new AppError(400, 'VALIDATION_ERROR', 'Explique o motivo da devolução');
       dados = { status: 'RASCUNHO', devolvidoEm: agora, devolvidoMotivo: motivo.trim(), revisadoEm: null, revisadoPorId: null };
       break;
     case 'cancelar':
       if (o.status === 'CONVERTIDO' || o.status === 'CANCELADO') invalido();
-      if (!ator.podeLancar && !podeAprovarCompra) negar('Seu perfil não cancela orçamentos');
+      if (!podeOrcar && !podeAprovarCompra) negar('Você não tem acesso para cancelar orçamentos');
       dados = { status: 'CANCELADO' };
       break;
   }

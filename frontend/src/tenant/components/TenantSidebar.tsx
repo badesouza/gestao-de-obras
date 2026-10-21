@@ -146,7 +146,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: 'compras',             label: 'Compras',           permission: 'centros_custo.view', icon: <IconCompras /> },
   { to: 'pedidos',             label: 'Pedidos de compra', permission: 'centros_custo.view', icon: <IconPedidos /> },
   { to: 'saldos',              label: 'Saldos dos contratos', permission: 'centros_custo.view', icon: <IconSaldos /> },
-  { to: 'users',               label: 'Usuários',          permission: 'users.view',         icon: <IconUsers /> },
+  { to: 'cadastros/pessoas',   label: 'Usuários',          permission: 'users.view',         icon: <IconUsers /> },
   { to: 'configuracoes',       label: 'Regras',            permission: 'users.manage',       icon: <IconRegras /> },
 ];
 

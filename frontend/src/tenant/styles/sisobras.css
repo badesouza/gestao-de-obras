@@ -634,3 +634,15 @@
 .so .so-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr))}
 .so-previas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px}
 @media (max-width:560px){.so-chead{flex-wrap:wrap}.so-chead .meta{display:none}.so-chead h2{white-space:normal}}
+.so-scrim.fixo{position:fixed;inset:0;z-index:300;overflow-y:auto;background:rgba(10,12,25,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+@media (max-width:560px){.so-scrim.fixo{padding:12px;align-items:flex-start}}
+.so-tag.btn{cursor:pointer;font-family:inherit;transition:transform .15s,border-color .15s}
+.so-tag.btn:hover{border-color:var(--brand-soft-2);transform:translateY(-1px)}
+.so-tag.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.so-link-nome{background:none;border:0;padding:0;font:inherit;font-weight:800;color:var(--ink);cursor:pointer;text-align:left}
+.so-link-nome:hover{color:var(--brand-ink);text-decoration:underline}
+.so-table tr.sel td{background:var(--brand-soft)}
+.so-note-esq{text-align:left;width:100%}
+.so-btn:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
+.so .so-ph-body h1{color:var(--ink)}
+.so-panel .so-lbl{white-space:normal;flex-wrap:wrap;row-gap:2px}.so-panel .so-lbl .opt{white-space:normal;overflow:visible}

@@ -10,6 +10,8 @@ import { handleAppError } from '../../../shared/errors.js';
 import {
   requireTenantAuth,
   requireTenantPermission,
+  carregarAtor,
+  requireAcesso,
 } from '../../../plugins/auth-tenant.js';
 import {
   createPedidoFromSolicitacoesSchema,
@@ -39,6 +41,9 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     tenantAuth,
     requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_VIEW),
   ];
+  const podeLancarCompra = [tenantAuth, requireAcesso(fastify.prisma, 'compras.lancar')];
+  const podeEnviarCompra = [tenantAuth, requireAcesso(fastify.prisma, 'compras.enviar')];
+  const podeReceberCompra = [tenantAuth, requireAcesso(fastify.prisma, 'compras.receber')];
   const canManage = [
     tenantAuth,
     requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_MANAGE),
@@ -54,7 +59,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/compras/solicitacoes', { preHandler: canManage }, async (request, reply) => {
+  fastify.post('/compras/solicitacoes', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
       const body = createSolicitacaoSchema.parse(request.body);
       const result = await createSolicitacao(
@@ -79,7 +84,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete('/compras/solicitacoes/:id', { preHandler: canManage }, async (request, reply) => {
+  fastify.delete('/compras/solicitacoes/:id', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       await deleteSolicitacao(fastify.prisma, request.user.sub, request.user.entityId!, id);
@@ -90,7 +95,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
   });
 
   for (const action of ['submit', 'approve', 'reject', 'cancel'] as const) {
-    fastify.post(`/compras/solicitacoes/:id/${action}`, { preHandler: canManage }, async (request, reply) => {
+    fastify.post(`/compras/solicitacoes/:id/${action}`, { preHandler: podeLancarCompra }, async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
         const result = await changeSolicitacaoStatus(
@@ -116,13 +121,9 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
         motivo: z.string().trim().max(1000).optional(),
       }).safeParse(request.body);
       if (!r.success) throw new AppError(400, 'VALIDATION_ERROR', 'Ação inválida');
-      const user = await fastify.prisma.tenantUser.findUnique({
-        where: { id: request.user.sub },
-        select: { role: { select: { code: true, permissions: { select: { permission: { select: { code: true } } } } } } },
-      });
-      if (!user) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
-      const podeLancar = user.role.permissions.some(x => x.permission.code === PERMISSION_CENTROS_CUSTO_MANAGE);
-      return reply.send(await acaoPedido(fastify.prisma, request.user.entityId!, { id: request.user.sub, roleCode: user.role.code, podeLancar }, id, r.data.acao, r.data.motivo));
+      const ator = await carregarAtor(fastify.prisma, request.user.sub);
+      if (!ator) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
+      return reply.send(await acaoPedido(fastify.prisma, request.user.entityId!, ator, id, r.data.acao, r.data.motivo));
     } catch (error) {
       return handleAppError(reply, error);
     }
@@ -146,7 +147,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/compras/pedidos/from-solicitacoes', { preHandler: canManage }, async (request, reply) => {
+  fastify.post('/compras/pedidos/from-solicitacoes', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
       const body = createPedidoFromSolicitacoesSchema.parse(request.body);
       const result = await createPedidoFromSolicitacoes(
@@ -171,7 +172,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/compras/pedidos/:id/send', { preHandler: canManage }, async (request, reply) => {
+  fastify.post('/compras/pedidos/:id/send', { preHandler: podeEnviarCompra }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       const result = await sendPedido(fastify.prisma, request.user.sub, request.user.entityId!, id);
@@ -181,7 +182,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/compras/pedidos/:id/cancel', { preHandler: canManage }, async (request, reply) => {
+  fastify.post('/compras/pedidos/:id/cancel', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       const result = await cancelPedido(fastify.prisma, request.user.sub, request.user.entityId!, id);
@@ -191,7 +192,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete('/compras/pedidos/:id', { preHandler: canManage }, async (request, reply) => {
+  fastify.delete('/compras/pedidos/:id', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       await deletePedido(fastify.prisma, request.user.sub, request.user.entityId!, id);
@@ -201,7 +202,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/compras/pedidos/:id/recebimentos', { preHandler: canManage }, async (request, reply) => {
+  fastify.post('/compras/pedidos/:id/recebimentos', { preHandler: podeReceberCompra }, async (request, reply) => {
     try {
       const body = recebimentoSchema.parse(request.body);
       const result = await createRecebimento(

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
-import { PERMISSION_CENTROS_CUSTO_MANAGE, PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
-import { requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
+import { carregarAtor, requireAcesso, requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
 import {
   MAX_FOTOS_ORCAMENTO, acaoOrcamento, adicionarFotos, atualizarOrcamento, criarOrcamento, gerarPedidos,
   lerFotoOrcamento, listarOrcamentos, obterOrcamento, removerFoto, resumoOrcamentos,
@@ -45,15 +45,12 @@ const TIPOS_FOTO = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export async function registerOrcamentosRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
   const podeVer = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_VIEW)];
-  const podeLancar = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_MANAGE)];
+  const podeLancar = [tenantAuth, requireAcesso(fastify.prisma, 'compras.orcar', 'compras.lancar')];
 
   const ator = async (userId: string) => {
-    const u = await fastify.prisma.tenantUser.findUnique({
-      where: { id: userId },
-      select: { role: { select: { code: true, permissions: { select: { permission: { select: { code: true } } } } } } },
-    });
-    if (!u) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
-    return { id: userId, roleCode: u.role.code, podeLancar: u.role.permissions.some(x => x.permission.code === PERMISSION_CENTROS_CUSTO_MANAGE) };
+    const a = await carregarAtor(fastify.prisma, userId);
+    if (!a) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
+    return a;
   };
 
   fastify.get('/orcamentos', { preHandler: podeVer }, async (req, reply) => {

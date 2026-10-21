@@ -348,6 +348,9 @@ export interface TenantSession {
   entity: { id: string; name: string; status: string; municipalityName: string | null; uf: string | null };
   role: { code: string; name: string };
   permissions: string[];
+  /** caixas marcadas na tela Acessos */
+  acessos?: string[];
+  adminGeral?: boolean;
   /** serviços (centros) que o usuário atende; null = todos */
   servicosPermitidos: string[] | null;
   obras: {
@@ -1540,4 +1543,72 @@ export const cadastrosBaseApi = {
   removerBairro: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `${CB}/lugares/bairros/${id}`, { method: 'DELETE' }),
   colarBairros: (entityId: string, texto: string, macrozonaId: string | null) =>
     tenantRequest<{ criados: number; repetidos: string[] }>(entityId, `${CB}/lugares/bairros/colar`, { method: 'POST', body: JSON.stringify({ texto, macrozonaId }) }),
+};
+
+/* ── Passo 3 · Pessoas (usuários, link de senha, acessos por caixa, equipes) ── */
+export type SituacaoPessoa = 'ATIVO' | 'LINK_ENVIADO' | 'LINK_VENCIDO' | 'INATIVO';
+export type ModeloAcesso = 'ADMIN' | 'COORDENADOR' | 'FISCAL' | 'COMPRAS' | 'CONSULTA';
+export interface Pessoa {
+  id: string; nome: string; email: string; celular: string | null;
+  perfil: { code: string; nome: string };
+  equipe: { id: string; nome: string } | null; lider: boolean;
+  atende: { id: string; nome: string }[] | null;
+  situacao: SituacaoPessoa; adminGeral: boolean; marcados: number; total: number;
+}
+export interface ListaPessoas {
+  usuarios: Pessoa[];
+  filtros: { code: string; nome: string; qtd: number }[];
+  modelos: { code: ModeloAcesso; nome: string; descricao: string; marcados: number; existe: boolean }[];
+  equipes: { id: string; nome: string }[];
+  servicos: { id: string; nome: string }[];
+  totalCaixas: number;
+}
+export interface DadosPessoa {
+  nome: string; email: string; celular: string | null; modelo: ModeloAcesso;
+  equipeId: string | null; lider: boolean; servicoIds: string[] | null;
+}
+export interface LinkGerado { id: string; nome: string; email: string; celular: string | null; link: { token: string; expiraEm: string } }
+export interface ItemAcesso { chave: string; nome: string; etapa?: string }
+export interface MenuAcesso { chave: string; nome: string; grupos: { nome: string; fluxo?: boolean; itens: ItemAcesso[] }[] }
+export interface AcessosPessoa {
+  usuario: { id: string; nome: string; email: string; perfil: { code: string; nome: string }; equipe: string | null; atende: string[] | null };
+  adminGeral: boolean; acessos: string[]; catalogo: MenuAcesso[];
+  modelos: { code: ModeloAcesso; nome: string; admin: boolean; chaves: string[] }[];
+}
+export interface EquipeCampo {
+  id: string; nome: string; lider: { id: string; nome: string } | null; veiculo: { id: string; nome: string } | null;
+  membros: { id: string; nome: string; funcao: string }[];
+}
+export interface ListaEquipes { equipes: EquipeCampo[]; lideres: { id: string; nome: string; perfil: string }[]; veiculos: { id: string; nome: string }[] }
+
+const TV = '/api/tenant/v1';
+export const pessoasApi = {
+  listar: (entityId: string) => tenantRequest<ListaPessoas>(entityId, `${TV}/pessoas`),
+  criar: (entityId: string, d: DadosPessoa) => tenantRequest<LinkGerado>(entityId, `${TV}/pessoas`, { method: 'POST', body: JSON.stringify(d) }),
+  atualizar: (entityId: string, id: string, d: DadosPessoa) => tenantRequest<{ id: string }>(entityId, `${TV}/pessoas/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  situacao: (entityId: string, id: string, ativo: boolean) => tenantRequest<void>(entityId, `${TV}/pessoas/${id}/situacao`, { method: 'PATCH', body: JSON.stringify({ ativo }) }),
+  gerarLink: (entityId: string, id: string) => tenantRequest<LinkGerado>(entityId, `${TV}/pessoas/${id}/link`, { method: 'POST' }),
+  acessos: (entityId: string, id: string) => tenantRequest<AcessosPessoa>(entityId, `${TV}/pessoas/${id}/acessos`),
+  salvarAcessos: (entityId: string, id: string, d: { adminGeral: boolean; acessos: string[] }) =>
+    tenantRequest<AcessosPessoa>(entityId, `${TV}/pessoas/${id}/acessos`, { method: 'PUT', body: JSON.stringify(d) }),
+};
+export const equipesCampoApi = {
+  listar: (entityId: string) => tenantRequest<ListaEquipes>(entityId, `${TV}/equipes-campo`),
+  criar: (entityId: string, nome: string) => tenantRequest<{ id: string }>(entityId, `${TV}/equipes-campo`, { method: 'POST', body: JSON.stringify({ nome }) }),
+  salvar: (entityId: string, id: string, d: { nome: string; liderUserId: string | null; veiculoId: string | null }) =>
+    tenantRequest<{ id: string }>(entityId, `${TV}/equipes-campo/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  remover: (entityId: string, id: string) => tenantRequest<void>(entityId, `${TV}/equipes-campo/${id}`, { method: 'DELETE' }),
+  adicionarMembro: (entityId: string, id: string, d: { nome: string; funcao: string }) =>
+    tenantRequest<{ id: string; nome: string; funcao: string }>(entityId, `${TV}/equipes-campo/${id}/membros`, { method: 'POST', body: JSON.stringify(d) }),
+  removerMembro: (entityId: string, membroId: string) => tenantRequest<void>(entityId, `${TV}/equipes-campo/membros/${membroId}`, { method: 'DELETE' }),
+};
+export interface LinkPublico {
+  valido: boolean;
+  entidade: { id: string; nome: string; municipio: string | null; uf: string | null; brasaoUrl: string | null } | null;
+  nome?: string; email?: string; expiraEm?: string;
+}
+export const linkAcessoApi = {
+  consultar: (token: string) => apiRequest<LinkPublico>(`/api/public/v1/acesso/${token}`),
+  criarSenha: (token: string, senha: string) =>
+    apiRequest<{ token: string; entityId: string }>(`/api/public/v1/acesso/${token}`, { method: 'POST', body: JSON.stringify({ senha }) }),
 };

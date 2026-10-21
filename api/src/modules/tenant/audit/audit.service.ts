@@ -1,3 +1,4 @@
+import { permissoesDasCaixas } from '../../../shared/acessos.js';
 import type { PrismaClient, Prisma } from '../../../../generated/prisma/index.js';
 
 export interface TenantAuditInput {
@@ -28,21 +29,12 @@ export async function writeTenantAudit(
   });
 }
 
-/** Returns permission codes for a tenant user */
+/** Returns permission codes for a tenant user (derived from the checked boxes) */
 export async function getTenantUserPermissions(
   prisma: PrismaClient,
   userId: string,
 ): Promise<string[]> {
-  const user = await prisma.tenantUser.findUnique({
-    where: { id: userId },
-    include: {
-      role: {
-        include: {
-          permissions: { include: { permission: true } },
-        },
-      },
-    },
-  });
+  const user = await prisma.tenantUser.findUnique({ where: { id: userId }, select: { acessos: true, adminGeral: true } });
   if (!user) return [];
-  return user.role.permissions.map((rp) => rp.permission.code);
+  return permissoesDasCaixas(user.acessos, user.adminGeral);
 }

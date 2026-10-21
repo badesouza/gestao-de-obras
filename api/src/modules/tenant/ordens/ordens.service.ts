@@ -2,6 +2,7 @@ import type { EtapaOS, Prisma, PrismaClient } from '../../../../generated/prisma
 import { AppError } from '../../../shared/errors.js';
 import { hojeBrasilia, proximoNumero } from '../../../shared/sequencia.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
+import { pode, poderesFluxo, type QuemAge } from '../../../shared/acessos.js';
 
 /* ── Ordem de serviço: número oficial e etapas ────────────────────
    Registrada → Executada (baixa do fiscal) → Finalizada (conferência).
@@ -39,13 +40,6 @@ export async function salvarConfig(
   return cfg;
 }
 
-/** O que este usuário pode fazer com as OS (o administrador sempre pode) */
-export function poderesDoPapel(cfg: { aprovadores: string[]; conferentes: string[] }, roleCode: string) {
-  return {
-    podeAprovar: roleCode === 'ADMIN' || cfg.aprovadores.includes(roleCode),
-    podeConferir: roleCode === 'ADMIN' || cfg.conferentes.includes(roleCode),
-  };
-}
 
 /** Grava o rótulo da etapa na propriedade "Status" (relatórios e mapa usam esse texto) */
 export async function sincronizarStatusTexto(prisma: PrismaClient, entityId: string, registroId: string, centroId: string, etapa: EtapaOS) {
@@ -77,48 +71,53 @@ export async function iniciarOrdemServico(prisma: PrismaClient, entityId: string
 export type AcaoOS = 'aprovar' | 'executar' | 'finalizar' | 'reabrir' | 'cancelar';
 
 export async function aplicarAcao(
-  prisma: PrismaClient, entityId: string, ator: { id: string; roleCode: string },
+  prisma: PrismaClient, entityId: string, ator: QuemAge & { id: string },
   registroId: string, acao: AcaoOS, observacao?: string,
 ) {
   const r = await prisma.registroDiario.findFirst({
     where: { id: registroId, entityId },
-    select: { id: true, etapa: true, centroCustoId: true, numeroOS: true },
+    select: { id: true, etapa: true, centroCustoId: true, numeroOS: true, executadoPorId: true },
   });
   if (!r) throw new AppError(404, 'NOT_FOUND', 'Ordem de serviço não encontrada');
   await assertAcessoServico(prisma, ator.id, r.centroCustoId);
 
   const cfg = await obterConfig(prisma, entityId);
-  const { podeAprovar, podeConferir } = poderesDoPapel(cfg, ator.roleCode);
+  const { podeAprovar, podeConferir, podeReabrir, podeCancelar } = poderesFluxo(ator);
   const agora = new Date();
   const negar = (m: string) => { throw new AppError(403, 'FORBIDDEN', m); };
+  const exigirMotivo = () => { if (!observacao || observacao.trim().length < 5) throw new AppError(400, 'VALIDATION_ERROR', 'Explique o motivo'); };
   const etapaInvalida = () => { throw new AppError(409, 'CONFLICT', `Esta OS está "${ROTULO_ETAPA[r.etapa]}" — ação não permitida agora`); };
 
   let dados: Prisma.RegistroDiarioUncheckedUpdateInput;
   switch (acao) {
     case 'aprovar':
       if (r.etapa !== 'AGUARDANDO_APROVACAO') etapaInvalida();
-      if (!podeAprovar) negar('Seu perfil não aprova ordens de serviço');
+      if (!podeAprovar) negar('Você não tem acesso para aprovar ordens de serviço');
       dados = { etapa: 'REGISTRADA', aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'executar':
       if (r.etapa !== 'REGISTRADA') etapaInvalida();
+      if (!pode(ator, 'os.baixa')) negar('Você não tem acesso para dar baixa em ordens de serviço');
       dados = cfg.exigeConferencia
         ? { etapa: 'EXECUTADA', executadoEm: agora, executadoPorId: ator.id }
         : { etapa: 'FINALIZADA', executadoEm: agora, executadoPorId: ator.id, finalizadoEm: agora, finalizadoPorId: ator.id };
       break;
     case 'finalizar':
       if (r.etapa !== 'EXECUTADA') etapaInvalida();
-      if (!podeConferir) negar('Seu perfil não confere ordens de serviço');
+      if (!podeConferir) negar('Você não tem acesso para conferir a baixa');
+      if (r.executadoPorId === ator.id && !ator.admin) negar('Quem deu a baixa não pode conferir a própria baixa');
       dados = { etapa: 'FINALIZADA', finalizadoEm: agora, finalizadoPorId: ator.id };
       break;
     case 'reabrir':
       if (r.etapa !== 'EXECUTADA' && r.etapa !== 'FINALIZADA' && r.etapa !== 'CANCELADA') etapaInvalida();
-      if (!podeConferir) negar('Seu perfil não reabre ordens de serviço');
+      if (!podeReabrir) negar('Você não tem acesso para reabrir ordens de serviço');
+      exigirMotivo();
       dados = { etapa: 'REGISTRADA', executadoEm: null, executadoPorId: null, finalizadoEm: null, finalizadoPorId: null };
       break;
     case 'cancelar':
       if (r.etapa === 'FINALIZADA' || r.etapa === 'CANCELADA') etapaInvalida();
-      if (!podeAprovar && !podeConferir) negar('Seu perfil não cancela ordens de serviço');
+      if (!podeCancelar) negar('Você não tem acesso para cancelar ordens de serviço');
+      exigirMotivo();
       dados = { etapa: 'CANCELADA' };
       break;
   }

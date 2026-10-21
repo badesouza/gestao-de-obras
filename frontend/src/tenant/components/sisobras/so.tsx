@@ -173,7 +173,7 @@ export interface Passo {
 export const PASSOS: Passo[] = [
   { n: 1, chave: 'orgao', nome: 'Órgão', curto: 'Órgão', icone: 'orgao', rota: 'cadastros/orgao', texto: 'Quem usa o sistema. O nome e o brasão aparecem no carimbo das fotos e nos PDFs.' },
   { n: 2, chave: 'lugares', nome: 'Lugares', curto: 'Lugares', icone: 'pin', rota: 'cadastros/lugares', texto: 'Macrozonas e bairros onde o trabalho acontece.' },
-  { n: 3, chave: 'pessoas', nome: 'Pessoas', curto: 'Pessoas', icone: 'users', rota: 'users', texto: 'Quem entra no sistema e as equipes que vão a campo.' },
+  { n: 3, chave: 'pessoas', nome: 'Pessoas', curto: 'Pessoas', icone: 'users', rota: 'cadastros/pessoas', texto: 'Quem entra no sistema e as equipes que vão a campo.' },
   { n: 4, chave: 'veiculos', nome: 'Veículos e equipamentos', curto: 'Veículos', icone: 'truck', rota: 'cadastros-auxiliares', texto: 'Opcional. Só se quiser saber qual veículo ou máquina foi usado em cada OS.' },
   { n: 5, chave: 'centros', nome: 'Centros de custo', curto: 'Centros de custo', icone: 'pie', rota: 'centros-de-custo', texto: 'Para onde vai o gasto. Ex.: Iluminação Pública, Limpeza Urbana.' },
   { n: 6, chave: 'servicos', nome: 'Serviços', curto: 'Serviços', icone: 'wrench', rota: 'centros-custo', texto: 'O que a secretaria faz. Cada serviço tem seu centro de custo, quem atende e o que o fiscal preenche.' },

@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { JWT_SCOPE_TENANT } from '../shared/constants.js';
 import { sendError } from '../shared/errors.js';
+import { pode, permissoesDasCaixas } from '../shared/acessos.js';
 
 export interface JwtPayload {
   sub: string;
@@ -59,46 +60,47 @@ export function requireTenantAuth(prisma: PrismaClient) {
   };
 }
 
-/** Loads user permissions and checks required permission */
+/** Quem está agindo: caixas marcadas (tela Acessos) e se é administrador geral */
+export async function carregarAtor(prisma: PrismaClient, userId: string) {
+  const user = await prisma.tenantUser.findUnique({
+    where: { id: userId },
+    select: { id: true, entityId: true, status: true, adminGeral: true, acessos: true, role: { select: { code: true } } },
+  });
+  if (!user || user.status !== 'ACTIVE') return null;
+  return { id: user.id, entityId: user.entityId, roleCode: user.role.code, admin: user.adminGeral, acessos: user.acessos };
+}
+
+async function negarAcesso(prisma: PrismaClient, request: FastifyRequest, reply: FastifyReply, entityId: string, userId: string, exigido: string) {
+  await prisma.tenantAuditLog.create({
+    data: {
+      entityId, userId, action: 'ACCESS_DENIED', resource: 'auth',
+      metadata: { permission: exigido, route: request.url },
+    },
+  });
+  return sendError(reply, 403, 'FORBIDDEN', 'Permissão insuficiente');
+}
+
+/** Checks a legacy permission code — now derived from the user's checked boxes */
 export function requireTenantPermission(
   prisma: PrismaClient,
   permissionCode: string,
 ) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const user = await prisma.tenantUser.findUnique({
-      where: { id: request.user.sub },
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: { permission: true },
-            },
-          },
-        },
-      },
-    });
-
-    if (!user || user.status !== 'ACTIVE') {
-      return sendError(reply, 401, 'UNAUTHORIZED', 'Usuário inválido');
+    const ator = await carregarAtor(prisma, request.user.sub);
+    if (!ator) return sendError(reply, 401, 'UNAUTHORIZED', 'Usuário inválido');
+    if (!permissoesDasCaixas(ator.acessos, ator.admin).includes(permissionCode)) {
+      return negarAcesso(prisma, request, reply, ator.entityId, ator.id, permissionCode);
     }
+  };
+}
 
-    const permissions = user.role.permissions.map(
-      (rp: { permission: { code: string } }) => rp.permission.code,
-    );
-    if (!permissions.includes(permissionCode)) {
-      await prisma.tenantAuditLog.create({
-        data: {
-          entityId: user.entityId,
-          userId: user.id,
-          action: 'ACCESS_DENIED',
-          resource: 'auth',
-          metadata: {
-            permission: permissionCode,
-            route: request.url,
-          },
-        },
-      });
-      return sendError(reply, 403, 'FORBIDDEN', 'Permissão insuficiente');
+/** Exige pelo menos uma das caixas (ex.: 'compras.orcar') */
+export function requireAcesso(prisma: PrismaClient, ...chaves: string[]) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const ator = await carregarAtor(prisma, request.user.sub);
+    if (!ator) return sendError(reply, 401, 'UNAUTHORIZED', 'Usuário inválido');
+    if (!chaves.some(c => pode(ator, c))) {
+      return negarAcesso(prisma, request, reply, ator.entityId, ator.id, chaves.join('|'));
     }
   };
 }

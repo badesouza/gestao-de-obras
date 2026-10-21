@@ -4,6 +4,7 @@ import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { obterConfig } from '../ordens/ordens.service.js';
 import { situacaoVigencia } from '../contratos/contratos.service.js';
+import { poderesFluxo, type QuemAge } from '../../../shared/acessos.js';
 
 /* ── Pedido de compra: lançamento → revisão → aprovação → envio ao fornecedor ──
    Quem revisa e quem aprova é configurável por perfil. Quem revisou não aprova
@@ -11,12 +12,16 @@ import { situacaoVigencia } from '../contratos/contratos.service.js';
 
 export type AcaoPedido = 'enviar_revisao' | 'revisar' | 'aprovar' | 'devolver' | 'enviar_fornecedor';
 
-export function poderesCompra(cfg: { revisoresCompra: string[]; aprovadoresCompra: string[] }, roleCode: string) {
+/** Quem revisa e quem aprova vem das caixas marcadas (tela Acessos / Fluxo e aprovações) */
+export function poderesCompra(ator: QuemAge) {
+  const p = poderesFluxo(ator);
   return {
-    podeRevisarCompra: roleCode === 'ADMIN' || cfg.revisoresCompra.includes(roleCode),
-    podeAprovarCompra: roleCode === 'ADMIN' || cfg.aprovadoresCompra.includes(roleCode),
+    podeRevisarCompra: p.podeRevisarCompra, podeAprovarCompra: p.podeAprovarCompra,
+    podeLancarCompra: p.podeLancarCompra, podeEnviarCompra: p.podeEnviarCompra,
   };
 }
+
+export type AtorCompra = QuemAge & { id: string };
 
 /** Etapa em que um pedido recém-gerado deve nascer */
 export async function statusInicialDoPedido(prisma: PrismaClient | Prisma.TransactionClient, entityId: string, enviar: boolean): Promise<PedidoCompraStatus> {
@@ -27,7 +32,7 @@ export async function statusInicialDoPedido(prisma: PrismaClient | Prisma.Transa
 
 export async function acaoPedido(
   prisma: PrismaClient, entityId: string,
-  ator: { id: string; roleCode: string; podeLancar: boolean },
+  ator: AtorCompra,
   pedidoId: string, acao: AcaoPedido, motivo?: string,
 ) {
   const p = await prisma.pedidoCompra.findFirst({
@@ -36,7 +41,7 @@ export async function acaoPedido(
   });
   if (!p) throw new AppError(404, 'NOT_FOUND', 'Pedido não encontrado');
   const cfg = await obterConfig(prisma, entityId);
-  const { podeRevisarCompra, podeAprovarCompra } = poderesCompra(cfg, ator.roleCode);
+  const { podeRevisarCompra, podeAprovarCompra, podeLancarCompra, podeEnviarCompra } = poderesCompra(ator);
   const agora = new Date();
   const negar = (m: string): never => { throw new AppError(403, 'FORBIDDEN', m); };
   const invalido = (): never => { throw new AppError(409, 'STATUS_INVALIDO', `O pedido ${p.numero} não está na etapa certa para isso`); };
@@ -45,25 +50,25 @@ export async function acaoPedido(
   switch (acao) {
     case 'enviar_revisao':
       if (p.status !== 'DRAFT') invalido();
-      if (!ator.podeLancar) negar('Seu perfil não lança pedidos de compra');
+      if (!podeLancarCompra) negar('Você não tem acesso para lançar pedidos de compra');
       dados = cfg.exigeAprovacaoCompra
         ? { status: 'EM_REVISAO', enviadoRevisaoEm: agora, devolvidoMotivo: null, devolvidoEm: null }
         : { status: 'APROVADO', enviadoRevisaoEm: agora, aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'revisar':
       if (p.status !== 'EM_REVISAO') invalido();
-      if (!podeRevisarCompra) negar('Seu perfil não revisa pedidos de compra');
+      if (!podeRevisarCompra) negar('Você não tem acesso para revisar pedidos de compra');
       dados = { status: 'AGUARDANDO_APROVACAO', revisadoEm: agora, revisadoPorId: ator.id };
       break;
     case 'aprovar':
       if (p.status !== 'AGUARDANDO_APROVACAO') invalido();
-      if (!podeAprovarCompra) negar('Seu perfil não aprova pedidos de compra');
-      if (p.revisadoPorId === ator.id && ator.roleCode !== 'ADMIN') negar('Quem revisou o pedido não pode aprová-lo');
+      if (!podeAprovarCompra) negar('Você não tem acesso para aprovar pedidos de compra');
+      if (p.revisadoPorId === ator.id && !ator.admin) negar('Quem revisou o pedido não pode aprová-lo');
       dados = { status: 'APROVADO', aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'devolver':
       if (p.status !== 'EM_REVISAO' && p.status !== 'AGUARDANDO_APROVACAO') invalido();
-      if (!podeRevisarCompra && !podeAprovarCompra) negar('Seu perfil não devolve pedidos de compra');
+      if (!podeRevisarCompra && !podeAprovarCompra) negar('Você não tem acesso para devolver pedidos de compra');
       if (!motivo || motivo.trim().length < 5) throw new AppError(400, 'VALIDATION_ERROR', 'Explique o motivo da devolução');
       dados = { status: 'DRAFT', devolvidoEm: agora, devolvidoMotivo: motivo.trim(), revisadoEm: null, revisadoPorId: null };
       break;
@@ -71,7 +76,7 @@ export async function acaoPedido(
       if (!(p.status === 'APROVADO' || (p.status === 'DRAFT' && !cfg.exigeAprovacaoCompra))) {
         throw new AppError(409, 'STATUS_INVALIDO', cfg.exigeAprovacaoCompra ? 'O pedido precisa ser revisado e aprovado antes de ir ao fornecedor' : 'Pedido não pode ser enviado');
       }
-      if (!ator.podeLancar) negar('Seu perfil não envia pedidos ao fornecedor');
+      if (!podeEnviarCompra) negar('Você não tem acesso para enviar pedidos ao fornecedor');
       dados = { status: 'SENT', sentAt: agora };
       break;
   }

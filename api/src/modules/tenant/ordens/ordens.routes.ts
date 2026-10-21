@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
 import { PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT, PERMISSION_USERS_MANAGE, PERMISSION_USERS_VIEW } from '../../../shared/constants.js';
-import { requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
+import { carregarAtor, requireAcesso, requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
 import {
   PAPEIS_CONFIGURAVEIS, aplicarAcao, definirServicosDoUsuario, obterConfig, salvarConfig, servicosDoUsuario,
 } from './ordens.service.js';
@@ -32,9 +32,9 @@ export async function registerOrdensRoutes(fastify: FastifyInstance) {
         acao: z.enum(['aprovar', 'executar', 'finalizar', 'reabrir', 'cancelar']),
         observacao: z.string().trim().max(1000).optional(),
       }), req.body);
-      const user = await fastify.prisma.tenantUser.findUnique({ where: { id: req.user.sub }, select: { role: { select: { code: true } } } });
-      if (!user) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
-      return reply.send(await aplicarAcao(fastify.prisma, req.user.entityId!, { id: req.user.sub, roleCode: user.role.code }, id, acao, observacao));
+      const ator = await carregarAtor(fastify.prisma, req.user.sub);
+      if (!ator) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
+      return reply.send(await aplicarAcao(fastify.prisma, req.user.entityId!, ator, id, acao, observacao));
     } catch (e) { return handleAppError(reply, e); }
   });
 
@@ -43,7 +43,7 @@ export async function registerOrdensRoutes(fastify: FastifyInstance) {
     try { return reply.send(await obterConfig(fastify.prisma, req.user.entityId!)); }
     catch (e) { return handleAppError(reply, e); }
   });
-  fastify.put('/configuracoes/obras', { preHandler: podeGerirUsuarios }, async (req, reply) => {
+  fastify.put('/configuracoes/obras', { preHandler: [tenantAuth, requireAcesso(fastify.prisma, 'cad.regras')] }, async (req, reply) => {
     try {
       const dados = validar(z.object({
         exigeAprovacaoOS: z.boolean(),
