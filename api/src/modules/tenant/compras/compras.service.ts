@@ -636,8 +636,8 @@ export async function createPedidoFromSolicitacoes(
 export async function sendPedido(prisma: PrismaClient, actorId: string, entityId: string, id: string) {
   const pedido = await prisma.$transaction(async (tx) => {
     const current = await getPedidoById(tx, entityId, id);
-    const cfg = await tx.configuracaoObras.findUnique({ where: { entityId }, select: { exigeAprovacaoCompra: true } });
-    const exige = cfg?.exigeAprovacaoCompra ?? true;
+    const cfg = await tx.configuracaoObras.findUnique({ where: { entityId }, select: { exigeAprovacaoCompra: true, exigeRevisaoCompra: true } });
+    const exige = (cfg?.exigeAprovacaoCompra ?? true) || (cfg?.exigeRevisaoCompra ?? true);
     if (!(current.status === 'APROVADO' || (current.status === 'DRAFT' && !exige))) {
       throw new AppError(409, 'STATUS_INVALIDO', exige ? 'O pedido precisa ser revisado e aprovado antes de ir ao fornecedor' : 'Somente pedido em rascunho pode ser enviado');
     }

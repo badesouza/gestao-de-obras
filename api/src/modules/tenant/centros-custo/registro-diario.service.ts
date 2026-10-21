@@ -1,7 +1,7 @@
 import type { PrismaClient, PropriedadeTipo } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
-import { iniciarOrdemServico, sincronizarStatusTexto } from '../ordens/ordens.service.js';
+import { iniciarOrdemServico, sincronizarStatusTexto, type OrigemOS } from '../ordens/ordens.service.js';
 import { assertCentroValido, centroPadraoDoServico } from '../centros-de-custo/centros-de-custo.service.js';
 import {
   assertCentroActive,
@@ -237,6 +237,7 @@ export async function createRegistroDiario(
   entityId: string,
   centroId: string,
   input: UpsertRegistroDiarioRequest,
+  origem: OrigemOS = 'ESCRITORIO',
 ) {
   await assertCentroActive(prisma, entityId, centroId);
   const centro = await getCentroForEntity(prisma, entityId, centroId);
@@ -268,7 +269,7 @@ export async function createRegistroDiario(
   );
 
   /* número oficial da OS e etapa inicial (conforme as regras da secretaria) */
-  await iniciarOrdemServico(prisma, entityId, registro.id, centroId);
+  await iniciarOrdemServico(prisma, entityId, registro.id, centroId, origem);
 
   await writeTenantAudit(prisma, {
     entityId,

@@ -48,6 +48,8 @@ const ICONES = {
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
   chat: <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z" />,
   copiar: <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></>,
+  carrinho: <><circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" /><path d="M2 2h2l2.7 12.4a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 1.9-1.6L21 8H5.1" /></>,
+  osCheck: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>,
 } as const;
 
 export type NomeIcone = keyof typeof ICONES;
@@ -59,11 +61,11 @@ export function Ic({ n, className, style }: { n: NomeIcone; className?: string; 
 /* ═══════════════════════ Página, mira e selo ═══════════════════════ */
 
 /** Área de conteúdo no padrão SisObras (o menu do sistema fica como está) */
-export function Pagina({ children }: { children: ReactNode }) {
+export function Pagina({ children, semMira }: { children: ReactNode; semMira?: boolean }) {
   return (
     <div className="so so-main">
       <div className="so-wrap">
-        <Mira />
+        {!semMira && <Mira />}
         {children}
       </div>
     </div>

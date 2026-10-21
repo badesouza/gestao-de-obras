@@ -10,6 +10,8 @@ import {
 } from './cadastros-base.service.js';
 import { atualizarFrota, criarFrota, listarFrota, removerFrota, servicosSemCentro } from './frota.service.js';
 import { MOMENTOS, TIPOS_CAMPO, criarServico, listarServicos, obterFicha, salvarFicha } from './servicos-ficha.service.js';
+import { PASSOS_FLUXO, obterFluxo, salvarFluxo } from './fluxo.service.js';
+import { ORIGENS_OS } from '../ordens/ordens.service.js';
 
 const texto = (max: number) => z.string().max(max).nullable().optional();
 
@@ -39,6 +41,7 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
   const podeLugares = [tenantAuth, requireAcesso(fastify.prisma, 'cad.lugares')];
   const podeFrota = [tenantAuth, requireAcesso(fastify.prisma, 'cad.veiculos')];
   const podeServicos = [tenantAuth, requireAcesso(fastify.prisma, 'cad.servicos')];
+  const podeFluxo = [tenantAuth, requireAcesso(fastify.prisma, 'cad.regras')];
 
   fastify.get('/cadastros/resumo', { preHandler: podeVer }, async (req, reply) => {
     try { return reply.send(await resumoCadastros(fastify.prisma, req.user.entityId!)); }
@@ -215,6 +218,32 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await salvarFicha(fastify.prisma, req.user.entityId!, req.user.sub, id, fichaSchema.parse(req.body)));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  /* ── Fluxo e aprovações ── */
+  fastify.get('/cadastros/fluxo', { preHandler: podeVer }, async (req, reply) => {
+    try { return reply.send(await obterFluxo(fastify.prisma, req.user.entityId!)); }
+    catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.put('/cadastros/fluxo', { preHandler: podeFluxo }, async (req, reply) => {
+    try {
+      const passos = Object.keys(PASSOS_FLUXO) as [string, ...string[]];
+      const d = z.object({
+        config: z.object({
+          exigeAprovacaoOS: z.boolean(),
+          aprovacaoOrigens: z.array(z.enum(ORIGENS_OS)).max(3),
+          exigeConferencia: z.boolean(),
+          conferenciaPropriaBloqueada: z.boolean(),
+          exigeRevisaoCompra: z.boolean(),
+          exigeAprovacaoCompra: z.boolean(),
+          pedidoSoDeOrcamento: z.boolean(),
+          metaDias: z.number().int().min(1, 'Prazo mínimo de 1 dia').max(90, 'Prazo máximo de 90 dias'),
+        }),
+        passos: z.partialRecord(z.enum(passos), z.array(z.string().uuid()).max(500)),
+      }).parse(req.body);
+      return reply.send(await salvarFluxo(fastify.prisma, req.user.entityId!, req.user.sub, d));
     } catch (e) { return handleAppError(reply, e); }
   });
 }

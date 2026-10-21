@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError } from '../../../shared/errors.js';
-import { acaoPedido, saldosDasLicitacoes } from './compras-fluxo.service.js';
+import { acaoPedido, exigirPedidoDeOrcamento, saldosDasLicitacoes } from './compras-fluxo.service.js';
 import {
   PERMISSION_CENTROS_CUSTO_MANAGE,
   PERMISSION_CENTROS_CUSTO_VIEW,
@@ -61,6 +61,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
 
   fastify.post('/compras/solicitacoes', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
+      await exigirPedidoDeOrcamento(fastify.prisma, request.user.entityId!);
       const body = createSolicitacaoSchema.parse(request.body);
       const result = await createSolicitacao(
         fastify.prisma,
@@ -149,6 +150,7 @@ export async function registerComprasRoutes(fastify: FastifyInstance) {
 
   fastify.post('/compras/pedidos/from-solicitacoes', { preHandler: podeLancarCompra }, async (request, reply) => {
     try {
+      await exigirPedidoDeOrcamento(fastify.prisma, request.user.entityId!);
       const body = createPedidoFromSolicitacoesSchema.parse(request.body);
       const result = await createPedidoFromSolicitacoes(
         fastify.prisma,

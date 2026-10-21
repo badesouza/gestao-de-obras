@@ -109,7 +109,7 @@ export function ServicosListaPage() {
 
       <BarraAcoes esquerda={<><b>{ativos.length}</b> serviços{semCentro > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro} sem centro de custo</span></>}<Sep />passo 6 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Centros de custo</Link>
-        <Link to={rotaTenant(entityId, 'configuracoes')} className="so-btn so-primary">Concluir: Fluxo e aprovações<Ic n="seta" className="arrow" /></Link>
+        <Link to={rotaTenant(entityId, 'cadastros/fluxo')} className="so-btn so-primary">Concluir: Fluxo e aprovações<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>

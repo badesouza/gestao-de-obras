@@ -66,7 +66,7 @@ export const CATALOGO_ACESSOS: MenuAcesso[] = [
       { chave: 'cad.veiculos', nome: 'Veículos e equipamentos' },
       { chave: 'cad.centros', nome: 'Centros de custo' },
       { chave: 'cad.servicos', nome: 'Serviços' },
-      { chave: 'cad.regras', nome: 'Regras de trabalho' },
+      { chave: 'cad.regras', nome: 'Fluxo e aprovações' },
     ] },
   ] },
 ];

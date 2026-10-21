@@ -147,7 +147,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: 'pedidos',             label: 'Pedidos de compra', permission: 'centros_custo.view', icon: <IconPedidos /> },
   { to: 'saldos',              label: 'Saldos dos contratos', permission: 'centros_custo.view', icon: <IconSaldos /> },
   { to: 'cadastros/pessoas',   label: 'Usuários',          permission: 'users.view',         icon: <IconUsers /> },
-  { to: 'configuracoes',       label: 'Regras',            permission: 'users.manage',       icon: <IconRegras /> },
+  { to: 'cadastros/fluxo',     label: 'Fluxo e aprovações', permission: 'users.manage',      icon: <IconRegras /> },
 ];
 
 interface TenantSidebarProps {
@@ -173,8 +173,13 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
     ? <span className="tn-nav-badge" title={`${novas} ${novas === 1 ? 'pedido aguardando' : 'pedidos aguardando'}`}>{novas > 99 ? '99+' : novas}</span>
     : null;
 
+  /* o item com o caminho mais longo que casa fica ativo (Cadastros não acende em Cadastros › Pessoas) */
+  const casa = (path: string) => {
+    const base = `/t/${entityId}/${path}`;
+    return location.pathname === base || location.pathname.startsWith(`${base}/`);
+  };
   const isActive = (path: string) =>
-    location.pathname.includes(`/t/${entityId}/${path}`);
+    casa(path) && !visibleItems.some(i => i.to !== path && i.to.startsWith(`${path}/`) && casa(i.to));
 
   /* desafixar ao clicar fora */
   useEffect(() => {

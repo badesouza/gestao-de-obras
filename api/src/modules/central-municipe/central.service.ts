@@ -183,7 +183,7 @@ export async function converterEmOcorrencia(prisma: PrismaClient, entityId: stri
   por('Origem da Demanda', 'Munícipe');
   por('Observações', `Pedido do munícipe — protocolo ${s.protocolo}\n${s.descricao}\nSolicitante: ${s.nome} · ${s.telefone}`);
 
-  const registro = await createRegistroDiario(prisma, userId, entityId, centroCustoId, { data: hojeBrasilia(), values: valores });
+  const registro = await createRegistroDiario(prisma, userId, entityId, centroCustoId, { data: hojeBrasilia(), values: valores }, 'MUNICIPE');
 
   if (s.lat != null && s.lng != null) {
     await prisma.registroDiario.update({

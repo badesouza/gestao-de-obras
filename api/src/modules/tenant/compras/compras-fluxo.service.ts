@@ -23,11 +23,29 @@ export function poderesCompra(ator: QuemAge) {
 
 export type AtorCompra = QuemAge & { id: string };
 
+/** Passos ligados em "Fluxo e aprovações": revisar e aprovar são independentes */
+export function passosCompra(cfg: { exigeRevisaoCompra: boolean; exigeAprovacaoCompra: boolean }) {
+  return { revisa: cfg.exigeRevisaoCompra, aprova: cfg.exigeAprovacaoCompra };
+}
+
+/** Etapa depois que quem lançou envia: revisão, aprovação ou já aprovado */
+export function etapaAposEnvio(cfg: { exigeRevisaoCompra: boolean; exigeAprovacaoCompra: boolean }): 'EM_REVISAO' | 'AGUARDANDO_APROVACAO' | 'APROVADO' {
+  const { revisa, aprova } = passosCompra(cfg);
+  return revisa ? 'EM_REVISAO' : aprova ? 'AGUARDANDO_APROVACAO' : 'APROVADO';
+}
+
+/** O pedido só pode nascer de um orçamento? (trava as outras formas de lançar) */
+export async function exigirPedidoDeOrcamento(prisma: PrismaClient, entityId: string) {
+  const cfg = await obterConfig(prisma, entityId);
+  if (cfg.pedidoSoDeOrcamento) throw new AppError(409, 'SO_DE_ORCAMENTO', 'Nesta secretaria o pedido só pode nascer de um orçamento');
+}
+
 /** Etapa em que um pedido recém-gerado deve nascer */
 export async function statusInicialDoPedido(prisma: PrismaClient | Prisma.TransactionClient, entityId: string, enviar: boolean): Promise<PedidoCompraStatus> {
   if (!enviar) return 'DRAFT';
   const cfg = await obterConfig(prisma as PrismaClient, entityId);
-  return cfg.exigeAprovacaoCompra ? 'EM_REVISAO' : 'SENT';
+  const etapa = etapaAposEnvio(cfg);
+  return etapa === 'APROVADO' ? 'SENT' : etapa;
 }
 
 export async function acaoPedido(
@@ -51,14 +69,19 @@ export async function acaoPedido(
     case 'enviar_revisao':
       if (p.status !== 'DRAFT') invalido();
       if (!podeLancarCompra) negar('Você não tem acesso para lançar pedidos de compra');
-      dados = cfg.exigeAprovacaoCompra
-        ? { status: 'EM_REVISAO', enviadoRevisaoEm: agora, devolvidoMotivo: null, devolvidoEm: null }
-        : { status: 'APROVADO', enviadoRevisaoEm: agora, aprovadoEm: agora, aprovadoPorId: ator.id };
+      {
+        const etapa = etapaAposEnvio(cfg);
+        dados = etapa === 'APROVADO'
+          ? { status: 'APROVADO', enviadoRevisaoEm: agora, aprovadoEm: agora, aprovadoPorId: ator.id, devolvidoMotivo: null, devolvidoEm: null }
+          : { status: etapa, enviadoRevisaoEm: agora, devolvidoMotivo: null, devolvidoEm: null };
+      }
       break;
     case 'revisar':
       if (p.status !== 'EM_REVISAO') invalido();
       if (!podeRevisarCompra) negar('Você não tem acesso para revisar pedidos de compra');
-      dados = { status: 'AGUARDANDO_APROVACAO', revisadoEm: agora, revisadoPorId: ator.id };
+      dados = cfg.exigeAprovacaoCompra
+        ? { status: 'AGUARDANDO_APROVACAO', revisadoEm: agora, revisadoPorId: ator.id }
+        : { status: 'APROVADO', revisadoEm: agora, revisadoPorId: ator.id, aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'aprovar':
       if (p.status !== 'AGUARDANDO_APROVACAO') invalido();
@@ -73,8 +96,11 @@ export async function acaoPedido(
       dados = { status: 'DRAFT', devolvidoEm: agora, devolvidoMotivo: motivo.trim(), revisadoEm: null, revisadoPorId: null };
       break;
     case 'enviar_fornecedor':
-      if (!(p.status === 'APROVADO' || (p.status === 'DRAFT' && !cfg.exigeAprovacaoCompra))) {
-        throw new AppError(409, 'STATUS_INVALIDO', cfg.exigeAprovacaoCompra ? 'O pedido precisa ser revisado e aprovado antes de ir ao fornecedor' : 'Pedido não pode ser enviado');
+      {
+        const { revisa, aprova } = passosCompra(cfg);
+        if (!(p.status === 'APROVADO' || (p.status === 'DRAFT' && !revisa && !aprova))) {
+          throw new AppError(409, 'STATUS_INVALIDO', revisa || aprova ? 'O pedido precisa passar pela revisão e aprovação antes de ir ao fornecedor' : 'Pedido não pode ser enviado');
+        }
       }
       if (!podeEnviarCompra) negar('Você não tem acesso para enviar pedidos ao fornecedor');
       dados = { status: 'SENT', sentAt: agora };

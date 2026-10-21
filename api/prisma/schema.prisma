@@ -873,6 +873,14 @@ model ConfiguracaoObras {
   exigeAprovacaoCompra Boolean  @default(true) @map("exige_aprovacao_compra")
   revisoresCompra      String[] @default(["ADMIN", "COORDENADOR"]) @map("revisores_compra")
   aprovadoresCompra    String[] @default(["ADMIN"]) @map("aprovadores_compra")
+  /// Fluxo e aprovações: revisão do pedido separada da aprovação
+  exigeRevisaoCompra   Boolean  @default(true) @map("exige_revisao_compra")
+  /// De onde vem a OS que precisa de aprovação: ESCRITORIO, MUNICIPE, CAMPO
+  aprovacaoOrigens     String[] @default(["ESCRITORIO", "MUNICIPE", "CAMPO"]) @map("aprovacao_origens")
+  /// Quem deu a baixa não pode conferir a própria baixa
+  conferenciaPropriaBloqueada Boolean @default(true) @map("conferencia_propria_bloqueada")
+  /// O pedido só pode nascer de um orçamento
+  pedidoSoDeOrcamento  Boolean  @default(false) @map("pedido_so_de_orcamento")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   entity Entity @relation(fields: [entityId], references: [id])

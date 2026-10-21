@@ -590,9 +590,9 @@
 .so-flow svg.ar{position:absolute;overflow:visible;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .so-flow svg.ar.back{stroke-dasharray:6 6}
 .so-flow svg.ar marker path{fill:var(--muted);stroke:none}
-.so-flow .box{position:absolute;padding:16px 20px;font-size:13px;line-height:1.7;color:var(--ink-2)}
-.so-flow .box b{color:var(--ink);font-weight:800}
-.so-flow .box .muted{color:var(--muted)}
+.so-flow > .box{position:absolute;padding:16px 20px;font-size:13px;line-height:1.7;color:var(--ink-2)}
+.so-flow > .box b{color:var(--ink);font-weight:800}
+.so-flow > .box .muted{color:var(--muted)}
 
 /* ================= movimento ================= */
 @keyframes so-rise{from{transform:translateY(10px);opacity:.35}to{transform:none;opacity:1}}
@@ -647,3 +647,60 @@
 .so .so-ph-body h1{color:var(--ink)}
 .so-panel .so-lbl{white-space:normal;flex-wrap:wrap;row-gap:2px}.so-panel .so-lbl .opt{white-space:normal;overflow:visible}
 .so-card[id]{scroll-margin-top:16px}
+
+/* ================= fluxogramas: a mira percorre as etapas, nó por nó ================= */
+.so-fluxograma{position:relative;width:100%;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.so-fluxograma > .so-flow{position:absolute;left:0;top:0;transform-origin:0 0}
+.so-flow .so-cad{top:0;left:0}
+.so-flow.os .so-cad{animation:so-trace-os 35s cubic-bezier(.65,0,.35,1) infinite}
+.so-flow.os .so-cad .box{animation:so-tspin7 35s cubic-bezier(.65,0,.35,1) infinite}
+.so-flow.os .so-cad .ping{animation:so-tping7 35s linear infinite}
+.so-flow.pedido .so-cad{animation:so-trace-pd 30s cubic-bezier(.65,0,.35,1) infinite}
+.so-flow.pedido .so-cad .box{animation:so-tspin6 30s cubic-bezier(.65,0,.35,1) infinite}
+.so-flow.pedido .so-cad .ping{animation:so-tping6 30s linear infinite}
+a.so-node{text-decoration:none}
+@keyframes so-trace-os{
+  0%,5%{left:652px;top:265px;--e3:412;--n3:906}
+  14.29%,19.29%{left:652px;top:455px;--e3:418;--n3:781}
+  28.57%,33.57%{left:900px;top:645px;--e3:553;--n3:664}
+  42.86%,47.86%{left:1148px;top:835px;--e3:687;--n3:532}
+  57.14%,62.14%{left:1396px;top:645px;--e3:741;--n3:618}
+  71.43%,76.43%{left:1644px;top:645px;--e3:829;--n3:607}
+  85.71%,90.71%{left:1644px;top:265px;--e3:835;--n3:889}
+  100%{left:652px;top:265px;--e3:412;--n3:906}
+}
+@keyframes so-tspin7{
+  0%,5%{transform:rotate(0)}14.29%{transform:rotate(90deg)}14.3%,19.29%{transform:rotate(0)}28.57%{transform:rotate(90deg)}28.58%,33.57%{transform:rotate(0)}42.86%{transform:rotate(90deg)}42.87%,47.86%{transform:rotate(0)}57.14%{transform:rotate(90deg)}57.15%,62.14%{transform:rotate(0)}71.43%{transform:rotate(90deg)}71.44%,76.43%{transform:rotate(0)}85.71%{transform:rotate(90deg)}85.72%,90.71%{transform:rotate(0)}100%{transform:rotate(90deg)}
+}
+@keyframes so-tping7{
+  0%{transform:scale(1);opacity:.9}4%{transform:scale(3.4);opacity:0}4.01%,14.28%{transform:scale(1);opacity:0}
+  14.29%{transform:scale(1);opacity:.9}18.29%{transform:scale(3.4);opacity:0}18.3%,28.56%{transform:scale(1);opacity:0}
+  28.57%{transform:scale(1);opacity:.9}32.57%{transform:scale(3.4);opacity:0}32.58%,42.85%{transform:scale(1);opacity:0}
+  42.86%{transform:scale(1);opacity:.9}46.86%{transform:scale(3.4);opacity:0}46.87%,57.13%{transform:scale(1);opacity:0}
+  57.14%{transform:scale(1);opacity:.9}61.14%{transform:scale(3.4);opacity:0}61.15%,71.42%{transform:scale(1);opacity:0}
+  71.43%{transform:scale(1);opacity:.9}75.43%{transform:scale(3.4);opacity:0}75.44%,85.7%{transform:scale(1);opacity:0}
+  85.71%{transform:scale(1);opacity:.9}89.71%{transform:scale(3.4);opacity:0}89.72%,100%{transform:scale(1);opacity:0}
+}
+@keyframes so-trace-pd{
+  0%,5%{left:404px;top:265px;--e3:288;--n3:903}
+  16.67%,21.67%{left:652px;top:265px;--e3:419;--n3:897}
+  33.33%,38.33%{left:900px;top:455px;--e3:552;--n3:774}
+  50%,55%{left:1148px;top:645px;--e3:684;--n3:651}
+  66.67%,71.67%{left:1396px;top:835px;--e3:745;--n3:528}
+  83.33%,88.33%{left:1644px;top:835px;--e3:831;--n3:522}
+  100%{left:404px;top:265px;--e3:288;--n3:903}
+}
+@keyframes so-tspin6{
+  0%,5%{transform:rotate(0)}16.67%{transform:rotate(90deg)}16.68%,21.67%{transform:rotate(0)}33.33%{transform:rotate(90deg)}33.34%,38.33%{transform:rotate(0)}50%{transform:rotate(90deg)}50.01%,55%{transform:rotate(0)}66.67%{transform:rotate(90deg)}66.68%,71.67%{transform:rotate(0)}83.33%{transform:rotate(90deg)}83.34%,88.33%{transform:rotate(0)}100%{transform:rotate(90deg)}
+}
+@keyframes so-tping6{
+  0%{transform:scale(1);opacity:.9}4.5%{transform:scale(3.4);opacity:0}4.51%,16.66%{transform:scale(1);opacity:0}
+  16.67%{transform:scale(1);opacity:.9}21.17%{transform:scale(3.4);opacity:0}21.18%,33.32%{transform:scale(1);opacity:0}
+  33.33%{transform:scale(1);opacity:.9}37.83%{transform:scale(3.4);opacity:0}37.84%,49.99%{transform:scale(1);opacity:0}
+  50%{transform:scale(1);opacity:.9}54.5%{transform:scale(3.4);opacity:0}54.51%,66.66%{transform:scale(1);opacity:0}
+  66.67%{transform:scale(1);opacity:.9}71.17%{transform:scale(3.4);opacity:0}71.18%,83.32%{transform:scale(1);opacity:0}
+  83.33%{transform:scale(1);opacity:.9}87.83%{transform:scale(3.4);opacity:0}87.84%,100%{transform:scale(1);opacity:0}
+}
+/* Fluxo e aprovações: o que fica sob o número do passo */
+.so-recuo{padding-left:44px}.so-recuo.o{padding-left:36px}.so-recuo-m{margin-left:44px}
+@media (max-width:560px){.so-recuo,.so-recuo.o{padding-left:0}.so-recuo-m{margin-left:0}}

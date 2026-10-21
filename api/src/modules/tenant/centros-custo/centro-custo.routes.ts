@@ -309,6 +309,8 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
           request.user.entityId!,
           id,
           body,
+          /* aberta pelo celular = fiscal em campo; senão, escritório */
+          /Mobi|Android|iPhone/i.test(request.headers['user-agent'] ?? '') ? 'CAMPO' : 'ESCRITORIO',
         );
         return reply.code(201).send(row);
       } catch (error) {

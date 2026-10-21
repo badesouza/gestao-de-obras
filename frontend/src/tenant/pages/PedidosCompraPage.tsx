@@ -52,7 +52,7 @@ function Passos({ p }: { p: PedidoCompra }) {
 export function PedidosCompraPage() {
   const { entityId, session } = useTenant();
   const podeLancar = useTenantPermission('centros_custo.manage');
-  const { podeRevisarCompra, podeAprovarCompra, exigeAprovacaoCompra } = session.obras;
+  const { podeRevisarCompra, podeAprovarCompra, exigeAprovacaoCompra, exigeRevisaoCompra = true } = session.obras;
   const [pedidos, setPedidos] = useState<PedidoCompra[] | null>(null);
   const [erro, setErro] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('TODOS');
@@ -111,7 +111,7 @@ export function PedidosCompraPage() {
           <div className="ob-head-texto">
             <span className="ob-eyebrow ob-eyebrow-serv">Compras</span>
             <h1 className="ob-h1">Pedidos de compra</h1>
-            <p className="ob-sub">{exigeAprovacaoCompra ? 'Cada pedido passa por revisão e aprovação antes de ir ao fornecedor.' : 'A aprovação de compras está desligada nas regras.'}</p>
+            <p className="ob-sub">{exigeAprovacaoCompra ? 'Cada pedido passa por revisão e aprovação antes de ir ao fornecedor.' : 'A revisão e a aprovação de compras estão desligadas em Fluxo e aprovações.'}</p>
           </div>
         </div>
         <div className="ob-head-acoes">
@@ -201,7 +201,7 @@ export function PedidosCompraPage() {
                     <div className="cp-acoes">
                       {p.status === 'DRAFT' && podeLancar && (
                         exigeAprovacaoCompra
-                          ? <button type="button" className="ob-acao is-conferir" disabled={ocup} onClick={() => void agir(p, 'enviar_revisao', `${p.numero} enviado para revisão.`)}>Enviar para revisão</button>
+                          ? <button type="button" className="ob-acao is-conferir" disabled={ocup} onClick={() => void agir(p, 'enviar_revisao', `${p.numero} enviado para ${exigeRevisaoCompra ? 'revisão' : 'aprovação'}.`)}>{exigeRevisaoCompra ? 'Enviar para revisão' : 'Enviar para aprovação'}</button>
                           : <button type="button" className="ob-acao is-aprovar" disabled={ocup} onClick={() => void agir(p, 'enviar_fornecedor', `${p.numero} enviado ao fornecedor.`)}>Enviar ao fornecedor</button>
                       )}
                       {p.status === 'EM_REVISAO' && podeRevisarCompra && <>

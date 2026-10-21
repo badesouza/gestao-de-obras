@@ -94,7 +94,7 @@ export function CadastrosInicioPage() {
           <span>Quem aprova as OS e as compras, quem confere a baixa do fiscal e o prazo padrão de atendimento.</span>
         </div>
         <div className="acts">
-          <Link to={rotaTenant(entityId, 'configuracoes')} className="so-btn so-primary">Abrir regras<Ic n="seta" className="arrow" /></Link>
+          <Link to={rotaTenant(entityId, 'cadastros/fluxo')} className="so-btn so-primary">Abrir regras<Ic n="seta" className="arrow" /></Link>
           <Ajuda texto="Ajuda: Regras de trabalho" />
         </div>
       </section>

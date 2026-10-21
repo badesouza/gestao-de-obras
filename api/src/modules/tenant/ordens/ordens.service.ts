@@ -55,12 +55,17 @@ export async function sincronizarStatusTexto(prisma: PrismaClient, entityId: str
   });
 }
 
-/** Dá número oficial e a etapa inicial a uma ocorrência recém-criada */
-export async function iniciarOrdemServico(prisma: PrismaClient, entityId: string, registroId: string, centroId: string) {
+export const ORIGENS_OS = ['ESCRITORIO', 'MUNICIPE', 'CAMPO'] as const;
+export type OrigemOS = typeof ORIGENS_OS[number];
+
+/** Dá número oficial e a etapa inicial a uma ocorrência recém-criada.
+    A aprovação vale só para as origens marcadas em "Fluxo e aprovações". */
+export async function iniciarOrdemServico(prisma: PrismaClient, entityId: string, registroId: string, centroId: string, origem: OrigemOS = 'ESCRITORIO') {
   const cfg = await obterConfig(prisma, entityId);
   const ano = hojeBrasilia().slice(0, 4);
   const n = await proximoNumero(prisma, entityId, `OS-${ano}`);
-  const etapa: EtapaOS = cfg.exigeAprovacaoOS ? 'AGUARDANDO_APROVACAO' : 'REGISTRADA';
+  const exige = cfg.exigeAprovacaoOS && (cfg.aprovacaoOrigens ?? ORIGENS_OS).includes(origem);
+  const etapa: EtapaOS = exige ? 'AGUARDANDO_APROVACAO' : 'REGISTRADA';
   await prisma.registroDiario.update({
     where: { id: registroId },
     data: { numeroOS: `OS ${ano}/${String(n).padStart(4, '0')}`, etapa },
@@ -105,7 +110,7 @@ export async function aplicarAcao(
     case 'finalizar':
       if (r.etapa !== 'EXECUTADA') etapaInvalida();
       if (!podeConferir) negar('Você não tem acesso para conferir a baixa');
-      if (r.executadoPorId === ator.id && !ator.admin) negar('Quem deu a baixa não pode conferir a própria baixa');
+      if (cfg.conferenciaPropriaBloqueada && r.executadoPorId === ator.id && !ator.admin) negar('Quem deu a baixa não pode conferir a própria baixa');
       dados = { etapa: 'FINALIZADA', finalizadoEm: agora, finalizadoPorId: ator.id };
       break;
     case 'reabrir':

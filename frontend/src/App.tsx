@@ -26,12 +26,13 @@ import { MapaFullPage } from './tenant/pages/MapaFullPage';
 import { ultimoTenant } from './lib/offline/pwa';
 import { CentralMunicipePage } from './municipe/CentralMunicipePage';
 import { CentralMunicipeAdminPage } from './tenant/pages/CentralMunicipeAdminPage';
-import { ConfiguracoesPage } from './tenant/pages/ConfiguracoesPage';
 import { PedidosCompraPage } from './tenant/pages/PedidosCompraPage';
 import { SaldosPage } from './tenant/pages/SaldosPage';
 import { CentrosDeCustoPage } from './tenant/pages/CentrosDeCustoPage';
 import { OrcamentosPage, OrcamentoEditorPage } from './tenant/pages/OrcamentosPage';
 import { CadastrosInicioPage } from './tenant/pages/cadastros/CadastrosInicioPage';
+import { FluxoAprovacoesPage } from './tenant/pages/cadastros/FluxoAprovacoesPage';
+import { FluxogramaOSPage, FluxogramaPedidoPage } from './tenant/pages/cadastros/FluxogramaPage';
 import { OrgaoPage } from './tenant/pages/cadastros/OrgaoPage';
 import { LugaresPage } from './tenant/pages/cadastros/LugaresPage';
 import { PessoasPage } from './tenant/pages/cadastros/PessoasPage';
@@ -53,6 +54,12 @@ function InicioApp() {
 function RedirecionaUsuario() {
   const { id, userId } = useParams<{ id: string; userId: string }>();
   return <Navigate to={`/t/${id}/cadastros/pessoas?editar=${userId}`} replace />;
+}
+
+/** /t/:id/configuracoes (antiga tela Regras) → Fluxo e aprovações */
+function RedirecionaRegras() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/t/${id}/cadastros/fluxo`} replace />;
 }
 
 /** Application router root */
@@ -81,7 +88,7 @@ function App() {
           <Route path="dashboard" element={<SalaSituacaoPage />} />
           <Route path="servicos" element={<ServicosPage />} />
           <Route path="central-municipe" element={<CentralMunicipeAdminPage />} />
-          <Route path="configuracoes" element={<ConfiguracoesPage />} />
+          <Route path="configuracoes" element={<RedirecionaRegras />} />
           <Route path="pedidos" element={<PedidosCompraPage />} />
           <Route path="saldos" element={<SaldosPage />} />
           <Route path="centros-de-custo" element={<CentrosDeCustoPage />} />
@@ -105,6 +112,9 @@ function App() {
             <Route path="cadastros/centros-de-custo" element={<CentrosCustoPage />} />
             <Route path="cadastros/servicos" element={<ServicosListaPage />} />
             <Route path="cadastros/servicos/:servicoId" element={<FichaServicoPage />} />
+            <Route path="cadastros/fluxo" element={<FluxoAprovacoesPage />} />
+            <Route path="cadastros/fluxo/os" element={<FluxogramaOSPage />} />
+            <Route path="cadastros/fluxo/pedido" element={<FluxogramaPedidoPage />} />
             <Route path="centros-custo" element={<CentroCustoListPage />} />
             <Route path="centros-custo/:centroId" element={<CentroCustoDetailPage />} />
           </Route>

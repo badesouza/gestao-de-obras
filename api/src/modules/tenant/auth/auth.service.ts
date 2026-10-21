@@ -137,7 +137,9 @@ export async function getTenantUserProfile(
     adminGeral: user.adminGeral,
     obras: {
       ...poderesFluxo({ admin: user.adminGeral, acessos: user.acessos }),
-      exigeAprovacaoCompra: cfg.exigeAprovacaoCompra,
+      /* o pedido passa por análise (revisão e/ou aprovação) antes do fornecedor */
+      exigeAprovacaoCompra: cfg.exigeAprovacaoCompra || cfg.exigeRevisaoCompra,
+      exigeRevisaoCompra: cfg.exigeRevisaoCompra,
       exigeAprovacaoOS: cfg.exigeAprovacaoOS,
       exigeConferencia: cfg.exigeConferencia,
       metaDias: cfg.metaDias,

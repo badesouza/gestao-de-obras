@@ -202,7 +202,7 @@ export function FichaServicoPage() {
       <Cartao id="quem" className="so-rise d3" icone={<span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>4</span>} titulo="Quem atende" ajuda="Ajuda: Quem atende"
         direita={<>
           <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-ghost sm">Ajustar em Pessoas</Link>
-          <Link to={rotaTenant(entityId, 'configuracoes')} className="so-btn so-ghost sm">Fluxo e aprovações</Link>
+          <Link to={rotaTenant(entityId, 'cadastros/fluxo')} className="so-btn so-ghost sm">Fluxo e aprovações</Link>
         </>} corpoStyle={{ gap: 10 }}>
         <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>Só para conferir. Quem atende é marcado no cadastro da pessoa; quem aprova e confere, em Fluxo e aprovações.</p>
         <div className="so-people">

@@ -357,7 +357,7 @@ export interface TenantSession {
   servicosPermitidos: string[] | null;
   obras: {
     podeAprovar: boolean; podeConferir: boolean; exigeAprovacaoOS: boolean; exigeConferencia: boolean; metaDias: number;
-    podeRevisarCompra: boolean; podeAprovarCompra: boolean; exigeAprovacaoCompra: boolean;
+    podeRevisarCompra: boolean; podeAprovarCompra: boolean; exigeAprovacaoCompra: boolean; exigeRevisaoCompra?: boolean;
   };
 }
 
@@ -1660,4 +1660,21 @@ export const servicosFichaApi = {
   criar: (entityId: string, nome: string, tipoServico: TipoServico) => tenantRequest<{ id: string }>(entityId, '/api/tenant/v1/cadastros/servicos', { method: 'POST', body: JSON.stringify({ nome, tipoServico }) }),
   obter: (entityId: string, id: string) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`),
   salvar: (entityId: string, id: string, d: DadosFicha) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+};
+
+/* ── Fluxo e aprovações ── */
+export type OrigemOS = 'ESCRITORIO' | 'MUNICIPE' | 'CAMPO';
+export type PassoFluxo = 'os.triar' | 'os.aprovar' | 'os.conferir' | 'os.cancelar'
+  | 'compras.pedir' | 'compras.revisar' | 'compras.aprovar' | 'compras.enviar' | 'compras.receber';
+export interface ConfigFluxo {
+  exigeAprovacaoOS: boolean; aprovacaoOrigens: OrigemOS[]; exigeConferencia: boolean; conferenciaPropriaBloqueada: boolean;
+  exigeRevisaoCompra: boolean; exigeAprovacaoCompra: boolean; pedidoSoDeOrcamento: boolean; metaDias: number;
+}
+export interface PessoaFluxo { id: string; nome: string; perfil: string; atende: string | null; acessos: string[] }
+export interface DadosFluxo { config: ConfigFluxo; pessoas: PessoaFluxo[]; qtdBaixa: number; admins: number }
+
+export const fluxoApi = {
+  obter: (entityId: string) => tenantRequest<DadosFluxo>(entityId, '/api/tenant/v1/cadastros/fluxo'),
+  salvar: (entityId: string, config: ConfigFluxo, passos: Partial<Record<PassoFluxo, string[]>>) =>
+    tenantRequest<DadosFluxo>(entityId, '/api/tenant/v1/cadastros/fluxo', { method: 'PUT', body: JSON.stringify({ config, passos }) }),
 };

@@ -221,7 +221,7 @@ export function OrcamentosPage() {
           </div>
         )}
       </section>
-      {!exigeAprovacaoCompra && lista && <p className="or-nota-regra">A revisão e a aprovação de compras estão desligadas nas Regras: ao enviar, o orçamento já fica aprovado.</p>}
+      {!exigeAprovacaoCompra && lista && <p className="or-nota-regra">A revisão e a aprovação de compras estão desligadas em Fluxo e aprovações: ao enviar, o orçamento já fica aprovado.</p>}
     </div>
   );
 }
@@ -691,7 +691,7 @@ export function OrcamentoEditorPage() {
             <div className="or-acoes">
               {editavel && <>
                 <button type="button" className="ob-acao is-conferir or-acao-larga" disabled={ocupado} onClick={() => void enviar()}>
-                  {exigeAprovacaoCompra ? 'Enviar para revisão' : 'Enviar e aprovar'}
+                  {exigeAprovacaoCompra ? (session.obras.exigeRevisaoCompra === false ? 'Enviar para aprovação' : 'Enviar para revisão') : 'Enviar e aprovar'}
                 </button>
                 <button type="button" className="ob-btn-ghost ob-btn-alto or-acao-larga" disabled={ocupado || (!alterado && !novo && !pendentes.length)} onClick={() => void salvar().then(o => o && setAviso('Rascunho salvo.'))}>
                   {ocupado ? 'Salvando…' : 'Salvar rascunho'}

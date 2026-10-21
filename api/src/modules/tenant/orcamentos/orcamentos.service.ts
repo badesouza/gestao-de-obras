@@ -4,7 +4,7 @@ import { AppError } from '../../../shared/errors.js';
 import { proximoNumero } from '../../../shared/sequencia.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { obterConfig } from '../ordens/ordens.service.js';
-import { poderesCompra, type AtorCompra } from '../compras/compras-fluxo.service.js';
+import { etapaAposEnvio, poderesCompra, type AtorCompra } from '../compras/compras-fluxo.service.js';
 import { createPedidoFromSolicitacoes, createSolicitacao } from '../compras/compras.service.js';
 import { assertItensVigentes } from '../contratos/contratos.service.js';
 
@@ -261,14 +261,19 @@ export async function acaoOrcamento(
       if (o.status !== 'RASCUNHO') invalido();
       if (!podeOrcar) negar('Você não tem acesso para fazer orçamentos');
       if (!o.itens.length) throw new AppError(422, 'SEM_ITENS', 'Inclua ao menos um material antes de enviar');
-      dados = cfg.exigeAprovacaoCompra
-        ? { status: 'EM_REVISAO', enviadoEm: agora, devolvidoEm: null, devolvidoMotivo: null }
-        : { status: 'APROVADO', enviadoEm: agora, aprovadoEm: agora, aprovadoPorId: ator.id, devolvidoEm: null, devolvidoMotivo: null };
+      {
+        const etapa = etapaAposEnvio(cfg);
+        dados = etapa === 'APROVADO'
+          ? { status: 'APROVADO', enviadoEm: agora, aprovadoEm: agora, aprovadoPorId: ator.id, devolvidoEm: null, devolvidoMotivo: null }
+          : { status: etapa, enviadoEm: agora, devolvidoEm: null, devolvidoMotivo: null };
+      }
       break;
     case 'revisar':
       if (o.status !== 'EM_REVISAO') invalido();
       if (!podeRevisarCompra) negar('Você não tem acesso para revisar orçamentos');
-      dados = { status: 'AGUARDANDO_APROVACAO', revisadoEm: agora, revisadoPorId: ator.id };
+      dados = cfg.exigeAprovacaoCompra
+        ? { status: 'AGUARDANDO_APROVACAO', revisadoEm: agora, revisadoPorId: ator.id }
+        : { status: 'APROVADO', revisadoEm: agora, revisadoPorId: ator.id, aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'aprovar':
       if (o.status !== 'AGUARDANDO_APROVACAO') invalido();
