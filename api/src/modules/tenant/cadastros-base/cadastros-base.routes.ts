@@ -8,6 +8,7 @@ import {
   atualizarBairro, colarBairros, criarBairro, criarMacrozona, definirBrasao, listarLugares,
   obterOrgao, removerBairro, removerMacrozona, renomearMacrozona, resumoCadastros, salvarOrgao,
 } from './cadastros-base.service.js';
+import { atualizarFrota, criarFrota, listarFrota, removerFrota, servicosSemCentro } from './frota.service.js';
 
 const texto = (max: number) => z.string().max(max).nullable().optional();
 
@@ -35,6 +36,7 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
   const podeVer = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_VIEW)];
   const podeOrgao = [tenantAuth, requireAcesso(fastify.prisma, 'cad.orgao')];
   const podeLugares = [tenantAuth, requireAcesso(fastify.prisma, 'cad.lugares')];
+  const podeFrota = [tenantAuth, requireAcesso(fastify.prisma, 'cad.veiculos')];
 
   fastify.get('/cadastros/resumo', { preHandler: podeVer }, async (req, reply) => {
     try { return reply.send(await resumoCadastros(fastify.prisma, req.user.entityId!)); }
@@ -121,5 +123,47 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
       }).parse(req.body);
       return reply.send(await colarBairros(fastify.prisma, req.user.entityId!, d.texto.split(/\r?\n/), d.macrozonaId ?? null));
     } catch (e) { return handleAppError(reply, e); }
+  });
+
+  /* ── Veículos e equipamentos ── */
+  const tipoFrota = z.enum(['VEICULO', 'EQUIPAMENTO']);
+  const frotaSchema = z.object({
+    tipo: tipoFrota,
+    nome: z.string().trim().min(1, 'Informe como a equipe chama').max(150),
+    subtipo: z.string().max(80).nullable().optional(),
+    placa: z.string().max(20).nullable().optional(),
+    patrimonio: z.string().max(40).nullable().optional(),
+    equipeId: z.string().uuid().nullable().optional(),
+  });
+
+  fastify.get('/cadastros/frota', { preHandler: podeVer }, async (req, reply) => {
+    try {
+      const { tipo } = z.object({ tipo: tipoFrota.default('VEICULO') }).parse(req.query);
+      return reply.send(await listarFrota(fastify.prisma, req.user.entityId!, tipo));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.post('/cadastros/frota', { preHandler: podeFrota }, async (req, reply) => {
+    try { return reply.code(201).send(await criarFrota(fastify.prisma, req.user.entityId!, frotaSchema.parse(req.body))); }
+    catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.put('/cadastros/frota/:id', { preHandler: podeFrota }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      return reply.send(await atualizarFrota(fastify.prisma, req.user.entityId!, id, frotaSchema.parse(req.body)));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.delete('/cadastros/frota/:id', { preHandler: podeFrota }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      return reply.send(await removerFrota(fastify.prisma, req.user.entityId!, id));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.get('/cadastros/centros/pendencias', { preHandler: podeVer }, async (req, reply) => {
+    try { return reply.send({ servicosSemCentro: await servicosSemCentro(fastify.prisma, req.user.entityId!) }); }
+    catch (e) { return handleAppError(reply, e); }
   });
 }

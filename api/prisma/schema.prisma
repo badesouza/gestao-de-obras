@@ -138,6 +138,10 @@ model CadastroAuxiliar {
   lat         Float?
   lng         Float?
   macrozonaId String?              @map("macrozona_id")
+  /** veículos e equipamentos: tipo (caminhão basculante, patrol…), placa e patrimônio */
+  subtipo     String?              @db.VarChar(80)
+  placa       String?              @db.VarChar(20)
+  patrimonio  String?              @db.VarChar(40)
   createdAt   DateTime             @default(now()) @map("created_at")
   updatedAt   DateTime             @updatedAt @map("updated_at")
 

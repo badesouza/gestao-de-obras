@@ -185,7 +185,7 @@ export function EquipesPage() {
 
       <BarraAcoes esquerda={<><b>{dados.equipes.length}</b> equipes{semLider > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semLider} sem líder</span></>}<Sep />passo 3 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Usuários</Link>
-        <Link to={rotaTenant(entityId, 'cadastros-auxiliares')} className="so-btn so-primary">Continuar: Veículos e equipamentos<Ic n="seta" className="arrow" /></Link>
+        <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-primary">Continuar: Veículos e equipamentos<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>

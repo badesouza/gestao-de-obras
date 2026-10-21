@@ -1612,3 +1612,20 @@ export const linkAcessoApi = {
   criarSenha: (token: string, senha: string) =>
     apiRequest<{ token: string; entityId: string }>(`/api/public/v1/acesso/${token}`, { method: 'POST', body: JSON.stringify({ senha }) }),
 };
+
+/* ── Passo 4 · Veículos e equipamentos · Passo 5 · pendências dos centros de custo ── */
+export type TipoFrota = 'VEICULO' | 'EQUIPAMENTO';
+export type SituacaoFrota = 'EM_USO' | 'NA_OFICINA' | 'PARADO';
+export interface ItemFrota {
+  id: string; nome: string; subtipo: string | null; placa: string | null; patrimonio: string | null;
+  equipe: { id: string; nome: string } | null; situacao: SituacaoFrota; usoMes: number; osOficina: string | null;
+}
+export interface ListaFrota { itens: ItemFrota[]; contagem: { veiculos: number; equipamentos: number }; equipes: { id: string; nome: string }[]; tipos: string[] }
+export interface DadosFrota { tipo: TipoFrota; nome: string; subtipo: string | null; placa: string | null; patrimonio: string | null; equipeId: string | null }
+export const frotaApi = {
+  listar: (entityId: string, tipo: TipoFrota) => tenantRequest<ListaFrota>(entityId, `/api/tenant/v1/cadastros/frota?tipo=${tipo}`),
+  criar: (entityId: string, d: DadosFrota) => tenantRequest<{ id: string }>(entityId, '/api/tenant/v1/cadastros/frota', { method: 'POST', body: JSON.stringify(d) }),
+  atualizar: (entityId: string, id: string, d: DadosFrota) => tenantRequest<{ id: string }>(entityId, `/api/tenant/v1/cadastros/frota/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  remover: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/cadastros/frota/${id}`, { method: 'DELETE' }),
+  servicosSemCentro: (entityId: string) => tenantRequest<{ servicosSemCentro: { id: string; nome: string }[] }>(entityId, '/api/tenant/v1/cadastros/centros/pendencias'),
+};

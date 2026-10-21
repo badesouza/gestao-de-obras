@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
-import { PERMISSION_CENTROS_CUSTO_MANAGE, PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
-import { requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
+import { requireAcesso, requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
 import { atualizarCentro, criarCentro, definirServicosPadrao, listarCentros, removerCentro } from './centros-de-custo.service.js';
 import { listarVinculos, montarEstruturaSugerida, salvarVinculos } from './vinculos.service.js';
 
@@ -28,7 +28,8 @@ const centroSchema = z.object({
 export async function registerCentrosDeCustoRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
   const podeVer = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_VIEW)];
-  const podeGerir = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_MANAGE)];
+  const podeGerir = [tenantAuth, requireAcesso(fastify.prisma, 'cad.centros')];
+  const podeServicos = [tenantAuth, requireAcesso(fastify.prisma, 'cad.servicos', 'cad.centros')];
 
   fastify.get('/centros-de-custo', { preHandler: podeVer }, async (req, reply) => {
     try { return reply.send(await listarCentros(fastify.prisma, req.user.entityId!)); }
@@ -57,7 +58,7 @@ export async function registerCentrosDeCustoRoutes(fastify: FastifyInstance) {
       return reply.send(await listarVinculos(fastify.prisma, req.user.entityId!, slugs));
     } catch (e) { return handleAppError(reply, e); }
   });
-  fastify.put('/centros-de-custo/vinculos', { preHandler: podeGerir }, async (req, reply) => {
+  fastify.put('/centros-de-custo/vinculos', { preHandler: podeServicos }, async (req, reply) => {
     try {
       const b = validar(z.object({
         vinculos: z.array(z.object({ servicoId: z.string().uuid(), slug: z.string().max(80), centroDeCustoId: z.string().uuid().nullable() })).min(1).max(100),
@@ -67,7 +68,7 @@ export async function registerCentrosDeCustoRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
   /* o serviço escolhe o seu centro de custo */
-  fastify.put('/servicos/:id/centro-de-custo', { preHandler: podeGerir }, async (req, reply) => {
+  fastify.put('/servicos/:id/centro-de-custo', { preHandler: podeServicos }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const b = validar(z.object({
