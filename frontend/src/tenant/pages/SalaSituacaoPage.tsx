@@ -1,64 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { tenantApi, mapaApi, type PainelData, type PainelFeedItem, type Situacao } from '../../lib/api-client';
+import { tenantApi, type PainelData } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { MapaServicos } from '../components/MapaServicos';
-import { SERVICOS_CONFIG, CENTRO_IDS, type ServicoConfig } from './servico-config';
+import { SERVICOS_CONFIG } from './servico-config';
 import { useOnline } from '../../lib/offline/pwa';
-import '../styles/obras-ui.css';
+import { Anel, Badge, FotoThumb, Kpi, KpiCarregando, Medidor, Sparkline } from '../components/obras/ui';
+import { haQuanto, iniciais, nomeCurto, servicoDoCentro, slugDoCentro } from '../components/obras/util';
 
 /* ── Sala de Situação ─────────────────────────────────────────────
    A primeira tela do secretário: o que está acontecendo na cidade agora. */
-
-const SLUG_POR_CENTRO: Record<string, string> = Object.fromEntries(
-  Object.entries(CENTRO_IDS).map(([slug, id]) => [id, slug]),
-);
-const servicoDe = (centroId: string): ServicoConfig | undefined => {
-  const slug = SLUG_POR_CENTRO[centroId];
-  return slug ? SERVICOS_CONFIG[slug] : undefined;
-};
-
-const SITUACAO: Record<Situacao, { rotulo: string; classe: string }> = {
-  aberta:    { rotulo: 'Aberta',       classe: 'is-aberta' },
-  execucao:  { rotulo: 'Em execução',  classe: 'is-execucao' },
-  concluida: { rotulo: 'Concluída',    classe: 'is-concluida' },
-  cancelada: { rotulo: 'Cancelada',    classe: 'is-cancelada' },
-};
-
-const reduzMovimento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-
-/* número que sobe do zero até o valor, com desaceleração */
-function useContador(alvo: number, duracao = 1100) {
-  const [v, setV] = useState(0);
-  const semAnimacao = reduzMovimento();
-  useEffect(() => {
-    if (semAnimacao) return;
-    let raf = 0;
-    const t0 = performance.now();
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - t0) / duracao);
-      setV(alvo * (1 - Math.pow(1 - p, 3)));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [alvo, duracao, semAnimacao]);
-  return semAnimacao ? alvo : v;
-}
-
-/* foto autenticada: baixa como blob e libera ao desmontar */
-function useFotoUrl(entityId: string, fotoId: string | null) {
-  const [foto, setFoto] = useState<{ id: string; url: string } | null>(null);
-  useEffect(() => {
-    if (!fotoId) return;
-    let viva = true, atual: string | null = null;
-    mapaApi.fetchMidiaBlob(entityId, fotoId)
-      .then(u => { if (viva) { atual = u; setFoto({ id: fotoId, url: u }); } else URL.revokeObjectURL(u); })
-      .catch(() => {});
-    return () => { viva = false; if (atual) URL.revokeObjectURL(atual); };
-  }, [entityId, fotoId]);
-  return foto && foto.id === fotoId ? foto.url : null;
-}
 
 const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -70,95 +21,6 @@ function saudacao(d: Date) {
 function dataLonga(d: Date) {
   const dia = DIAS[d.getDay()];
   return `${dia.charAt(0).toUpperCase()}${dia.slice(1).replace('-feira', '')}, ${d.getDate()} de ${MESES[d.getMonth()]}`;
-}
-function haQuanto(iso: string | null, agora = Date.now()) {
-  if (!iso) return 'sem registro';
-  const m = Math.max(0, Math.round((agora - new Date(iso).getTime()) / 60000));
-  if (m < 1) return 'agora';
-  if (m < 60) return `há ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `há ${h} h`;
-  const d = Math.floor(h / 24);
-  return d === 1 ? 'ontem' : `há ${d} dias`;
-}
-const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-const nomeCurto = (n: string) => n.trim().split(/\s+/).slice(0, 2).join(' ');
-
-/* ── peças ──────────────────────────────────────────────────────── */
-
-function Sparkline({ valores, cor }: { valores: number[]; cor: string }) {
-  const W = 96, H = 30, max = Math.max(1, ...valores);
-  const pts = valores.map((v, i) => `${(i / (valores.length - 1)) * W},${H - 3 - (v / max) * (H - 6)}`).join(' ');
-  return (
-    <svg className="ob-spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-      <polyline className="ob-spark-linha" points={pts} fill="none" stroke={cor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={1} />
-      <circle className="ob-spark-ponto" cx={W} cy={H - 3 - (valores[valores.length - 1] / max) * (H - 6)} r="3" fill={cor} />
-    </svg>
-  );
-}
-
-function Medidor({ valor, meta, cor }: { valor: number | null; meta: number; cor: string }) {
-  const pct = valor == null ? 0 : Math.min(100, (valor / (meta * 2)) * 100);
-  return (
-    <div className="ob-medidor" aria-hidden="true">
-      <div className="ob-medidor-trilho">
-        <div className="ob-medidor-barra" style={{ width: `${pct}%`, background: cor }} />
-        <div className="ob-medidor-meta" style={{ left: '50%' }} title={`meta: ${meta} dias`} />
-      </div>
-    </div>
-  );
-}
-
-function Anel({ pct, cor }: { pct: number | null; cor: string }) {
-  const r = 14, c = 2 * Math.PI * r, p = pct == null ? 0 : pct / 100;
-  return (
-    <svg className="ob-anel" width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
-      <circle cx="18" cy="18" r={r} fill="none" stroke="rgba(238,243,239,0.1)" strokeWidth="4" />
-      <circle className="ob-anel-arco" cx="18" cy="18" r={r} fill="none" stroke={cor} strokeWidth="4" strokeLinecap="round"
-        strokeDasharray={c} strokeDashoffset={c * (1 - p)} transform="rotate(-90 18 18)" />
-    </svg>
-  );
-}
-
-function Kpi({ i, rotulo, valor, decimais = 0, unidade, nota, tom, cor, grafico }: {
-  i: number; rotulo: string; valor: number | null; decimais?: number; unidade?: string;
-  nota: string; tom: 'ok' | 'alerta' | 'ruim' | 'neutro'; cor: string; grafico: React.ReactNode;
-}) {
-  const n = useContador(valor ?? 0);
-  const texto = valor == null ? '—' : decimais ? n.toFixed(decimais).replace('.', ',') : Math.round(n).toString();
-  return (
-    <div className="ob-kpi ob-reveal" style={{ '--i': i, '--kpi-cor': cor } as React.CSSProperties}>
-      <span className="ob-kpi-rotulo">{rotulo}</span>
-      <div className="ob-kpi-linha">
-        <span className="ob-kpi-valor">{texto}</span>
-        {unidade && valor != null && <span className="ob-kpi-unidade">{unidade}</span>}
-      </div>
-      <div className="ob-kpi-rodape">
-        <span className={`ob-kpi-nota tom-${tom}`}>{nota}</span>
-        {grafico}
-      </div>
-    </div>
-  );
-}
-
-function Badge({ situacao }: { situacao: Situacao }) {
-  const s = SITUACAO[situacao];
-  return <span className={`ob-badge ${s.classe}`}><i />{s.rotulo}</span>;
-}
-
-function Thumb({ entityId, item }: { entityId: string; item: PainelFeedItem }) {
-  const url = useFotoUrl(entityId, item.fotoId);
-  const cfg = servicoDe(item.servico.id);
-  return (
-    <div className="ob-thumb" style={{ '--serv-cor': cfg?.cor ?? '#60a5fa' } as React.CSSProperties}>
-      {url ? <img src={url} alt="" /> : item.fotoId ? <span className="ob-skeleton" /> : (
-        <span className="ob-thumb-vazio">{cfg?.icon}<small>sem foto</small></span>
-      )}
-      {url && (
-        <span className="ob-thumb-hora"><b>{hora(item.criadoEm)}</b><i /></span>
-      )}
-    </div>
-  );
 }
 
 function MenuNova({ entityId }: { entityId: string }) {
@@ -220,7 +82,7 @@ export function SalaSituacaoPage() {
   const deltaSemana = k ? k.concluidasSemana - k.concluidasSemanaAnterior : 0;
   const base = `/t/${entityId}`;
   const linkServico = (centroId: string, os?: string) => {
-    const slug = SLUG_POR_CENTRO[centroId];
+    const slug = slugDoCentro(centroId);
     return slug ? `${base}/servicos/${slug}${os ? `?os=${os}` : ''}` : `${base}/servicos`;
   };
 
@@ -244,7 +106,7 @@ export function SalaSituacaoPage() {
           {dados && (
             <div className="ob-pill" title={dados.fiscais.nomes.join(', ')}>
               <span className="ob-avatares">
-                {dados.fiscais.nomes.slice(0, 3).map(n => <span key={n}>{n.split(' ').map(p => p[0]).slice(0, 2).join('')}</span>)}
+                {dados.fiscais.nomes.slice(0, 3).map(n => <span key={n}>{iniciais(n)}</span>)}
               </span>
               <span><b>{dados.fiscais.total}</b> {dados.fiscais.total === 1 ? 'fiscal registrou' : 'fiscais registraram'} hoje</span>
             </div>
@@ -255,7 +117,7 @@ export function SalaSituacaoPage() {
 
       {/* KPIs */}
       <section className="ob-kpis" aria-label="Indicadores">
-        {!k ? [1, 2, 3, 4].map(n => <div key={n} className="ob-kpi"><span className="ob-skeleton" style={{ height: 96 }} /></div>) : (
+        {!k ? [1, 2, 3, 4].map(n => <KpiCarregando key={n} />) : (
           <>
             <Kpi i={1} rotulo="Abertas agora" valor={k.abertas} cor="var(--ob-blue)"
               nota={k.atrasadas > 0 ? `${k.atrasadas} ${k.atrasadas === 1 ? 'passou' : 'passaram'} de 7 dias` : 'nenhuma atrasada'}
@@ -307,10 +169,10 @@ export function SalaSituacaoPage() {
             {!dados ? [1, 2, 3, 4].map(n => <div key={n} className="ob-feed-item"><span className="ob-skeleton" style={{ width: 76, height: 76, borderRadius: 10 }} /><span className="ob-skeleton" style={{ flex: 1, height: 56 }} /></div>)
               : dados.feed.length === 0 ? <p className="ob-vazio">Nenhum registro ainda. O primeiro que um fiscal fizer aparece aqui.</p>
               : dados.feed.map((f, i) => {
-                const cfg = servicoDe(f.servico.id);
+                const cfg = servicoDoCentro(f.servico.id);
                 return (
                   <Link key={f.id} to={linkServico(f.servico.id, f.id)} className="ob-feed-item ob-reveal" style={{ '--i': 7 + i } as React.CSSProperties}>
-                    <Thumb entityId={entityId} item={f} />
+                    <FotoThumb entityId={entityId} fotoId={f.fotoId} quando={f.criadoEm} cor={cfg?.cor ?? '#60a5fa'} icone={cfg?.icon} contagem={f.fotos} />
                     <div className="ob-feed-texto">
                       <span className="ob-feed-servico" style={{ color: cfg?.cor }}>{f.servico.nome}</span>
                       <span className="ob-feed-local">{[f.bairro, f.logradouro].filter(Boolean).join(' · ') || 'Sem local informado'}</span>
@@ -375,7 +237,7 @@ export function SalaSituacaoPage() {
           <div className="ob-servicos">
             {!dados ? <span className="ob-skeleton" style={{ height: 180 }} /> : dados.porServico.length === 0 ? <p className="ob-vazio">Nenhuma ocorrência registrada neste mês.</p>
               : dados.porServico.map((s, i) => {
-                const cfg = servicoDe(s.id);
+                const cfg = servicoDoCentro(s.id);
                 return (
                   <Link key={s.id} to={linkServico(s.id)} className="ob-servico ob-reveal" style={{ '--i': 10 + i } as React.CSSProperties}>
                     <div className="ob-servico-linha">

@@ -12,6 +12,11 @@ import { OrdemServicoModal } from '../components/OrdemServicoModal';
 import { ServicoAnalytics } from '../components/ServicoAnalytics';
 import { PlanejamentoAnual } from '../components/PlanejamentoAnual';
 import { ServicoSolicitacoesPanel } from '../components/ServicoSolicitacoesPanel';
+import { Anel, Badge, FotoThumb, Kpi, KpiCarregando, Sparkline } from '../components/obras/ui';
+import { DIAS_ATRASO, dataBr, diasDesde, nomeCurto, numeroOS, situacaoDe } from '../components/obras/util';
+import type { Situacao } from '../../lib/api-client';
+
+type Filtro = 'todas' | 'atrasadas' | Situacao;
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 function hoje(): { year: number; month: number } {
@@ -26,15 +31,6 @@ function formatDataBr(iso: string): string {
 
 function nomeMes(month: number, year: number): string {
   return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-}
-
-function getStatusChip(status: string | undefined) {
-  if (!status) return { cls: 'dot-gray', label: '—' };
-  const s = status.toLowerCase();
-  if (s.includes('conclu')) return { cls: 'dot-green', label: status };
-  if (s.includes('andamento') || s.includes('aberta')) return { cls: 'dot-blue', label: status };
-  if (s.includes('cancel') || s.includes('pendent')) return { cls: 'dot-red', label: status };
-  return { cls: 'dot-gray', label: status };
 }
 
 function getCellText(row: RegistroDiarioRow, propId: string): string {
@@ -65,29 +61,26 @@ export function ServicoDetailPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  /* vindo da Sala de Situação com ?os=<id>: abre a ordem de serviço daquela ocorrência */
-  useEffect(() => {
-    const os = searchParams.get('os');
-    if (!os || rows.length === 0) return;
-    const alvo = rows.find(r => r.id === os);
-    if (alvo) setRowOS(alvo);
-    searchParams.delete('os');
-    setSearchParams(searchParams, { replace: true });
-  }, [rows, searchParams, setSearchParams]);
 
-  /* vindo da Sala de Situação com ?nova=1: abre o formulário direto */
-  useEffect(() => {
-    if (!centro || searchParams.get('nova') !== '1') return;
-    setModalOpen(true);
-    searchParams.delete('nova');
-    setSearchParams(searchParams, { replace: true });
-  }, [centro, searchParams, setSearchParams]);
+  /* atalhos vindos da Sala de Situação: ?os=<id> abre a OS, ?nova=1 abre o formulário */
+  const paramOS = searchParams.get('os');
+  const paramNova = searchParams.get('nova') === '1';
+  const limparParam = (chave: string) => {
+    const p = new URLSearchParams(searchParams);
+    p.delete(chave);
+    setSearchParams(p, { replace: true });
+  };
   const [editRow, setEditRow] = useState<RegistroDiarioRow | null>(null);
   const [ajudaOpen, setAjudaOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [rowConcluindo, setRowConcluindo] = useState<RegistroDiarioRow | null>(null);
   const [rowOS, setRowOS] = useState<RegistroDiarioRow | null>(null);
+  const rowOSAtiva = rowOS ?? (paramOS ? rows.find(r => r.id === paramOS) ?? null : null);
+  const formularioAberto = modalOpen || paramNova;
+  const fecharFormulario = () => { setModalOpen(false); setEditRow(null); if (paramNova) limparParam('nova'); };
   const [aba, setAba] = useState<'registros' | 'analises' | 'planejamento' | 'solicitacoes'>('registros');
+  const [filtro, setFiltro] = useState<Filtro>('todas');
+  const [busca, setBusca] = useState('');
 
   /* mapa nome→id das propriedades */
   const propMap = useRef<Record<string, string>>({});
@@ -117,12 +110,6 @@ export function ServicoDetailPage() {
   }, [entityId, centroId, year, month]);
 
   useEffect(() => { void load(); }, [load]);
-
-  /* encontrar ID da propriedade Status */
-  const statusPropId = propMap.current['Status'] ?? Object.values(propMap.current).find((_, k) =>
-    Object.keys(propMap.current)[k] === 'Status'
-  );
-  void statusPropId;
 
   /* concluir ocorrência — abre modal de conclusão */
   const handleConfirmarConclusao = async (dados: DadosConclusao) => {
@@ -210,425 +197,248 @@ export function ServicoDetailPage() {
     );
   }
 
-  /* resumo do mês */
-  const total = rows.length;
-  const concluidas = rows.filter(r => {
-    const pid = Object.entries(propMap.current).find(([n]) => n === 'Status')?.[1];
-    return pid && r.values[pid]?.text?.toLowerCase().includes('conclu');
-  }).length;
-  const abertas = total - concluidas;
+  /* ── dados da lista ── */
+  const pidStatus = propMap.current['Status'];
+  const texto = (row: RegistroDiarioRow, nome: string) => {
+    const pid = propMap.current[nome];
+    const v = pid ? getCellText(row, pid) : '—';
+    return v === '—' ? '' : v;
+  };
+  const itens = rows.map(row => {
+    const status = pidStatus ? (row.values[pidStatus]?.text ?? '') : '';
+    const situacao = situacaoDe(status);
+    const dias = diasDesde(row.data);
+    const atrasada = (situacao === 'aberta' || situacao === 'execucao') && dias > DIAS_ATRASO;
+    const detalhes = config.camposPrincipais
+      .filter(n => n !== 'Bairro / Localidade' && n !== 'Status')
+      .map(n => {
+        const v = texto(row, n);
+        if (!v) return '';
+        const campo = config.campos.find(c => c.nome === n);
+        const unidade = n.match(/\(([^)]+)\)/)?.[1];
+        return campo?.tipo === 'numero' && unidade ? `${v} ${unidade}` : v;
+      })
+      .filter(Boolean);
+    return {
+      row, status, situacao, dias, atrasada, detalhes,
+      bairro: texto(row, 'Bairro / Localidade'),
+      logradouro: texto(row, 'Logradouro / Referência'),
+      equipe: texto(row, 'Equipe / Turma'),
+    };
+  });
 
-  /* colunas para exibir na lista: bairro, logradouro, tipo, métrica principal, status */
-  const colsToShow = config.camposPrincipais
-    .map(nome => ({ nome, id: propMap.current[nome] }))
-    .filter(c => c.id);
+  const total = itens.length;
+  const conta = (f: Filtro) => f === 'todas' ? total : f === 'atrasadas' ? itens.filter(i => i.atrasada).length : itens.filter(i => i.situacao === f).length;
+  const concluidas = conta('concluida');
+  const abertasAgora = itens.filter(i => i.situacao === 'aberta' || i.situacao === 'execucao').length;
+  const atrasadas = conta('atrasadas');
+  const comFoto = itens.filter(i => (i.row.fotos ?? 0) > 0).length;
+  const diasNoMes = new Date(year, month, 0).getDate();
+  const porDia = Array.from({ length: diasNoMes }, (_, d) => itens.filter(i => Number(i.row.data.slice(8, 10)) === d + 1).length);
+  const ehMesAtual = year === hoje().year && month === hoje().month;
+  const serieAteHoje = ehMesAtual ? porDia.slice(0, new Date().getDate()) : porDia;
+  const diasComRegistro = porDia.filter(Boolean).length;
+
+  const termo = busca.trim().toLowerCase();
+  const visiveis = itens.filter(i =>
+    (filtro === 'todas' || (filtro === 'atrasadas' ? i.atrasada : i.situacao === filtro)) &&
+    (!termo || [i.bairro, i.logradouro, i.equipe, i.row.fiscal ?? '', numeroOS(i.row.id, i.row.data), ...i.detalhes]
+      .some(t => t.toLowerCase().includes(termo))),
+  );
+
+  const FILTROS: { id: Filtro; rotulo: string; cor: string }[] = [
+    { id: 'todas', rotulo: 'Todas', cor: 'var(--ob-faint)' },
+    { id: 'atrasadas', rotulo: 'Atrasadas', cor: 'var(--ob-rose)' },
+    { id: 'aberta', rotulo: 'Abertas', cor: 'var(--ob-blue)' },
+    { id: 'execucao', rotulo: 'Em execução', cor: 'var(--ob-amber)' },
+    { id: 'concluida', rotulo: 'Concluídas', cor: 'var(--ob-green)' },
+  ];
+
+  const ABAS: { id: typeof aba; rotulo: string; icone: React.ReactNode }[] = [
+    { id: 'registros', rotulo: 'Ocorrências', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+    { id: 'analises', rotulo: 'Análises', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+    { id: 'planejamento', rotulo: 'Planejamento', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+    { id: 'solicitacoes', rotulo: 'Solicitações', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 002 1.58h8.77a2 2 0 001.95-1.57L21 8H5.12"/></svg> },
+  ];
+
+  const novaOcorrencia = () => { setEditRow(null); setModalOpen(true); };
 
   return (
-    <div className="tn-page">
+    <div className="ob-page ob-claro" style={{ '--serv-cor': config.cor } as React.CSSProperties}>
 
-      {/* Breadcrumb */}
-      <Link to={`/t/${entityId}/servicos`} className="tn-back-link">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        Serviços Urbanos
+      <Link to={`/t/${entityId}/servicos`} className="ob-voltar ob-reveal" style={{ '--i': 0 } as React.CSSProperties}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><polyline points="15 18 9 12 15 6"/></svg>
+        Serviços
       </Link>
 
-      {/* Hero */}
-      <div className="tn-hero-light" style={{ borderLeftColor: config.cor }}>
-        <div className="tn-hero-light-glow" />
-        <div className="tn-hero-light-inner">
-          <div className="tn-hero-light-left">
-            <div className="tn-hero-light-kicker">
-              <span className="tn-hero-light-dot" style={{ background: config.cor }} />
-              Serviço Urbano
-            </div>
-            <h2 className="tn-hero-light-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ color: config.cor, display: 'flex', width: 32, height: 32, alignItems: 'center', justifyContent: 'center', background: `color-mix(in srgb, ${config.cor} 12%, transparent)`, borderRadius: 8, flexShrink: 0 }}>
-                {config.icon}
-              </span>
-              <span>{config.nome}</span>
-            </h2>
-            <p className="tn-hero-light-desc">{config.descricao}</p>
+      <header className="ob-head ob-reveal" style={{ '--i': 1 } as React.CSSProperties}>
+        <div className="ob-serv-titulo">
+          <span className="ob-serv-icone">{config.icon}</span>
+          <div className="ob-head-texto">
+            <span className="ob-eyebrow ob-eyebrow-serv">Serviço urbano</span>
+            <h1 className="ob-h1">{config.nome}</h1>
+            <p className="ob-sub">{config.descricao}</p>
           </div>
-          <div className="tn-hero-light-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              className="tn-btn-secondary"
-              onClick={() => setAjudaOpen(true)}
-              title="Ver instruções de uso"
-              style={{ gap: 6 }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              Instruções
+        </div>
+        <div className="ob-head-acoes">
+          <div className="ob-mes" role="group" aria-label="Mês de referência">
+            <button type="button" onClick={() => mudarMes(-1)} aria-label="Mês anterior">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <button
-              type="button"
-              className="tn-btn-blue"
-              style={{ height: 38, fontSize: 13 }}
-              onClick={() => { setEditRow(null); setModalOpen(true); }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Nova Ocorrência
+            <span>{nomeMes(month, year).replace(/^./, c => c.toUpperCase())}</span>
+            <button type="button" onClick={() => mudarMes(1)} aria-label="Próximo mês">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Stats do mês */}
-      <div className="tn-stats">
-        <div className="tn-stat tone-blue">
-          <div className="tn-stat-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-          </div>
-          <div className="tn-stat-kicker">Total do mês</div>
-          <div className="tn-stat-value">{loading ? '…' : total}</div>
-          <div className="tn-stat-desc">Ocorrências registradas</div>
-          <div className="tn-stat-badge"><i />Registradas</div>
-        </div>
-        <div className="tn-stat tone-green">
-          <div className="tn-stat-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-          </div>
-          <div className="tn-stat-kicker">Concluídas</div>
-          <div className="tn-stat-value">{loading ? '…' : concluidas}</div>
-          <div className="tn-stat-desc">Serviços finalizados</div>
-          <div className="tn-stat-badge"><i />Concluídas</div>
-        </div>
-        <div className="tn-stat tone-blue">
-          <div className="tn-stat-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
-          <div className="tn-stat-kicker">Em aberto</div>
-          <div className="tn-stat-value">{loading ? '…' : abertas}</div>
-          <div className="tn-stat-desc">Pendentes de conclusão</div>
-          <div className="tn-stat-badge"><i />Pendentes</div>
-        </div>
-        <div className="tn-stat tone-rose">
-          <div className="tn-stat-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-          </div>
-          <div className="tn-stat-kicker">Período</div>
-          <div className="tn-stat-value" style={{ fontSize: 16, paddingTop: 8, textTransform: 'capitalize' }}>
-            {loading ? '…' : nomeMes(month, year)}
-          </div>
-          <div className="tn-stat-desc">Mês de referência</div>
-          <div className="tn-stat-badge"><i />{year}</div>
-        </div>
-      </div>
-
-      {/* Abas */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="sv-abas">
-        <button
-          type="button"
-          className={`sv-aba${aba === 'registros' ? ' is-active' : ''}`}
-          onClick={() => setAba('registros')}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
-          Registros
-        </button>
-        <button
-          type="button"
-          className={`sv-aba${aba === 'analises' ? ' is-active' : ''}`}
-          onClick={() => setAba('analises')}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-          Análises
-        </button>
-        <button
-          type="button"
-          className={`sv-aba${aba === 'planejamento' ? ' is-active' : ''}`}
-          onClick={() => setAba('planejamento')}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          Planejamento
-        </button>
-        <button
-          type="button"
-          className={`sv-aba${aba === 'solicitacoes' ? ' is-active' : ''}`}
-          onClick={() => setAba('solicitacoes')}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="8" cy="21" r="1"/>
-            <circle cx="19" cy="21" r="1"/>
-            <path d="M2.05 2.05h2l2.66 12.42a2 2 0 002 1.58h8.77a2 2 0 001.95-1.57L21 8H5.12"/>
-          </svg>
-          Solicitacoes
-        </button>
-      </div>
-        {aba === 'analises' ? <div className="sv-month-nav self-start sm:self-auto">
-          <button type="button" className="sv-month-btn" onClick={() => mudarMes(-1)} title="Mes anterior">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
+          <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => setAjudaOpen(true)}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Como usar
           </button>
-          <span className="sv-month-label" style={{ textTransform: 'capitalize' }}>
-            {nomeMes(month, year)}
-          </span>
-          <button type="button" className="sv-month-btn" onClick={() => mudarMes(1)} title="Proximo mes">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
+          <button type="button" className="ob-btn" onClick={novaOcorrencia}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nova ocorrência
           </button>
-        </div> : null}
-      </div>
+        </div>
+      </header>
 
-      {/* Painel de análises */}
+      <section className="ob-kpis" aria-label="Resumo do mês">
+        {loading && rows.length === 0 ? [1, 2, 3, 4].map(n => <KpiCarregando key={n} />) : (
+          <>
+            <Kpi i={2} rotulo="Registradas no mês" valor={total} cor="var(--serv-cor)"
+              nota={total === 0 ? 'nenhuma ainda' : `${diasComRegistro} ${diasComRegistro === 1 ? 'dia com registro' : 'dias com registro'}`}
+              tom="neutro" grafico={<Sparkline valores={serieAteHoje} cor="var(--serv-cor)" />} />
+            <Kpi i={3} rotulo="Abertas agora" valor={abertasAgora} cor="var(--ob-blue)"
+              nota={atrasadas > 0 ? `${atrasadas} ${atrasadas === 1 ? 'passou' : 'passaram'} de ${DIAS_ATRASO} dias` : 'nenhuma atrasada'}
+              tom={atrasadas > 0 ? 'ruim' : 'ok'} grafico={null} />
+            <Kpi i={4} rotulo="Concluídas" valor={concluidas} cor="var(--ob-green)"
+              nota={total ? `${Math.round(concluidas / total * 100)}% do mês` : 'sem registros'}
+              tom={total > 0 && concluidas === total ? 'ok' : 'neutro'} grafico={<Anel pct={total ? concluidas / total * 100 : null} cor="var(--ob-green)" />} />
+            <Kpi i={5} rotulo="Com foto" valor={total ? Math.round(comFoto / total * 100) : null} unidade="%" cor="var(--ob-amber)"
+              nota={total === 0 ? 'sem registros' : total - comFoto > 0 ? `${total - comFoto} sem foto` : 'todas com prova'}
+              tom={total === 0 ? 'neutro' : total - comFoto > 0 ? 'alerta' : 'ok'} grafico={<Anel pct={total ? comFoto / total * 100 : null} cor="var(--ob-amber)" />} />
+          </>
+        )}
+      </section>
+
+      <nav className="ob-abas ob-reveal" style={{ '--i': 6 } as React.CSSProperties} aria-label="Seções do serviço">
+        {ABAS.map(a => (
+          <button key={a.id} type="button" className={aba === a.id ? 'is-ativa' : undefined} onClick={() => setAba(a.id)} aria-pressed={aba === a.id}>
+            {a.icone}{a.rotulo}
+            {a.id === 'registros' && total > 0 && <span className="ob-abas-num">{total}</span>}
+          </button>
+        ))}
+      </nav>
+
       {aba === 'analises' && (
-        <div className="tn-panel" style={{ padding: 0 }}>
-          <ServicoAnalytics
-            entityId={entityId}
-            centroId={centroId}
-            config={config}
-            year={year}
-            month={month}
-          />
+        <div className="ob-card ob-card-conteudo">
+          <ServicoAnalytics entityId={entityId} centroId={centroId} config={config} year={year} month={month} />
         </div>
       )}
 
-      {/* Painel de planejamento */}
       {aba === 'planejamento' && (
-        <PlanejamentoAnual
-          entityId={entityId}
-          centroId={centroId}
-          config={config}
-          year={year}
-        />
+        <PlanejamentoAnual entityId={entityId} centroId={centroId} config={config} year={year} />
       )}
 
       {aba === 'solicitacoes' && (
         <ServicoSolicitacoesPanel config={config} />
       )}
 
-      {/* Painel principal */}
-      {aba === 'registros' && <div className="tn-panel">
-        <div className="tn-panel-head">
-          <div className="tn-panel-head-left">
-            <span>Registro operacional</span>
-            <h3>Ocorrências — {nomeMes(month, year)}</h3>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Navegação de mês */}
-            <div className="sv-month-nav">
-              <button type="button" className="sv-month-btn" onClick={() => mudarMes(-1)} title="Mês anterior">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-              </button>
-              <span className="sv-month-label" style={{ textTransform: 'capitalize' }}>
-                {nomeMes(month, year)}
-              </span>
-              <button type="button" className="sv-month-btn" onClick={() => mudarMes(1)} title="Próximo mês">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </button>
+      {aba === 'registros' && (
+        <section className="ob-card ob-reveal" style={{ '--i': 7 } as React.CSSProperties} aria-label="Ocorrências do mês">
+          <div className="ob-filtros">
+            <div className="ob-chips" role="group" aria-label="Filtrar por situação">
+              {FILTROS.map(f => {
+                const n = conta(f.id);
+                if (f.id === 'atrasadas' && n === 0) return null;
+                return (
+                  <button key={f.id} type="button" className={`ob-chip${filtro === f.id ? ' is-ativo' : ''}${f.id === 'atrasadas' ? ' is-alerta' : ''}`}
+                    onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}>
+                    <i style={{ background: f.cor }} />{f.rotulo}<span>{n}</span>
+                  </button>
+                );
+              })}
             </div>
-            <button
-              type="button"
-              className="tn-btn-blue"
-              style={{ height: 36, fontSize: 13 }}
-              onClick={() => { setEditRow(null); setModalOpen(true); }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Nova
-            </button>
+            <label className="ob-busca">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/></svg>
+              <span className="ob-sr">Buscar</span>
+              <input type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Bairro, rua, equipe, fiscal ou nº da OS" />
+            </label>
           </div>
-        </div>
 
-        {error && <div className="tn-alert" style={{ margin: '12px 16px' }}>{error}</div>}
+          {error && <div className="ob-erro" style={{ margin: '0 16px 12px' }}>{error}</div>}
 
-        {/* Loading */}
-        {loading && (
-          <div className="tn-skeleton">
-            {[1,2,3,4].map(n => <div key={n} className="tn-skeleton-row" />)}
-          </div>
-        )}
+          {loading && rows.length === 0 && (
+            <div className="ob-lista">{[1, 2, 3, 4].map(n => <div key={n} className="ob-oc"><span className="ob-skeleton" style={{ height: 88 }} /></div>)}</div>
+          )}
 
-        {/* Vazio */}
-        {!loading && rows.length === 0 && (
-          <div className="tn-empty">
-            <div className="tn-empty-icon" style={{ color: config.cor, fontSize: 36 }}>
-              {config.icon}
+          {!loading && total === 0 && (
+            <div className="ob-vazio-grande">
+              <span className="ob-serv-icone ob-serv-icone-grande">{config.icon}</span>
+              <strong>Nenhuma ocorrência em {nomeMes(month, year)}</strong>
+              <span>Registre o primeiro serviço do mês. A foto com carimbo e o GPS entram sozinhos.</span>
+              <button type="button" className="ob-btn" onClick={novaOcorrencia}>Registrar ocorrência</button>
             </div>
-            <strong>Nenhuma ocorrência em {nomeMes(month, year)}</strong>
-            <button
-              type="button"
-              className="tn-btn-blue"
-              style={{ marginTop: 8, height: 38, fontSize: 13 }}
-              onClick={() => { setEditRow(null); setModalOpen(true); }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Registrar primeira ocorrência
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--tn-muted)', marginTop: 4 }}>Clique em "Nova Ocorrência" para registrar o primeiro serviço do mês.</span>
-          </div>
-        )}
+          )}
 
-        {/* Lista de ocorrências */}
-        {!loading && rows.length > 0 && (
-          <div className="sv-ocorrencias-list">
+          {total > 0 && visiveis.length === 0 && (
+            <p className="ob-vazio" style={{ padding: '8px 20px 24px' }}>Nenhuma ocorrência com esse filtro.</p>
+          )}
 
-            {/* Cabeçalho da tabela */}
-            <div className="sv-ocorrencias-header">
-              <div className="sv-oc-col sv-oc-col-data">Data</div>
-              {colsToShow.map(c => (
-                <div key={c.id} className="sv-oc-col">{c.nome}</div>
-              ))}
-              <div className="sv-oc-col sv-oc-col-status">Status</div>
-              <div className="sv-oc-col sv-oc-col-acoes">Ações</div>
-            </div>
-
-            {rows.map((row, idx) => {
-              const pid = Object.entries(propMap.current).find(([n]) => n === 'Status')?.[1];
-              const statusVal = pid ? (row.values[pid]?.text ?? '') : '';
-              const chip = getStatusChip(statusVal);
-              const isConcluida = statusVal.toLowerCase().includes('conclu');
-              const isSaving = saving === row.id;
-
-              return (
-                <div
-                  key={row.id}
-                  className={`sv-ocorrencia-row${isConcluida ? ' is-concluida' : ''}`}
-                  style={{ '--item-delay': `${idx * 0.04}s` } as React.CSSProperties}
-                >
-                  {/* Barra lateral colorida por status */}
-                  <div className="sv-oc-bar" style={{
-                    background: isConcluida ? 'var(--tn-green)' : config.cor
-                  }} />
-
-                  <div className="sv-oc-col sv-oc-col-data" data-label="Data">
-                    <strong>{formatDataBr(row.data)}</strong>
-                  </div>
-
-                  {colsToShow.map(c => (
-                    <div key={c.id} className="sv-oc-col" data-label={c.nome}>
-                      <span>{getCellText(row, c.id)}</span>
+          {visiveis.length > 0 && (
+            <div className="ob-lista">
+              {visiveis.map((i, idx) => {
+                const { row } = i;
+                const ocupado = saving === row.id;
+                return (
+                  <article key={row.id} className={`ob-oc ob-reveal${i.atrasada ? ' is-atrasada' : ''}${i.situacao === 'concluida' ? ' is-concluida' : ''}`}
+                    style={{ '--i': Math.min(idx, 12) } as React.CSSProperties}>
+                    <button type="button" className="ob-oc-abrir" onClick={() => setRowOS(row)} aria-label={`Abrir ${numeroOS(row.id, row.data)}`}>
+                      <FotoThumb entityId={entityId} fotoId={row.fotoId} quando={row.criadoEm} cor={config.cor} icone={config.icon} tamanho={88} contagem={row.fotos} />
+                      <span className="ob-oc-info">
+                        <span className="ob-oc-topo">
+                          <span className="ob-oc-os">{numeroOS(row.id, row.data)}</span>
+                          <Badge situacao={i.situacao} titulo={i.status || undefined} />
+                          {i.atrasada && <span className="ob-badge is-atrasada"><i />há {i.dias} dias</span>}
+                        </span>
+                        <strong className="ob-oc-local">{i.bairro || 'Sem bairro informado'}</strong>
+                        <span className="ob-oc-detalhe">{[i.logradouro, ...i.detalhes].filter(Boolean).join(' · ') || '—'}</span>
+                        <span className="ob-oc-meta">
+                          {dataBr(row.data)}
+                          {row.fiscal && <> · {nomeCurto(row.fiscal)}</>}
+                          {i.equipe && <> · {i.equipe}</>}
+                          {row.lat != null && <span className="ob-tag tom-ok">GPS</span>}
+                        </span>
+                      </span>
+                    </button>
+                    <div className="ob-oc-acoes">
+                      <button type="button" className="ob-icone-btn" data-dica="Ordem de serviço" aria-label="Ordem de serviço" onClick={() => setRowOS(row)}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                      </button>
+                      <button type="button" className="ob-icone-btn" data-dica="Editar" aria-label="Editar" disabled={ocupado} onClick={() => { setEditRow(row); setModalOpen(true); }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      {i.situacao !== 'concluida' ? (
+                        <button type="button" className="ob-icone-btn is-concluir" data-dica="Dar baixa" aria-label="Dar baixa" disabled={ocupado} onClick={() => setRowConcluindo(row)}>
+                          {ocupado
+                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sv-spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </button>
+                      ) : (
+                        <button type="button" className="ob-icone-btn" data-dica="Reabrir" aria-label="Reabrir" disabled={ocupado} onClick={() => handleReabrir(row)}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                        </button>
+                      )}
+                      <button type="button" className="ob-icone-btn is-perigo" data-dica="Excluir" aria-label="Excluir" disabled={ocupado} onClick={() => setConfirmDelete(row.id)}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
                     </div>
-                  ))}
-
-                  <div className="sv-oc-col sv-oc-col-status" data-label="Status">
-                    <span className={`tn-chip ${chip.cls}`}>
-                      <i />{chip.label || 'Aberta'}
-                    </span>
-                  </div>
-
-                  <div className="sv-oc-col sv-oc-col-acoes">
-                    {/* Visualizar OS */}
-                    <button
-                      type="button"
-                      className="tn-icon-btn sv-btn-os"
-                      title="Visualizar / Imprimir OS"
-                      onClick={() => setRowOS(row)}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10 9 9 9 8 9"/>
-                      </svg>
-                    </button>
-
-                    {/* Editar */}
-                    <button
-                      type="button"
-                      className="tn-icon-btn"
-                      title="Editar"
-                      onClick={() => { setEditRow(row); setModalOpen(true); }}
-                      disabled={isSaving}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
-
-                    {/* Concluir / Reabrir */}
-                    {!isConcluida ? (
-                      <button
-                        type="button"
-                        className="tn-icon-btn sv-btn-concluir"
-                        title="Registrar conclusão"
-                        onClick={() => setRowConcluindo(row)}
-                        disabled={isSaving}
-                      >
-                        {isSaving ? (
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sv-spin">
-                            <path d="M21 12a9 9 0 11-6.219-8.56"/>
-                          </svg>
-                        ) : (
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        )}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="tn-icon-btn sv-btn-reabrir"
-                        title="Reabrir ocorrência"
-                        onClick={() => handleReabrir(row)}
-                        disabled={isSaving}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="1 4 1 10 7 10"/>
-                          <path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
-                        </svg>
-                      </button>
-                    )}
-
-                    {/* Excluir */}
-                    <button
-                      type="button"
-                      className="tn-icon-btn sv-btn-excluir"
-                      title="Excluir"
-                      onClick={() => setConfirmDelete(row.id)}
-                      disabled={isSaving}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Modal de confirmação de exclusão */}
       {confirmDelete && (
@@ -658,7 +468,7 @@ export function ServicoDetailPage() {
       )}
 
       {/* Modal nova / editar ocorrência */}
-      {modalOpen && centro && (
+      {formularioAberto && centro && (
         <NovaOcorrenciaModal
           config={config}
           centro={centro}
@@ -667,18 +477,18 @@ export function ServicoDetailPage() {
           entityId={entityId}
           municipalityName={session.entity.municipalityName}
           uf={session.entity.uf}
-          onClose={() => { setModalOpen(false); setEditRow(null); }}
-          onSaved={() => { setModalOpen(false); setEditRow(null); void load(); }}
+          onClose={fecharFormulario}
+          onSaved={() => { fecharFormulario(); void load(); }}
         />
       )}
 
       {/* Modal de OS — visualizar/imprimir */}
-      {rowOS && (
+      {rowOSAtiva && (
         <OrdemServicoModal
-          row={rowOS}
+          row={rowOSAtiva}
           config={config}
           propConfigs={propConfigs.current}
-          onClose={() => setRowOS(null)}
+          onClose={() => { setRowOS(null); if (paramOS) limparParam('os'); }}
         />
       )}
 

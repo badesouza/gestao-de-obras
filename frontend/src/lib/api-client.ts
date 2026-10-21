@@ -534,6 +534,11 @@ export interface RegistroDiarioRow {
   lng?: number | null;
   enderecoGeocodificado?: string | null;
   values: Record<string, CellValue>;
+  /* presentes na listagem do mês */
+  criadoEm?: string;
+  fiscal?: string;
+  fotoId?: string | null;
+  fotos?: number;
 }
 
 export interface ProducaoDiariaDia {

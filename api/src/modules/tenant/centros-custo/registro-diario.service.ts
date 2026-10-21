@@ -194,6 +194,9 @@ export async function listRegistrosDiarios(
       valores: {
         include: { itens: true, propriedade: true },
       },
+      createdBy: { select: { name: true } },
+      midias: { where: { tipo: 'foto' }, orderBy: { createdAt: 'asc' }, take: 1, select: { id: true } },
+      _count: { select: { midias: true } },
     },
     orderBy: [{ data: 'asc' }, { createdAt: 'asc' }],
   });
@@ -201,7 +204,14 @@ export async function listRegistrosDiarios(
   return {
     year,
     month,
-    rows: rows.map((row) => mapRowToDto(row, tipoByProp)),
+    /* a lista leva também a capa (1ª foto), quantas fotos tem, quem registrou e quando */
+    rows: rows.map((row) => ({
+      ...mapRowToDto(row, tipoByProp),
+      criadoEm: row.createdAt.toISOString(),
+      fiscal: row.createdBy.name,
+      fotoId: row.midias[0]?.id ?? null,
+      fotos: row._count.midias,
+    })),
   };
 }
 
