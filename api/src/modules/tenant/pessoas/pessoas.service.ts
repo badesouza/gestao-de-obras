@@ -146,7 +146,23 @@ async function novoLink(prisma: PrismaClient | Prisma.TransactionClient, entityI
   return { token, expiraEm };
 }
 
+/* Acessos e administradores são assunto só do administrador geral. Quem tem só a caixa
+   Pessoas cadastra, edita e manda link, mas não promove ninguém nem mexe em administrador
+   (trocar o e-mail de um administrador e gerar o link seria tomar a conta dele). */
+export async function atorEhAdmin(prisma: PrismaClient, atorId: string) {
+  const a = await prisma.tenantUser.findUnique({ where: { id: atorId }, select: { adminGeral: true } });
+  return !!a?.adminGeral;
+}
+async function protegerAdmin(prisma: PrismaClient, atorId: string, alvo: { adminGeral: boolean }) {
+  if (alvo.adminGeral && !(await atorEhAdmin(prisma, atorId))) {
+    throw new AppError(403, 'FORBIDDEN', 'Só um administrador pode alterar outro administrador');
+  }
+}
+
 export async function criarPessoa(prisma: PrismaClient, entityId: string, atorId: string, d: DadosPessoa) {
+  if (MODELOS[d.modelo]?.admin && !(await atorEhAdmin(prisma, atorId))) {
+    throw new AppError(403, 'FORBIDDEN', 'Só um administrador pode cadastrar outro administrador');
+  }
   const role = await roleDoModelo(prisma, d.modelo);
   await validarEquipes(prisma, entityId, d);
   const email = d.email.trim().toLowerCase();
@@ -175,6 +191,10 @@ export async function criarPessoa(prisma: PrismaClient, entityId: string, atorId
 export async function atualizarPessoa(prisma: PrismaClient, entityId: string, atorId: string, id: string, d: DadosPessoa) {
   const atual = await prisma.tenantUser.findFirst({ where: { id, entityId }, include: { role: true } });
   if (!atual) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
+  await protegerAdmin(prisma, atorId, atual);
+  if (d.modelo !== atual.role.code && !(await atorEhAdmin(prisma, atorId))) {
+    throw new AppError(403, 'FORBIDDEN', 'Só um administrador pode trocar o modelo de acesso');
+  }
   await validarEquipes(prisma, entityId, d);
   const email = d.email.trim().toLowerCase();
   if (email !== atual.email) {
@@ -210,6 +230,7 @@ export async function definirSituacao(prisma: PrismaClient, entityId: string, at
   const u = await prisma.tenantUser.findFirst({ where: { id, entityId } });
   if (!u) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
   if (!ativo && id === atorId) throw new AppError(409, 'CONFLICT', 'Você não pode desativar a si mesmo');
+  await protegerAdmin(prisma, atorId, u);
   if (!ativo && u.adminGeral) await garantirOutroAdmin(prisma, entityId, id);
   await prisma.tenantUser.update({ where: { id }, data: { status: ativo ? 'ACTIVE' : 'INACTIVE' } });
   await writeTenantAudit(prisma, { entityId, userId: atorId, action: ativo ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', resource: 'user', newValue: { id } });
@@ -219,6 +240,7 @@ export async function gerarLink(prisma: PrismaClient, entityId: string, atorId: 
   const u = await prisma.tenantUser.findFirst({ where: { id, entityId } });
   if (!u) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
   if (u.status !== 'ACTIVE') throw new AppError(409, 'CONFLICT', 'Ative a pessoa antes de gerar o link');
+  await protegerAdmin(prisma, atorId, u);
   const link = await novoLink(prisma, entityId, id, atorId);
   await writeTenantAudit(prisma, { entityId, userId: atorId, action: 'USER_LINK_GERADO', resource: 'user', newValue: { id } });
   return { id: u.id, nome: u.name, email: u.email, celular: u.celular, link };
@@ -418,6 +440,7 @@ export async function excluirPessoa(prisma: PrismaClient, entityId: string, ator
   const u = await prisma.tenantUser.findFirst({ where: { id, entityId } });
   if (!u) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
   if (id === atorId) throw new AppError(409, 'CONFLICT', 'Você não pode excluir a si mesmo');
+  await protegerAdmin(prisma, atorId, u);
   if (u.adminGeral) await garantirOutroAdmin(prisma, entityId, id);
   const desativar = async () => {
     await prisma.tenantUser.update({ where: { id }, data: { status: 'INACTIVE' } });

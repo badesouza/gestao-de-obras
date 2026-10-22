@@ -1,11 +1,11 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { handleAppError } from '../../../shared/errors.js';
+import { handleAppError, sendError } from '../../../shared/errors.js';
 import { requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.js';
 import { buildTenantTokenPayload } from '../auth/auth.service.js';
 import {
   adicionarMembro, atualizarPessoa, consultarLink, criarEquipe, criarPessoa, definirSituacao, gerarLink,
-  listarEquipes, listarPessoas, obterAcessos, removerEquipe, removerMembro, salvarAcessos, salvarEquipe, usarLink, excluirPessoa } from './pessoas.service.js';
+  listarEquipes, listarPessoas, obterAcessos, removerEquipe, removerMembro, salvarAcessos, salvarEquipe, usarLink, excluirPessoa, atorEhAdmin } from './pessoas.service.js';
 
 const pessoaSchema = z.object({
   nome: z.string().trim().min(2, 'Informe o nome completo').max(200),
@@ -27,6 +27,10 @@ const equipeSchema = z.object({
 export async function registerPessoasRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
   const podePessoas = [tenantAuth, requireAcesso(fastify.prisma, 'cad.pessoas')];
+  /* a chave (acessos caixa por caixa) é só do administrador geral */
+  const soAdmin = [...podePessoas, async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!(await atorEhAdmin(fastify.prisma, req.user.sub))) return sendError(reply, 403, 'FORBIDDEN', 'Só um administrador mexe nos acessos');
+  }];
 
   fastify.get('/pessoas', { preHandler: podePessoas }, async (req, reply) => {
     try { return reply.send(await listarPessoas(fastify.prisma, req.user.entityId!)); }
@@ -68,14 +72,14 @@ export async function registerPessoasRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.get('/pessoas/:id/acessos', { preHandler: podePessoas }, async (req, reply) => {
+  fastify.get('/pessoas/:id/acessos', { preHandler: soAdmin }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await obterAcessos(fastify.prisma, req.user.entityId!, id));
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.put('/pessoas/:id/acessos', { preHandler: podePessoas }, async (req, reply) => {
+  fastify.put('/pessoas/:id/acessos', { preHandler: soAdmin }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const d = z.object({ adminGeral: z.boolean(), acessos: z.array(z.string().max(40)).max(100) }).parse(req.body);

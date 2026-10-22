@@ -35,6 +35,9 @@ function paraForm(p: Pessoa): Form {
 /** Tela 4 · Passo 3 — Pessoas (usuários) */
 export function PessoasPage() {
   const { entityId, session } = useTenant();
+  /* chave, modelo Administrador e mexer em administrador: só o administrador geral */
+  const souAdmin = !!session.adminGeral;
+  const podeMexer = (u: { adminGeral: boolean }) => souAdmin || !u.adminGeral;
   const navigate = useNavigate();
   const { resumo, recarregar } = useResumoCadastros();
   const { toasts, showToast, closeToast } = useToast();
@@ -60,8 +63,8 @@ export function PessoasPage() {
     const id = params.get('editar');
     if (!id || !dados) return;
     const p = dados.usuarios.find(u => u.id === id);
-    if (p) { setEditando(p); setForm(paraForm(p)); }
-  }, [params, dados]);
+    if (p && (session.adminGeral || !p.adminGeral)) { setEditando(p); setForm(paraForm(p)); }
+  }, [params, dados, session.adminGeral]);
 
   if (!dados) return <Pagina><Carregando /></Pagina>;
 
@@ -175,12 +178,12 @@ export function PessoasPage() {
                   const sit = SITUACAO[u.situacao];
                   return (
                     <tr key={u.id} className={pessoaEditada?.id === u.id ? 'sel' : ''}>
-                      <td data-l="Nome"><button type="button" className="so-link-nome" onClick={() => abrir(u)}>{u.nome}</button>{u.id === session.id && <span className="so-badge" style={{ marginLeft: 6 }}>você</span>}<span className="sub">{u.email}</span></td>
+                      <td data-l="Nome">{podeMexer(u) ? <button type="button" className="so-link-nome" onClick={() => abrir(u)}>{u.nome}</button> : <b className="so-link-nome" style={{ cursor: 'default' }}>{u.nome}</b>}{u.id === session.id && <span className="so-badge" style={{ marginLeft: 6 }}>você</span>}<span className="sub">{u.email}</span></td>
                       <td data-l="Perfil"><span className={`so-badge ${TOM_PERFIL[u.perfil.code] ?? ''}`}>{u.adminGeral ? 'Administrador' : u.perfil.nome}</span></td>
                       <td data-l="Equipe · atende"><span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{u.equipes.length ? u.equipes.map(q => `${q.nome}${u.liderDe === q.id ? ' (líder)' : ''}`).join(', ') : '—'}</span><span className="sub">{u.atende === null ? 'vê todos os serviços' : u.atende.length ? `atende ${u.atende.map(s => s.nome).join(', ')}` : 'nenhum serviço'}</span></td>
                       <td data-l="Acesso"><span className={`so-badge ${sit.tom}`}><span className="dot" />{sit.texto}</span></td>
-                      <td data-l="Link de senha" className="r">{sit.link && <button type="button" className="so-btn so-ghost sm" onClick={() => novoLink(u)}>{sit.link}</button>}</td>
-                      <td data-l="" className="acoes"><AcoesLinha nome={u.nome} onAcessos={() => navigate(rotaTenant(entityId, `cadastros/pessoas/${u.id}/acessos`))} onEditar={() => abrir(u)} onExcluir={u.id !== session.id ? () => excluir(u) : undefined} /></td>
+                      <td data-l="Link de senha" className="r">{sit.link && podeMexer(u) && <button type="button" className="so-btn so-ghost sm" onClick={() => novoLink(u)}>{sit.link}</button>}</td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={u.nome} onAcessos={souAdmin ? () => navigate(rotaTenant(entityId, `cadastros/pessoas/${u.id}/acessos`)) : undefined} onEditar={podeMexer(u) ? () => abrir(u) : undefined} onExcluir={u.id !== session.id && podeMexer(u) ? () => excluir(u) : undefined} /></td>
                     </tr>
                   );
                 })}
@@ -227,7 +230,7 @@ export function PessoasPage() {
           <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0 }}>
             <legend className="so-lbl" style={{ marginBottom: 6 }}>Modelo de acesso <span className="opt">marca as caixas; você ajusta na aba Acessos</span></legend>
             <div className="so-opts c2">
-              {dados.modelos.filter(m => m.existe).map(m => (
+              {dados.modelos.filter(m => m.existe && (souAdmin ? true : pessoaEditada ? m.code === pessoaEditada.perfil.code : m.code !== 'ADMIN')).map(m => (
                 <label key={m.code} className={`so-opt${form.modelo === m.code ? ' on' : ''}`}>
                   <input type="radio" name="modelo" checked={form.modelo === m.code} onChange={() => set('modelo', m.code)} />
                   <span className="mt"><Ic n="shieldCheck" /></span>
@@ -236,7 +239,8 @@ export function PessoasPage() {
                 </label>
               ))}
             </div>
-            {pessoaEditada ? (
+            {pessoaEditada && !souAdmin && <span className="so-help" style={{ marginTop: 6 }}>Só um administrador troca o modelo e os acessos.</span>}
+            {pessoaEditada ? souAdmin && (
               <Link to={rotaTenant(entityId, `cadastros/pessoas/${pessoaEditada.id}/acessos`)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, fontWeight: 800, textDecoration: 'none' }}>
                 Ver e ajustar os acessos <span className="so-cnt part">{pessoaEditada.marcados} de {pessoaEditada.total} marcados</span><Ic n="seta" style={{ width: 14, height: 14 }} />
               </Link>

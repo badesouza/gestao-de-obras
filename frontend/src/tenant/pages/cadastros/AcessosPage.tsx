@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { pessoasApi } from '../../../lib/api-client';
 import type { AcessosPessoa, ModeloAcesso } from '../../../lib/api-client';
 import { useTenant } from '../../TenantContext';
@@ -18,7 +18,8 @@ const TRAVAS = [
 
 /** Tela 4b · Acessos do usuário — caixa por caixa, grupos nascem fechados */
 export function AcessosPage() {
-  const { entityId } = useTenant();
+  const { entityId, session } = useTenant();
+  const souAdmin = !!session.adminGeral;
   const { userId } = useParams<{ userId: string }>();
   const { toasts, showToast, closeToast } = useToast();
   const [dados, setDados] = useState<AcessosPessoa | null>(null);
@@ -29,14 +30,16 @@ export function AcessosPage() {
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !souAdmin) return;
     pessoasApi.acessos(entityId, userId).then(d => {
       setDados(d); setAdmin(d.adminGeral); setMarc(new Set(d.acessos));
       if (d.modelos.some(m => m.code === d.usuario.perfil.code)) setModelo(d.usuario.perfil.code as ModeloAcesso);
     }).catch(e => showToast(msgErro(e, 'Não foi possível abrir os acessos'), 'error'));
-  }, [entityId, userId, showToast]);
+  }, [entityId, userId, showToast, souAdmin]);
 
   const total = useMemo(() => dados?.catalogo.reduce((n, m) => n + m.grupos.reduce((k, g) => k + g.itens.length, 0), 0) ?? 0, [dados]);
+  /* a chave é só do administrador geral */
+  if (!souAdmin) return <Navigate to={rotaTenant(entityId, 'cadastros/pessoas')} replace />;
   if (!dados || !userId) return <Pagina><Carregando /></Pagina>;
 
   const marcados = admin ? total : marc.size;
