@@ -14,6 +14,7 @@ import { registerPlatformEntityRoutes } from './modules/platform/entities/entity
 import { registerUploadRoutes } from './modules/platform/uploads/upload.routes.js';
 import { registerPublicRoutes } from './modules/public/public.routes.js';
 import { registerTenantRoutes } from './modules/tenant/tenant.routes.js';
+import { htmlDoLinkDeAcesso } from './shared/previa-link.js';
 
 /** Bootstraps the Fastify API server */
 async function start() {
@@ -77,7 +78,7 @@ async function start() {
       },
     });
 
-    fastify.setNotFoundHandler((request, reply) => {
+    fastify.setNotFoundHandler(async (request, reply) => {
       const isApiOrUploadRoute =
         request.raw.url?.startsWith('/api/') ||
         request.raw.url?.startsWith('/uploads/') ||
@@ -88,6 +89,12 @@ async function start() {
       }
 
       const indexHtml = fs.readFileSync(path.join(publicDir, 'index.html'));
+      /* link de acesso: prévia no WhatsApp com o nome da pessoa e o órgão */
+      const acesso = /^\/acesso\/([A-Za-z0-9_-]{10,200})\/?(?:\?|$)/.exec(request.raw.url ?? '');
+      if (acesso) {
+        const html = await htmlDoLinkDeAcesso(fastify.prisma, request, acesso[1], indexHtml.toString('utf8'));
+        return reply.type('text/html').header('Cache-Control', 'no-cache').send(html);
+      }
       return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
     });
   }
