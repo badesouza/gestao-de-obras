@@ -97,6 +97,10 @@
 .cid-kpi .tr { height: 3px; margin-top: 8px; border-radius: 3px; background: rgba(140, 150, 255, .15); overflow: hidden; }
 .cid-kpi .tr i { display: block; height: 100%; background: var(--c); border-radius: 3px; transition: width .8s var(--ease); }
 .cid-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* números de exemplo: etiqueta discreta acima da faixa */
+.cid-kpis.exemplo .cid-kpi:last-child { grid-column: 1 / -1; }
+.cid-exemplo { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 7px; padding: 3px 9px; border-radius: 99px; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); background: rgba(9, 13, 34, .82); border: 1px solid rgba(245, 165, 36, .38); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cid-exemplo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex: none; }
 
 @keyframes cid-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
@@ -110,7 +114,8 @@
 .cid.largo .cid-mapa { position: absolute; inset: 0; }
 .cid.largo .cid-lado { position: absolute; top: 0; right: 0; bottom: 124px; width: 440px; padding: 20px; background: radial-gradient(ellipse 70% 60% at 55% 50%, rgba(5, 8, 26, .5), transparent 75%); }
 .cid.largo .cid-kpis { position: absolute; left: clamp(20px, 2.4vw, 36px); right: 20px; bottom: 18px; padding: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.cid.largo .cid-kpi:last-child:nth-child(odd) { grid-column: auto; }
+.cid.largo .cid-kpi:last-child:nth-child(odd), .cid.largo .cid-kpis.exemplo .cid-kpi:last-child { grid-column: auto; }
+.cid.largo .cid-kpis.exemplo .cid-exemplo { position: absolute; left: 0; top: -26px; }
 @media (max-height: 720px) {
   .cid.largo .lg-cartao { padding-top: 16px; padding-bottom: 12px; }
   .cid.largo .lg-saudacao { margin-bottom: 10px; }

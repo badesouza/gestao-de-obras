@@ -16,6 +16,18 @@ const ETAPA: Record<string, string> = {
   AGUARDANDO_APROVACAO: 'aguardando aprovação', REGISTRADA: 'aprovada', EXECUTADA: 'executada', FINALIZADA: 'finalizada',
 };
 const ORIGEM: Record<string, string> = { MUNICIPE: 'pedida pelo munícipe', CAMPO: 'aberta no campo', ESCRITORIO: 'aberta pelo escritório' };
+/* enquanto a prefeitura não tem OS suficientes, os cartões mostram números de exemplo (com etiqueta) */
+const EXEMPLO: Pick<EntradaPublica, 'kpis' | 'series'> = {
+  kpis: { abertasHoje: 23, finalizadasHoje: 15, noPrazoPct: 94, equipesEmCampo: 3, equipesTotal: 4, tempoMedioDias: 2.4 },
+  series: {
+    abertas: [12, 15, 14, 18, 16, 20, 17, 19, 22, 18, 21, 24, 20, 23],
+    finalizadas: [8, 9, 11, 10, 12, 11, 13, 12, 14, 13, 15, 14, 16, 15],
+    noPrazo: [86, 88, 87, 90, 89, 91, 90, 92, 91, 93, 92, 94, 93, 94],
+    equipes: [2, 3, 3, 2, 3, 4, 3, 3, 4, 3, 3, 4, 3, 3],
+    tempo: [3.4, 3.2, 3.3, 3.0, 3.1, 2.9, 2.8, 2.9, 2.7, 2.6, 2.7, 2.5, 2.5, 2.4],
+  },
+};
+
 type Ultima = Omit<EntradaPublica['ultimas'][number], 'cor'> & { cor: string };
 
 function useLargo() {
@@ -94,9 +106,10 @@ export function LoginCidade({ entityId, orgao, children }: { entityId?: string; 
     if (el) { el.classList.remove('chegou'); void el.offsetWidth; el.classList.add('chegou'); }
   }, []);
 
-  const k = dados?.kpis;
-  const s = dados?.series;
-  const numeros = !!(dados?.mostrarNumeros && k && s);
+  const reais = !!dados?.mostrarNumeros;
+  const k = reais ? dados!.kpis : EXEMPLO.kpis;
+  const s = reais ? dados!.series : EXEMPLO.series;
+  const numeros = reais;
   const ultimoAbertas = s ? Math.max(1, ...s.abertas) : 1;
 
   return (
@@ -137,8 +150,9 @@ export function LoginCidade({ entityId, orgao, children }: { entityId?: string; 
         </div>
       </main>
 
-      {numeros && k && s && (
-        <section className="cid-kpis" aria-label="Números de hoje">
+      {dados && (
+        <section className={`cid-kpis${reais ? '' : ' exemplo'}`} aria-label={reais ? 'Números de hoje' : 'Números de exemplo'}>
+          {!reais && <span className="cid-exemplo">Exemplo · os números reais aparecem com as primeiras OS</span>}
           <Kpi rotulo="OS abertas hoje" valor={String(k.abertasHoje)} cor="#8B84FF" serie={s.abertas} barra={k.abertasHoje / ultimoAbertas * 100} />
           <Kpi rotulo="Finalizadas hoje" valor={String(k.finalizadasHoje)} cor="#3DD6A6" serie={s.finalizadas} barra={k.abertasHoje ? k.finalizadasHoje / k.abertasHoje * 100 : 0} />
           <Kpi rotulo="No prazo · 30 dias" valor={k.noPrazoPct == null ? '—' : String(k.noPrazoPct)} sufixo={k.noPrazoPct == null ? undefined : '%'} cor="#22D3EE" serie={s.noPrazo} barra={k.noPrazoPct ?? 0} />
