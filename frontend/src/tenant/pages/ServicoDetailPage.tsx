@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { tenantApi, mapaApi, ordensApi, type AcaoOS, type CentroCustoDetail, type Etapa, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
+import { tenantApi, ordensApi, type AcaoOS, type CentroCustoDetail, type Etapa, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { ToastContainer } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { SERVICOS_CONFIG, CENTRO_IDS, type ServicoConfig } from './servico-config';
 import { ServicoInstrucoesDrawer } from '../components/ServicoInstrucoesDrawer';
 import { NovaOcorrenciaModal } from '../components/NovaOcorrenciaModal';
-import { ModalConclusao, type DadosConclusao } from '../components/ModalConclusao';
 import { OrdemServicoModal } from '../components/OrdemServicoModal';
 import { ServicoAnalytics } from '../components/ServicoAnalytics';
 import { PlanejamentoAnual } from '../components/PlanejamentoAnual';
 import { ServicoSolicitacoesPanel } from '../components/ServicoSolicitacoesPanel';
-import { Anel, Dialogo, EtapaBadge, FotoThumb, Kpi, KpiCarregando, Sparkline } from '../components/obras/ui';
-import { DIAS_ATRASO, dataBr, diasDesde, etapaAberta, etapaDe, nomeCurto, numeroDaOS } from '../components/obras/util';
+import { DIAS_ATRASO, dataBr, diasDesde, etapaAberta, etapaDe, nomeCurto, numeroDaOS, useFotoUrl } from '../components/obras/util';
+import { AcoesLinha, Aviso, BarraAcoes, Cabecalho, Cartao, Carregando, Ic, Janela, Pagina, Placar, Sep, rotaTenant, useConfirmarExclusao } from '../components/sisobras/so';
+import { Anel, BarraPrazo, EtapaPill, IconeServico, SeloServico, Spark, corAvatar, siglaDe } from './os/os-ui';
 
 type Filtro = 'todas' | 'atrasadas' | Etapa;
+type Aba = 'registros' | 'analises' | 'planejamento' | 'solicitacoes';
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 function hoje(): { year: number; month: number } {
@@ -42,46 +43,50 @@ function getCellText(row: RegistroDiarioRow, propId: string): string {
   return '—';
 }
 
+/** Miniatura da foto da ocorrência (ou o ícone do serviço quando não tem foto) */
+function Miniatura({ entityId, fotoId, cor, nome, fotos }: { entityId: string; fotoId: string | null | undefined; cor: string; nome: string; fotos?: number }) {
+  const url = useFotoUrl(entityId, fotoId);
+  return (
+    <span style={{ position: 'relative', width: 52, height: 52, borderRadius: 12, overflow: 'hidden', flex: 'none', display: 'grid', placeItems: 'center',
+      background: url ? 'var(--surface-3)' : `color-mix(in srgb, ${cor} 14%, var(--surface))`, color: cor, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--line)' }}>
+      {url ? <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span className="os-svc" style={{ gap: 0 }}><span className="m" style={{ '--c': cor, width: 30, height: 30 } as React.CSSProperties}><IconeServico nome={nome} /></span></span>}
+      {(fotos ?? 0) > 1 && <span className="mono" style={{ position: 'absolute', right: 3, bottom: 3, padding: '0 5px', borderRadius: 6, fontSize: 9.5, fontWeight: 700, color: '#fff', background: 'rgba(10,12,25,.72)' }}>{fotos}</span>}
+    </span>
+  );
+}
+
 /* ── componente principal ─────────────────────────────────────────── */
 export function ServicoDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { entityId, session } = useTenant();
+  const nav = useNavigate();
 
   const config: ServicoConfig | undefined = SERVICOS_CONFIG[slug ?? ''];
   const centroId = CENTRO_IDS[slug ?? ''];
 
   const { toasts, showToast, closeToast } = useToast();
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
   const [centro, setCentro] = useState<CentroCustoDetail | null>(null);
   const [rows, setRows] = useState<RegistroDiarioRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [{ year, month }, setPeriodo] = useState(hoje);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
+  /* atalhos antigos: ?os=<id> abre a ficha da OS; ?nova=1 abre a Nova OS (módulo de OS) */
+  useEffect(() => {
+    const os = searchParams.get('os');
+    if (os) nav(rotaTenant(entityId, `os/${os}`), { replace: true });
+    else if (searchParams.get('nova') === '1') nav(rotaTenant(entityId, 'os?nova=1'), { replace: true });
+  }, [searchParams, entityId, nav]);
 
-  /* atalhos vindos da Sala de Situação: ?os=<id> abre a OS, ?nova=1 abre o formulário */
-  const paramOS = searchParams.get('os');
-  const paramNova = false; /* ?nova=1 agora vai para a Nova OS (módulo de OS) */
-  const irNovaOS = useNavigate();
-  useEffect(() => { if (searchParams.get('nova') === '1') irNovaOS(`/t/${entityId}/os?nova=1`, { replace: true }); }, [searchParams, entityId, irNovaOS]);
-  const limparParam = (chave: string) => {
-    const p = new URLSearchParams(searchParams);
-    p.delete(chave);
-    setSearchParams(p, { replace: true });
-  };
   const [editRow, setEditRow] = useState<RegistroDiarioRow | null>(null);
   const [ajudaOpen, setAjudaOpen] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [rowConcluindo, setRowConcluindo] = useState<RegistroDiarioRow | null>(null);
-  const [rowConferindo, setRowConferindo] = useState<RegistroDiarioRow | null>(null);
-  const [obsConferencia, setObsConferencia] = useState('');
-  const [rowOS, setRowOS] = useState<RegistroDiarioRow | null>(null);
-  const rowOSAtiva = rowOS ?? (paramOS ? rows.find(r => r.id === paramOS) ?? null : null);
-  const formularioAberto = modalOpen || paramNova;
-  const fecharFormulario = () => { setModalOpen(false); setEditRow(null); if (paramNova) limparParam('nova'); };
-  const [aba, setAba] = useState<'registros' | 'analises' | 'planejamento' | 'solicitacoes'>('registros');
+  const [rowImprimir, setRowImprimir] = useState<RegistroDiarioRow | null>(null);
+  const [rowReabrir, setRowReabrir] = useState<RegistroDiarioRow | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [aba, setAba] = useState<Aba>('registros');
   const [filtro, setFiltro] = useState<Filtro>('todas');
   const [busca, setBusca] = useState('');
 
@@ -114,36 +119,7 @@ export function ServicoDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  /* baixa do fiscal: registra a vistoria e leva a OS para "Executada" */
-  const handleConfirmarConclusao = async (dados: DadosConclusao) => {
-    if (!rowConcluindo) return;
-    const pidObs = propMap.current['Observações'];
-    const pidFiscal = propMap.current['Fiscal Responsável'];
-    const obsTexto = [
-      dados.observacoesFiscal,
-      `Vistoria: ${dados.dataVistoria} | Fiscal: ${dados.nomeFiscal} | Qualidade: ${dados.qualidade} | Resultado: ${dados.statusFinal}`,
-    ].filter(Boolean).join('\n');
-
-    const novosValues: Record<string, { text?: string }> = { ...rowConcluindo.values };
-    if (pidObs) novosValues[pidObs] = { text: obsTexto };
-    if (pidFiscal) novosValues[pidFiscal] = { text: dados.nomeFiscal };
-
-    await tenantApi.centrosCusto.updateRegistro(entityId, centroId, rowConcluindo.id, { data: rowConcluindo.data, values: novosValues });
-    if (dados.lat != null && dados.lng != null) {
-      await mapaApi.salvarCoords(entityId, rowConcluindo.id, dados.lat, dados.lng, dados.enderecoConfirmado);
-    }
-    /* "Não executado" fica registrado na vistoria, mas a OS continua aberta */
-    if (dados.statusFinal !== 'Não Executado') {
-      await ordensApi.acao(entityId, rowConcluindo.id, 'executar');
-      showToast(session.obras.exigeConferencia ? 'Baixa registrada. Aguardando a conferência do coordenador.' : 'Baixa registrada. OS finalizada.');
-    } else {
-      showToast('Vistoria registrada. A OS continua aberta.');
-    }
-    setRowConcluindo(null);
-    await load();
-  };
-
-  /* aprovar, conferir, reabrir… */
+  /* aprovar, reabrir… */
   const acaoOS = async (row: RegistroDiarioRow, acao: AcaoOS, observacao?: string, mensagem?: string) => {
     setSaving(row.id);
     try {
@@ -151,28 +127,7 @@ export function ServicoDetailPage() {
       if (mensagem) showToast(mensagem);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível concluir a ação');
-    } finally {
-      setSaving(null);
-    }
-  };
-  const handleReabrir = (row: RegistroDiarioRow) => {
-    const motivo = window.prompt('Por que reabrir esta OS? (fica registrado)')?.trim();
-    if (!motivo) return;
-    if (motivo.length < 5) { window.alert('Explique o motivo com pelo menos 5 letras.'); return; }
-    return acaoOS(row, 'reabrir', motivo, 'OS reaberta.');
-  };
-
-  /* excluir */
-  const handleDelete = async (id: string) => {
-    setSaving(id);
-    try {
-      await tenantApi.centrosCusto.deleteRegistro(entityId, centroId, id);
-      setConfirmDelete(null);
-      showToast('Ocorrência excluída com sucesso.');
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao excluir');
+      showToast(e instanceof Error ? e.message : 'Não foi possível concluir a ação', 'error');
     } finally {
       setSaving(null);
     }
@@ -190,11 +145,7 @@ export function ServicoDetailPage() {
   };
 
   if (!config || !centroId) {
-    return (
-      <div className="tn-page">
-        <div className="tn-alert">Serviço não encontrado.</div>
-      </div>
-    );
+    return <Pagina><Aviso tom="amber">Serviço não encontrado.</Aviso></Pagina>;
   }
 
   /* ── dados da lista ── */
@@ -230,7 +181,7 @@ export function ServicoDetailPage() {
 
   const total = itens.length;
   const conta = (f: Filtro) => f === 'todas' ? total : f === 'atrasadas' ? itens.filter(i => i.atrasada).length : itens.filter(i => i.etapa === f).length;
-  const abertasAgora = itens.filter(i => etapaAberta(i.etapa)).length;
+  const abertasAgora = itens.filter(i => etapaAberta(i.etapa) || i.etapa === 'EXECUTADA').length;
   const atrasadas = conta('atrasadas');
   const aConferir = conta('EXECUTADA');
   const finalizadas = conta('FINALIZADA');
@@ -247,96 +198,100 @@ export function ServicoDetailPage() {
       .some(t => t.toLowerCase().includes(termo))),
   );
 
-  const FILTROS: { id: Filtro; rotulo: string; cor: string; esconderSeVazio?: boolean }[] = [
-    { id: 'todas', rotulo: 'Todas', cor: 'var(--ob-faint)' },
-    { id: 'atrasadas', rotulo: 'Atrasadas', cor: 'var(--ob-rose)', esconderSeVazio: true },
-    { id: 'AGUARDANDO_APROVACAO', rotulo: 'Aguardando aprovação', cor: 'var(--ob-violeta)', esconderSeVazio: !session.obras.exigeAprovacaoOS },
-    { id: 'REGISTRADA', rotulo: 'Registradas', cor: 'var(--ob-blue)' },
-    { id: 'EXECUTADA', rotulo: 'A conferir', cor: 'var(--ob-amber)', esconderSeVazio: !session.obras.exigeConferencia },
-    { id: 'FINALIZADA', rotulo: 'Finalizadas', cor: 'var(--ob-green)' },
-    { id: 'CANCELADA', rotulo: 'Canceladas', cor: 'var(--ob-faint)', esconderSeVazio: true },
+  const FILTROS: { id: Filtro; rotulo: string; esconderSeVazio?: boolean; alerta?: boolean }[] = [
+    { id: 'todas', rotulo: 'Todas' },
+    { id: 'atrasadas', rotulo: 'Atrasadas', esconderSeVazio: true, alerta: true },
+    { id: 'AGUARDANDO_APROVACAO', rotulo: 'Aguardando aprovação', esconderSeVazio: !session.obras.exigeAprovacaoOS },
+    { id: 'REGISTRADA', rotulo: 'Registradas' },
+    { id: 'EXECUTADA', rotulo: 'A conferir', esconderSeVazio: !session.obras.exigeConferencia },
+    { id: 'FINALIZADA', rotulo: 'Finalizadas' },
+    { id: 'CANCELADA', rotulo: 'Canceladas', esconderSeVazio: true },
   ];
 
-  const ABAS: { id: typeof aba; rotulo: string; icone: React.ReactNode }[] = [
-    { id: 'registros', rotulo: 'Ocorrências', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-    { id: 'analises', rotulo: 'Análises', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
-    { id: 'planejamento', rotulo: 'Planejamento', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-    { id: 'solicitacoes', rotulo: 'Solicitações', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 002 1.58h8.77a2 2 0 001.95-1.57L21 8H5.12"/></svg> },
+  const ABAS: { id: Aba; rotulo: string; icone: React.ReactNode }[] = [
+    { id: 'registros', rotulo: 'Ocorrências', icone: <Ic n="doc" /> },
+    { id: 'analises', rotulo: 'Análises', icone: <Ic n="sliders" /> },
+    { id: 'planejamento', rotulo: 'Planejamento', icone: <Ic n="relogio" /> },
+    { id: 'solicitacoes', rotulo: 'Solicitações', icone: <Ic n="carrinho" /> },
   ];
 
   /* toda OS nova passa pela Nova OS: segue a ficha do serviço e exige equipe */
-  const novaOcorrencia = () => irNovaOS(`/t/${entityId}/os?nova=1`);
+  const novaOcorrencia = () => nav(rotaTenant(entityId, 'os?nova=1'));
+  const fichaOS = (row: RegistroDiarioRow) => nav(rotaTenant(entityId, `os/${row.id}`));
+  const excluir = (row: RegistroDiarioRow) => confirmar({
+    oque: 'ocorrência', nome: numeroDaOS(row),
+    texto: 'A ocorrência, as fotos e os valores lançados saem do sistema. Não dá para desfazer.',
+    acao: async () => {
+      setSaving(row.id);
+      try { await tenantApi.centrosCusto.deleteRegistro(entityId, centroId, row.id); showToast('Ocorrência excluída.'); await load(); }
+      catch (e) { showToast(e instanceof Error ? e.message : 'Erro ao excluir', 'error'); }
+      finally { setSaving(null); }
+    },
+  });
+  const mesTexto = nomeMes(month, year).replace(/^./, c => c.toUpperCase());
 
   return (
-    <div className="ob-page ob-claro" style={{ '--serv-cor': config.cor } as React.CSSProperties}>
-
-      <Link to={`/t/${entityId}/servicos`} className="ob-voltar ob-reveal" style={{ '--i': 0 } as React.CSSProperties}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><polyline points="15 18 9 12 15 6"/></svg>
-        Serviços
-      </Link>
-
-      <header className="ob-head ob-reveal" style={{ '--i': 1 } as React.CSSProperties}>
-        <div className="ob-serv-titulo">
-          <span className="ob-serv-icone">{config.icon}</span>
-          <div className="ob-head-texto">
-            <span className="ob-eyebrow ob-eyebrow-serv">Serviço urbano</span>
-            <h1 className="ob-h1">{config.nome}</h1>
-            <p className="ob-sub">{config.descricao}</p>
+    <Pagina>
+      <Cabecalho rotulo={config.nome} selo={<SeloServico nome={config.nome} cor={config.cor} />}
+        eyebrow={<>Gestão de Obras · <Link to={rotaTenant(entityId, 'servicos')}>Serviços Urbanos</Link></>}
+        titulo={config.nome}
+        extras={<span className="os-pill brand"><i />{total} no mês</span>}
+        sub={config.descricao}
+        direita={<div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div className="so-seg" role="group" aria-label="Mês de referência" style={{ alignItems: 'center' }}>
+            <button type="button" className="so-btn so-ghost sm" style={{ border: 0, background: 'transparent' }} onClick={() => mudarMes(-1)} aria-label="Mês anterior"><Ic n="voltar" /></button>
+            <span style={{ padding: '0 6px', fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', minWidth: 132, textAlign: 'center' }}>{mesTexto}</span>
+            <button type="button" className="so-btn so-ghost sm" style={{ border: 0, background: 'transparent' }} onClick={() => mudarMes(1)} aria-label="Próximo mês"><Ic n="seta" /></button>
           </div>
-        </div>
-        <div className="ob-head-acoes">
-          <div className="ob-mes" role="group" aria-label="Mês de referência">
-            <button type="button" onClick={() => mudarMes(-1)} aria-label="Mês anterior">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span>{nomeMes(month, year).replace(/^./, c => c.toUpperCase())}</span>
-            <button type="button" onClick={() => mudarMes(1)} aria-label="Próximo mês">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-          <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => setAjudaOpen(true)}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Como usar
-          </button>
-          <button type="button" className="ob-btn" onClick={novaOcorrencia}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nova ocorrência
-          </button>
-        </div>
-      </header>
+          <Placar n={abertasAgora} de="OS" rotulo="abertas agora" />
+        </div>} />
 
-      <section className="ob-kpis" aria-label="Resumo do mês">
-        {loading && rows.length === 0 ? [1, 2, 3, 4].map(n => <KpiCarregando key={n} />) : (
+      <section className="os-kpis" aria-label="Resumo do mês">
+        {loading && rows.length === 0 ? <Carregando /> : (
           <>
-            <Kpi i={2} rotulo="Abertas agora" valor={abertasAgora} cor="var(--ob-blue)"
-              nota={atrasadas > 0 ? `${atrasadas} ${atrasadas === 1 ? 'passou' : 'passaram'} de ${DIAS_ATRASO} dias` : `${total} ${total === 1 ? 'registrada' : 'registradas'} no mês`}
-              tom={atrasadas > 0 ? 'ruim' : 'neutro'} grafico={<Sparkline valores={serieAteHoje} cor="var(--ob-blue)" />} />
-            <Kpi i={3} rotulo="A conferir" valor={aConferir} cor="var(--ob-amber)"
-              nota={!session.obras.exigeConferencia ? 'conferência desligada' : aConferir ? (podeConferir ? 'baixas esperando você' : 'aguardando o coordenador') : 'nenhuma baixa pendente'}
-              tom={aConferir ? 'alerta' : 'ok'} grafico={null} />
-            <Kpi i={4} rotulo="Finalizadas" valor={finalizadas} cor="var(--ob-green)"
-              nota={total ? `${Math.round(finalizadas / total * 100)}% do mês` : 'sem registros'}
-              tom={total > 0 && finalizadas === total ? 'ok' : 'neutro'} grafico={<Anel pct={total ? finalizadas / total * 100 : null} cor="var(--ob-green)" />} />
-            <Kpi i={5} rotulo="Com foto" valor={total ? Math.round(comFoto / total * 100) : null} unidade="%" cor="var(--ob-amber)"
-              nota={total === 0 ? 'sem registros' : total - comFoto > 0 ? `${total - comFoto} sem foto` : 'todas com prova'}
-              tom={total === 0 ? 'neutro' : total - comFoto > 0 ? 'alerta' : 'ok'} grafico={<Anel pct={total ? comFoto / total * 100 : null} cor="var(--ob-amber)" />} />
+            <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#635BFF,#8B85FF)', '--ks': 'rgba(99,91,255,.8)' } as React.CSSProperties}>
+              <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg></span>Abertas agora</div>
+              <div className="v"><span className="os-num" key={abertasAgora}>{abertasAgora}</span><span className="os-delta neutro">{total} no mês</span></div>
+              <Spark valores={serieAteHoje.length ? serieAteHoje : [0]} />
+            </article>
+            <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#E5534B,#F59088)', '--ks': 'rgba(229,83,75,.8)', '--kg': 'rgba(229,83,75,.14)' } as React.CSSProperties}>
+              <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></span>Atrasadas</div>
+              <div className="v"><span className="os-num" key={atrasadas} style={{ color: atrasadas ? 'var(--coral)' : undefined }}>{atrasadas}</span>{atrasadas > 0 && <button type="button" className="os-delta ruim" style={{ border: 0, cursor: 'pointer' }} onClick={() => { setAba('registros'); setFiltro('atrasadas'); }}>ver quais</button>}</div>
+              <small>abertas há mais de {DIAS_ATRASO} dias</small>
+            </article>
+            <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#F2B44C,#E8962A)', '--ks': 'rgba(232,150,42,.8)', '--kg': 'rgba(242,180,76,.18)' } as React.CSSProperties}>
+              <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg></span>A conferir</div>
+              <div className="v"><span className="os-num" key={aConferir}>{aConferir}</span>{aConferir > 0 && podeConferir && <span className="os-pill amber" style={{ height: 20, fontSize: 10.5 }}><i />esperando você</span>}</div>
+              <small>{!session.obras.exigeConferencia ? 'conferência desligada' : aConferir ? (podeConferir ? 'baixas esperando a sua conferência' : 'aguardando o coordenador') : 'nenhuma baixa pendente'}</small>
+            </article>
+            <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#19B88A,#10C6D4)', '--ks': 'rgba(25,184,138,.8)', '--kg': 'rgba(25,184,138,.16)' } as React.CSSProperties}>
+              <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg></span>Finalizadas</div>
+              <div className="os-ringwrap">
+                <Anel pct={total ? finalizadas / total * 100 : 0} id="osRingFinal" />
+                <div><div className="v"><span className="os-num sm">{finalizadas}</span></div><small>{total ? `${Math.round(finalizadas / total * 100)}% do mês` : 'sem registros'}</small></div>
+              </div>
+            </article>
+            <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#E8962A,#F2B44C)', '--ks': 'rgba(232,150,42,.8)', '--kg': 'rgba(242,180,76,.18)' } as React.CSSProperties}>
+              <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></svg></span>Com foto</div>
+              <div className="os-ringwrap">
+                <Anel pct={total ? comFoto / total * 100 : 0} id="osRingFoto" />
+                <div><div className="v"><span className="os-num sm">{total ? Math.round(comFoto / total * 100) : '—'}</span>{total > 0 && <span className="os-u">%</span>}</div><small>{total === 0 ? 'sem registros' : total - comFoto > 0 ? `${total - comFoto} sem foto` : 'todas com prova'}</small></div>
+              </div>
+            </article>
           </>
         )}
       </section>
 
-      <nav className="ob-abas ob-reveal" style={{ '--i': 6 } as React.CSSProperties} aria-label="Seções do serviço">
+      <nav className="so-tabs" aria-label="Seções do serviço">
         {ABAS.map(a => (
-          <button key={a.id} type="button" className={aba === a.id ? 'is-ativa' : undefined} onClick={() => setAba(a.id)} aria-pressed={aba === a.id}>
-            {a.icone}{a.rotulo}
-            {a.id === 'registros' && total > 0 && <span className="ob-abas-num">{total}</span>}
+          <button key={a.id} type="button" className={`so-tab${aba === a.id ? ' on' : ''}`} onClick={() => setAba(a.id)} aria-pressed={aba === a.id}>
+            {a.icone}{a.rotulo}{a.id === 'registros' && total > 0 && <span className="n">{total}</span>}
           </button>
         ))}
       </nav>
 
       {aba === 'analises' && (
-        <div className="ob-card ob-card-conteudo">
-          <ServicoAnalytics entityId={entityId} centroId={centroId} config={config} year={year} month={month} />
-        </div>
+        <ServicoAnalytics entityId={entityId} centroId={centroId} config={config} year={year} month={month} />
       )}
 
       {aba === 'planejamento' && (
@@ -348,172 +303,117 @@ export function ServicoDetailPage() {
       )}
 
       {aba === 'registros' && (
-        <section className="ob-card ob-reveal" style={{ '--i': 7 } as React.CSSProperties} aria-label="Ocorrências do mês">
-          <div className="ob-filtros">
-            <div className="ob-chips" role="group" aria-label="Filtrar por etapa">
+        <Cartao icone="doc" titulo={`Ocorrências de ${nomeMes(month, year)}`} meta={`mostrando ${visiveis.length} de ${total}`} ajuda="Ajuda: Ocorrências"
+          direita={<button type="button" className="so-btn so-primary sm os-shine" onClick={novaOcorrencia}><Ic n="plus" />Nova OS</button>}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <div className="so-chips" role="group" aria-label="Filtrar por etapa" style={{ flex: '999 1 420px' }}>
               {FILTROS.map(f => {
                 const n = conta(f.id);
                 if (f.esconderSeVazio && n === 0) return null;
                 return (
-                  <button key={f.id} type="button" className={`ob-chip${filtro === f.id ? ' is-ativo' : ''}${f.id === 'atrasadas' ? ' is-alerta' : ''}`}
-                    onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}>
-                    <i style={{ background: f.cor }} />{f.rotulo}<span>{n}</span>
-                  </button>
+                  <button key={f.id} type="button" className={`so-chip${f.alerta ? ' alert' : ''}${filtro === f.id ? ' on' : ''}`}
+                    onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}>{f.rotulo}<span className="n">{n}</span></button>
                 );
               })}
             </div>
-            <label className="ob-busca">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.5" y2="16.5"/></svg>
-              <span className="ob-sr">Buscar</span>
-              <input type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Bairro, rua, equipe, fiscal ou nº da OS" />
+            <label className="so-field" style={{ flex: '1 1 260px' }}><span className="so-sr">Buscar</span>
+              <span className="so-ctrl"><Ic n="search" /><input type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Bairro, rua, equipe, fiscal ou nº da OS" /></span>
             </label>
           </div>
 
-          {error && <div className="ob-erro" style={{ margin: '0 16px 12px' }}>{error}</div>}
-
-          {loading && rows.length === 0 && (
-            <div className="ob-lista">{[1, 2, 3, 4].map(n => <div key={n} className="ob-oc"><span className="ob-skeleton" style={{ height: 88 }} /></div>)}</div>
-          )}
+          {error && <Aviso tom="amber">{error}</Aviso>}
+          {loading && rows.length === 0 && <Carregando />}
 
           {!loading && total === 0 && (
-            <div className="ob-vazio-grande">
-              <span className="ob-serv-icone ob-serv-icone-grande">{config.icon}</span>
-              <strong>Nenhuma ocorrência em {nomeMes(month, year)}</strong>
-              <span>Registre o primeiro serviço do mês. A foto com carimbo e o GPS entram sozinhos.</span>
-              <button type="button" className="ob-btn" onClick={novaOcorrencia}>Registrar ocorrência</button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '28px 12px', textAlign: 'center' }}>
+              <SeloServico nome={config.nome} cor={config.cor} />
+              <b style={{ fontSize: 15, color: 'var(--ink)' }}>Nenhuma ocorrência em {nomeMes(month, year)}</b>
+              <span className="so-help">Registre o primeiro serviço do mês. A foto com carimbo e o GPS entram sozinhos.</span>
+              <button type="button" className="so-btn so-primary os-shine" onClick={novaOcorrencia}><Ic n="plus" />Nova OS</button>
             </div>
           )}
 
-          {total > 0 && visiveis.length === 0 && (
-            <p className="ob-vazio" style={{ padding: '8px 20px 24px' }}>Nenhuma ocorrência com esse filtro.</p>
-          )}
+          {total > 0 && visiveis.length === 0 && <p className="so-help" style={{ textAlign: 'center', padding: 14 }}>Nenhuma ocorrência com esse filtro.</p>}
 
           {visiveis.length > 0 && (
-            <div className="ob-lista">
-              {visiveis.map((i, idx) => {
-                const { row } = i;
-                const ocupado = saving === row.id;
-                return (
-                  <article key={row.id} className={`ob-oc ob-reveal${i.atrasada ? ' is-atrasada' : ''}${i.etapa === 'FINALIZADA' ? ' is-concluida' : ''}`}
-                    style={{ '--i': Math.min(idx, 12) } as React.CSSProperties}>
-                    <button type="button" className="ob-oc-abrir" onClick={() => setRowOS(row)} aria-label={`Abrir ${numeroDaOS(row)}`}>
-                      <FotoThumb entityId={entityId} fotoId={row.fotoId} quando={row.criadoEm} cor={config.cor} icone={config.icon} tamanho={88} contagem={row.fotos} />
-                      <span className="ob-oc-info">
-                        <span className="ob-oc-topo">
-                          <span className="ob-oc-os">{numeroDaOS(row)}</span>
-                          <EtapaBadge etapa={i.etapa} />
-                          {i.atrasada && <span className="ob-badge is-atrasada"><i />há {i.dias} dias</span>}
-                        </span>
-                        <strong className="ob-oc-local">{i.bairro || 'Sem bairro informado'}</strong>
-                        <span className="ob-oc-detalhe">{[i.logradouro, ...i.detalhes].filter(Boolean).join(' · ') || '—'}</span>
-                        <span className="ob-oc-meta">
-                          {dataBr(row.data)}
-                          {row.fiscal && <> · {nomeCurto(row.fiscal)}</>}
-                          {i.equipe && <> · {i.equipe}</>}
-                          {row.centroDeCusto && <span className="ob-tag" title={row.centroDeCusto.nome}>CC {row.centroDeCusto.codigo}</span>}
-                          {i.etapa === 'EXECUTADA' && row.executadoPor && <> · baixa por {nomeCurto(row.executadoPor)}</>}
-                          {row.lat != null && <span className="ob-tag tom-ok">GPS</span>}
-                        </span>
-                      </span>
-                    </button>
-                    <div className="ob-oc-acoes">
-                      {i.etapa === 'AGUARDANDO_APROVACAO' && podeAprovar && (
-                        <button type="button" className="ob-acao is-aprovar" disabled={ocupado} onClick={() => void acaoOS(row, 'aprovar', undefined, `${numeroDaOS(row)} aprovada.`)}>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><polyline points="20 6 9 17 4 12"/></svg>
-                          Aprovar
-                        </button>
-                      )}
-                      {i.etapa === 'REGISTRADA' && (
-                        <button type="button" className="ob-acao is-baixa" disabled={ocupado} onClick={() => setRowConcluindo(row)}>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6"><polyline points="20 6 9 17 4 12"/></svg>
-                          Dar baixa
-                        </button>
-                      )}
-                      {i.etapa === 'EXECUTADA' && podeConferir && (
-                        <button type="button" className="ob-acao is-conferir" disabled={ocupado} onClick={() => { setRowConferindo(row); setObsConferencia(''); }}>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                          Conferir
-                        </button>
-                      )}
-                      <button type="button" className="ob-icone-btn" data-dica="Ordem de serviço" aria-label="Ordem de serviço" onClick={() => setRowOS(row)}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                      </button>
-                      <button type="button" className="ob-icone-btn" data-dica="Editar" aria-label="Editar" disabled={ocupado} onClick={() => { setEditRow(row); setModalOpen(true); }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      {(i.etapa === 'FINALIZADA' || i.etapa === 'CANCELADA') && podeConferir && (
-                        <button type="button" className="ob-icone-btn" data-dica="Reabrir" aria-label="Reabrir" disabled={ocupado} onClick={() => void handleReabrir(row)}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
-                        </button>
-                      )}
-                      <button type="button" className="ob-icone-btn is-perigo" data-dica="Excluir" aria-label="Excluir" disabled={ocupado} onClick={() => setConfirmDelete(row.id)}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="so-tw">
+              <table className="so-table os-rows">
+                <thead><tr><th scope="col">Ocorrência</th><th scope="col">Onde · o que</th><th scope="col">Equipe</th><th scope="col">Etapa</th><th scope="col">Prazo</th><th scope="col"><span className="so-sr">Ações</span></th></tr></thead>
+                <tbody>
+                  {visiveis.map(i => {
+                    const { row } = i;
+                    const ocupado = saving === row.id;
+                    const principal = i.etapa === 'AGUARDANDO_APROVACAO' && podeAprovar ? 'aprovar'
+                      : i.etapa === 'REGISTRADA' ? 'baixa' : i.etapa === 'EXECUTADA' && podeConferir ? 'conferir' : null;
+                    return (
+                      <tr key={row.id} onClick={() => fichaOS(row)} style={{ cursor: 'pointer' }}>
+                        <td data-l="Ocorrência">
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Miniatura entityId={entityId} fotoId={row.fotoId} cor={config.cor} nome={config.nome} fotos={row.fotos} />
+                            <span style={{ minWidth: 0 }}>
+                              <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{numeroDaOS(row)}</span>
+                              <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)' }}>{dataBr(row.data)}{row.fiscal ? ` · ${nomeCurto(row.fiscal)}` : ''}</span>
+                              <span style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                                {row.lat != null && <span className="so-tag" style={{ height: 18, fontSize: 9.5, color: 'var(--mint)' }}>GPS</span>}
+                                {row.centroDeCusto && <span className="so-tag" style={{ height: 18, fontSize: 9.5 }} title={row.centroDeCusto.nome}>CC {row.centroDeCusto.codigo}</span>}
+                              </span>
+                            </span>
+                          </span>
+                        </td>
+                        <td data-l="Onde · o que"><b style={{ color: 'var(--ink)', fontWeight: 800 }}>{i.bairro || 'Sem bairro informado'}</b><span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>{[i.logradouro, ...i.detalhes].filter(Boolean).join(' · ') || '—'}</span></td>
+                        <td data-l="Equipe">{i.equipe ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="os-av" style={{ '--a': corAvatar(i.equipe), margin: 0 } as React.CSSProperties}>{siglaDe(i.equipe)}</span><span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{i.equipe}</span></span> : <span className="so-help">sem equipe</span>}</td>
+                        <td data-l="Etapa">
+                          <EtapaPill etapa={i.etapa} />
+                          {i.etapa === 'EXECUTADA' && row.executadoPor && <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>baixa por {nomeCurto(row.executadoPor)}</span>}
+                        </td>
+                        <td data-l="Prazo"><BarraPrazo l={{ etapa: i.etapa, prazoDias: DIAS_ATRASO, diasUsados: i.dias, atrasada: i.atrasada, noPrazo: !!row.executadoEm && i.dias <= DIAS_ATRASO, executadoEm: row.executadoEm ?? null }} /></td>
+                        <td data-l="" className="r" onClick={e => e.stopPropagation()}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {principal === 'aprovar' && <button type="button" className="so-btn so-primary sm" disabled={ocupado} onClick={() => void acaoOS(row, 'aprovar', undefined, `${numeroDaOS(row)} aprovada.`)}><Ic n="check" />Aprovar</button>}
+                            {principal === 'baixa' && <Link to={rotaTenant(entityId, `os/${row.id}/baixa`)} className="so-btn so-mintbtn sm"><Ic n="image" />Dar baixa</Link>}
+                            {principal === 'conferir' && <Link to={rotaTenant(entityId, `os/${row.id}`)} className="so-btn so-primary sm"><Ic n="shieldCheck" />Conferir</Link>}
+                            <button type="button" className="so-acao edit" title={`Imprimir ${numeroDaOS(row)}`} aria-label={`Imprimir ${numeroDaOS(row)}`} onClick={() => setRowImprimir(row)}><Ic n="doc" /></button>
+                            {(i.etapa === 'FINALIZADA' || i.etapa === 'CANCELADA') && podeConferir && (
+                              <button type="button" className="so-acao edit" title="Reabrir" aria-label={`Reabrir ${numeroDaOS(row)}`} disabled={ocupado} onClick={() => { setRowReabrir(row); setMotivo(''); }}><Ic n="voltar" /></button>
+                            )}
+                            <AcoesLinha nome={numeroDaOS(row)} onEditar={() => setEditRow(row)} onExcluir={() => excluir(row)} />
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
-        </section>
+        </Cartao>
       )}
 
-      {/* conferência do coordenador */}
-      {rowConferindo && (
-        <Dialogo
-          titulo={`Conferir ${numeroDaOS(rowConferindo)}`}
-          subtitulo="Veja as fotos da baixa na OS. Se estiver tudo certo, finalize. Se faltar algo, devolva ao fiscal com uma observação."
-          onFechar={() => setRowConferindo(null)}
-          acoes={<>
-            <button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => { const r = rowConferindo; setRowConferindo(null); setRowOS(r); }}>Ver OS e fotos</button>
-            <button type="button" className="ob-btn-ghost ob-btn-alto ob-btn-perigo-suave" disabled={saving === rowConferindo.id}
-              onClick={() => { const r = rowConferindo; setRowConferindo(null); void acaoOS(r, 'reabrir', obsConferencia || 'Devolvida na conferência', `${numeroDaOS(r)} devolvida ao fiscal.`); }}>
-              Devolver ao fiscal
-            </button>
-            <button type="button" className="ob-acao is-baixa" disabled={saving === rowConferindo.id}
-              onClick={() => { const r = rowConferindo; setRowConferindo(null); void acaoOS(r, 'finalizar', obsConferencia || undefined, `${numeroDaOS(r)} finalizada.`); }}>
-              Conferido — finalizar
-            </button>
-          </>}
-        >
-          <dl>
-            <dt>Baixa por</dt><dd>{rowConferindo.executadoPor ?? '—'}</dd>
-            <dt>Em</dt><dd>{rowConferindo.executadoEm ? new Date(rowConferindo.executadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</dd>
-            <dt>Fotos</dt><dd>{rowConferindo.fotos ?? 0}</dd>
-          </dl>
-          <textarea value={obsConferencia} onChange={e => setObsConferencia(e.target.value)} placeholder="Observação (opcional) — ex.: faltou foto do depois" maxLength={1000} />
-        </Dialogo>
+      <BarraAcoes esquerda={<><b>{config.nome}</b><Sep />{mesTexto}<Sep />{total} no mês<Sep />{atrasadas} atrasadas</>}>
+        <button type="button" className="so-btn so-ghost" onClick={() => setAjudaOpen(true)}><Ic n="info" />Como usar</button>
+        <Link to={rotaTenant(entityId, 'os')} className="so-btn so-ghost"><Ic n="list" />Todas as OS</Link>
+        <button type="button" className="so-btn so-primary os-shine" onClick={novaOcorrencia}>Nova OS<Ic n="seta" className="arrow" /></button>
+      </BarraAcoes>
+
+      {/* reabrir com motivo (fica na linha do tempo da OS) */}
+      {rowReabrir && (
+        <Janela icone="voltar" tom="amber" eyebrow={numeroDaOS(rowReabrir)} titulo="Reabrir esta OS?" largura={480}
+          sub="Ela volta para a equipe como Registrada. O motivo fica na linha do tempo."
+          onFechar={() => setRowReabrir(null)}
+          rodape={<>
+            <button type="button" className="so-btn so-ghost" onClick={() => setRowReabrir(null)}>Voltar</button>
+            <button type="button" className="so-btn so-amberbtn" disabled={motivo.trim().length < 5 || saving === rowReabrir.id}
+              onClick={() => { const r = rowReabrir; setRowReabrir(null); void acaoOS(r, 'reabrir', motivo.trim(), `${numeroDaOS(r)} reaberta.`); }}>Reabrir</button>
+          </>}>
+          <label className="so-field"><span className="so-lbl">Motivo <span className="req">*</span></span>
+            <span className="so-ctrl" style={{ height: 'auto' }}><textarea rows={3} maxLength={1000} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique em poucas palavras"
+              style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 11px', font: 'inherit', resize: 'vertical' }} /></span>
+          </label>
+        </Janela>
       )}
 
-      {/* Modal de confirmação de exclusão */}
-      {confirmDelete && (
-        <div className="sv-modal-backdrop" onClick={() => setConfirmDelete(null)}>
-          <div className="sv-confirm-modal" onClick={e => e.stopPropagation()}>
-            <div className="sv-confirm-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-              </svg>
-            </div>
-            <h3>Excluir ocorrência?</h3>
-            <p>Esta ação não pode ser desfeita.</p>
-            <div className="sv-confirm-actions">
-              <button type="button" className="tn-btn-secondary" onClick={() => setConfirmDelete(null)}>Cancelar</button>
-              <button
-                type="button"
-                className="sv-btn-danger"
-                onClick={() => handleDelete(confirmDelete)}
-                disabled={saving === confirmDelete}
-              >
-                {saving === confirmDelete ? 'Excluindo…' : 'Excluir'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal nova / editar ocorrência */}
-      {formularioAberto && centro && (
+      {/* editar ocorrência */}
+      {editRow && centro && (
         <NovaOcorrenciaModal
           config={config}
           centro={centro}
@@ -522,46 +422,19 @@ export function ServicoDetailPage() {
           entityId={entityId}
           municipalityName={session.entity.municipalityName}
           uf={session.entity.uf}
-          onClose={fecharFormulario}
-          onSaved={() => { fecharFormulario(); void load(); }}
+          onClose={() => setEditRow(null)}
+          onSaved={() => { setEditRow(null); void load(); }}
         />
       )}
 
-      {/* Modal de OS — visualizar/imprimir */}
-      {rowOSAtiva && (
-        <OrdemServicoModal
-          row={rowOSAtiva}
-          config={config}
-          propConfigs={propConfigs.current}
-          onClose={() => { setRowOS(null); if (paramOS) limparParam('os'); }}
-        />
+      {/* OS para imprimir */}
+      {rowImprimir && (
+        <OrdemServicoModal row={rowImprimir} config={config} propConfigs={propConfigs.current} onClose={() => setRowImprimir(null)} />
       )}
 
-      {/* Modal de conclusão / baixa */}
-      {rowConcluindo && (
-        <ModalConclusao
-          registroId={rowConcluindo.id}
-          centroCustoNome={config.nome}
-          cor={config.cor}
-          data={rowConcluindo.data}
-          bairro={(() => { const pid = propMap.current['Bairro / Localidade']; return pid ? rowConcluindo.values[pid]?.text ?? '' : ''; })()}
-          logradouro={(() => { const pid = propMap.current['Logradouro / Referência']; return pid ? rowConcluindo.values[pid]?.text ?? '' : ''; })()}
-          lat={rowConcluindo.lat}
-          lng={rowConcluindo.lng}
-          onClose={() => setRowConcluindo(null)}
-          onConfirm={handleConfirmarConclusao}
-        />
-      )}
-
-      {/* Drawer de instruções */}
-      <ServicoInstrucoesDrawer
-        slug={ajudaOpen ? (slug ?? null) : null}
-        nomeServico={config.nome}
-        corServico={config.cor}
-        onClose={() => setAjudaOpen(false)}
-      />
-
+      <ServicoInstrucoesDrawer slug={ajudaOpen ? (slug ?? null) : null} nomeServico={config.nome} corServico={config.cor} onClose={() => setAjudaOpen(false)} />
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
-    </div>
+    </Pagina>
   );
 }

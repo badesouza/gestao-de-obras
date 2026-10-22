@@ -31,8 +31,19 @@ const PATHS: [RegExp, ReactNode][] = [
   [/oficina|frota|ve[ií]culo/i, <><path d="M1 4h14v12H1z" /><path d="M15 8h4l4 4v4h-8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></>],
 ];
 const CHAVE = <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />;
-export function IconeServico({ nome }: { nome: string }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{PATHS.find(([re]) => re.test(nome))?.[1] ?? CHAVE}</svg>;
+export function IconeServico({ nome, className }: { nome: string; className?: string }) {
+  return <svg className={className} viewBox="0 0 24 24" aria-hidden="true">{PATHS.find(([re]) => re.test(nome))?.[1] ?? CHAVE}</svg>;
+}
+
+/** Selo da página com o ícone e a cor do serviço */
+export function SeloServico({ nome, cor }: { nome: string; cor: string | null }) {
+  return (
+    <div className="so-selo" aria-hidden="true">
+      <span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" />
+      <span className="so-gsh" />
+      <span className="so-sic" style={{ background: `linear-gradient(135deg, ${corServico(cor)}, color-mix(in srgb, ${corServico(cor)} 70%, #17213C))`, boxShadow: `0 14px 26px -12px ${corServico(cor)}` }}><IconeServico nome={nome} className="i" /></span>
+    </div>
+  );
 }
 export const corServico = (cor: string | null | undefined) => cor || '#635BFF';
 

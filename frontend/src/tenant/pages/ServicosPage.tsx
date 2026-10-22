@@ -1,509 +1,167 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { osApi, type LinhaOS } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { CENTRO_IDS } from './servico-config';
-import { useCallback, useMemo, useState, type MouseEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  BadgeCheck,
-  BrickWall,
-  Brush,
-  CheckCircle2,
-  ChevronDown,
-  CircleHelp,
-  ClipboardList,
-  Grid3X3,
-  Hammer,
-  House,
-  Lamp,
-  Layers3,
-  Leaf,
-  List,
-  MapPin,
-  Paintbrush,
-  Search,
-  Shovel,
-  Sparkles,
-  Sprout,
-  Tags,
-  Trash2,
-  Truck,
-  Wrench,
-  type LucideIcon,
-} from 'lucide-react';
 import { ServicoInstrucoesDrawer } from '../components/ServicoInstrucoesDrawer';
+import { BarraAcoes, Cabecalho, Cartao, Ic, Pagina, Placar, Selo, Sep, rotaTenant } from '../components/sisobras/so';
+import { IconeServico, MarcaServico } from './os/os-ui';
 
 interface Servico {
-  id: string;
-  slug: string;
-  nome: string;
-  descricao: string;
-  Icon: LucideIcon;
-  cor: string;
-  categoria: string;
-  foco: string;
-  metricas: string[];
-  status: 'ativo' | 'inativo';
+  slug: string; nome: string; descricao: string; cor: string; categoria: string; foco: string; metricas: string[];
 }
 
 const SERVICOS: Servico[] = [
-  {
-    id: 'rocagem',
-    slug: 'rocagem',
-    nome: 'Rocagem',
-    descricao: 'Controle de rocagem de vias, terrenos e areas publicas.',
-    Icon: Sprout,
-    cor: '#22c55e',
-    categoria: 'Manutencao verde',
-    foco: 'Areas publicas',
-    metricas: ['Area rocada (m2)', 'Extensao (m)', 'Equipe', 'Equipamento'],
-    status: 'ativo',
-  },
-  {
-    id: 'coleta-entulhos',
-    slug: 'coleta-entulhos',
-    nome: 'Coleta de Entulhos',
-    descricao: 'Registro de coleta e descarte de residuos e entulhos urbanos.',
-    Icon: Trash2,
-    cor: '#f97316',
-    categoria: 'Limpeza urbana',
-    foco: 'Residuos',
-    metricas: ['Volume (m3)', 'Veiculo', 'Horas trabalhadas', 'Tipo de residuo'],
-    status: 'ativo',
-  },
-  {
-    id: 'construcao-civil',
-    slug: 'construcao-civil',
-    nome: 'Construcao Civil',
-    descricao: 'Acompanhamento de obras e servicos de construcao civil.',
-    Icon: BrickWall,
-    cor: '#3b82f6',
-    categoria: 'Obras',
-    foco: 'Execucao',
-    metricas: ['Area executada (m2)', 'Extensao (m)', 'Numero OS', 'Status'],
-    status: 'ativo',
-  },
-  {
-    id: 'encascalhamento',
-    slug: 'encascalhamento',
-    nome: 'Encascalhamento',
-    descricao: 'Registro de encascalhamento de vias e acessos rurais.',
-    Icon: Truck,
-    cor: '#a78bfa',
-    categoria: 'Infraestrutura viaria',
-    foco: 'Acessos rurais',
-    metricas: ['Volume (m3)', 'Extensao (m)', 'Equipamento', 'Equipe'],
-    status: 'ativo',
-  },
-  {
-    id: 'iluminacao',
-    slug: 'iluminacao',
-    nome: 'Iluminacao Publica',
-    descricao: 'Manutencao e instalacao de luminarias na rede publica.',
-    Icon: Lamp,
-    cor: '#5b8db8',
-    categoria: 'Rede publica',
-    foco: 'Luminarias',
-    metricas: ['Tipo de luminaria', 'Equipe', 'Origem da demanda', 'Status'],
-    status: 'ativo',
-  },
-  {
-    id: 'oficina',
-    slug: 'oficina',
-    nome: 'Oficina / Frota',
-    descricao: 'Manutencao de veiculos e equipamentos da secretaria.',
-    Icon: Wrench,
-    cor: '#64748b',
-    categoria: 'Frota',
-    foco: 'Equipamentos',
-    metricas: ['Placa / Patrimonio', 'Defeito', 'Pecas utilizadas', 'Mecanico'],
-    status: 'ativo',
-  },
-  {
-    id: 'pintura',
-    slug: 'pintura',
-    nome: 'Pintura',
-    descricao: 'Servicos de pintura de vias, meio-fio e espacos publicos.',
-    Icon: Paintbrush,
-    cor: '#ec4899',
-    categoria: 'Conservacao',
-    foco: 'Sinalizacao',
-    metricas: ['Area pintada (m2)', 'Tipo de tinta', 'Equipe', 'Status'],
-    status: 'ativo',
-  },
-  {
-    id: 'poda-arvores',
-    slug: 'poda-arvores',
-    nome: 'Poda de Arvores',
-    descricao: 'Poda e manejo de arborizacao urbana e vias publicas.',
-    Icon: Leaf,
-    cor: '#16a34a',
-    categoria: 'Arborizacao',
-    foco: 'Manejo urbano',
-    metricas: ['Especie', 'Porte', 'Residuo recolhido', 'Equipe'],
-    status: 'ativo',
-  },
-  {
-    id: 'pracas-jardins',
-    slug: 'pracas-jardins',
-    nome: 'Pracas e Jardins',
-    descricao: 'Manutencao e conservacao de pracas e jardins publicos.',
-    Icon: House,
-    cor: '#0ea5e9',
-    categoria: 'Espacos publicos',
-    foco: 'Pracas',
-    metricas: ['Nome da praca', 'Situacao do espaco', 'Equipe', 'Tipo de servico'],
-    status: 'ativo',
-  },
-  {
-    id: 'serralheria',
-    slug: 'serralheria',
-    nome: 'Serralheria',
-    descricao: 'Fabricacao e manutencao de estruturas metalicas publicas.',
-    Icon: Hammer,
-    cor: '#94a3b8',
-    categoria: 'Manutencao tecnica',
-    foco: 'Estruturas',
-    metricas: ['Material utilizado', 'Equipe', 'Local de destino', 'Tipo de servico'],
-    status: 'ativo',
-  },
-  {
-    id: 'tapa-buracos',
-    slug: 'tapa-buracos',
-    nome: 'Tapa-Buracos',
-    descricao: 'Registro de operacoes de tapa-buracos em vias publicas.',
-    Icon: Shovel,
-    cor: '#dc2626',
-    categoria: 'Pavimentacao',
-    foco: 'Vias publicas',
-    metricas: ['Localizacao', 'Responsavel tecnico', 'Meta mensal', 'Status'],
-    status: 'ativo',
-  },
-  {
-    id: 'varricao',
-    slug: 'varricao',
-    nome: 'Varricao',
-    descricao: 'Controle de varricao de ruas por rotas, distrito e turno.',
-    Icon: Brush,
-    cor: '#06b6d4',
-    categoria: 'Limpeza urbana',
-    foco: 'Rotas',
-    metricas: ['Rota / Distrito', 'Prevista vs executada', 'Turno', 'Fiscal'],
-    status: 'ativo',
-  },
+  { slug: 'rocagem', nome: 'Roçagem', descricao: 'Controle de roçagem de vias, terrenos e áreas públicas.', cor: '#22c55e', categoria: 'Manutenção verde', foco: 'Áreas públicas', metricas: ['Área roçada (m²)', 'Extensão (m)', 'Equipe', 'Equipamento'] },
+  { slug: 'coleta-entulhos', nome: 'Coleta de Entulhos', descricao: 'Registro de coleta e descarte de resíduos e entulhos urbanos.', cor: '#f97316', categoria: 'Limpeza urbana', foco: 'Resíduos', metricas: ['Volume (m³)', 'Veículo', 'Horas trabalhadas', 'Tipo de resíduo'] },
+  { slug: 'construcao-civil', nome: 'Construção Civil', descricao: 'Acompanhamento de obras e serviços de construção civil.', cor: '#3b82f6', categoria: 'Obras', foco: 'Execução', metricas: ['Área executada (m²)', 'Extensão (m)', 'Número da OS', 'Status'] },
+  { slug: 'encascalhamento', nome: 'Encascalhamento', descricao: 'Registro de encascalhamento de vias e acessos rurais.', cor: '#a78bfa', categoria: 'Infraestrutura viária', foco: 'Acessos rurais', metricas: ['Volume (m³)', 'Extensão (m)', 'Equipamento', 'Equipe'] },
+  { slug: 'iluminacao', nome: 'Iluminação Pública', descricao: 'Manutenção e instalação de luminárias na rede pública.', cor: '#5b8db8', categoria: 'Rede pública', foco: 'Luminárias', metricas: ['Tipo de luminária', 'Equipe', 'Origem da demanda', 'Status'] },
+  { slug: 'oficina', nome: 'Oficina / Frota', descricao: 'Manutenção de veículos e equipamentos da secretaria.', cor: '#64748b', categoria: 'Frota', foco: 'Equipamentos', metricas: ['Placa / Patrimônio', 'Defeito', 'Peças utilizadas', 'Mecânico'] },
+  { slug: 'pintura', nome: 'Pintura', descricao: 'Serviços de pintura de vias, meio-fio e espaços públicos.', cor: '#ec4899', categoria: 'Conservação', foco: 'Sinalização', metricas: ['Área pintada (m²)', 'Tipo de tinta', 'Equipe', 'Status'] },
+  { slug: 'poda-arvores', nome: 'Poda de Árvores', descricao: 'Poda e manejo da arborização urbana e das vias públicas.', cor: '#16a34a', categoria: 'Arborização', foco: 'Manejo urbano', metricas: ['Espécie', 'Porte', 'Resíduo recolhido', 'Equipe'] },
+  { slug: 'pracas-jardins', nome: 'Praças e Jardins', descricao: 'Manutenção e conservação de praças e jardins públicos.', cor: '#0ea5e9', categoria: 'Espaços públicos', foco: 'Praças', metricas: ['Nome da praça', 'Situação do espaço', 'Equipe', 'Tipo de serviço'] },
+  { slug: 'serralheria', nome: 'Serralheria', descricao: 'Fabricação e manutenção de estruturas metálicas públicas.', cor: '#94a3b8', categoria: 'Manutenção técnica', foco: 'Estruturas', metricas: ['Material utilizado', 'Equipe', 'Local de destino', 'Tipo de serviço'] },
+  { slug: 'tapa-buracos', nome: 'Tapa-Buracos', descricao: 'Registro de operações de tapa-buracos em vias públicas.', cor: '#dc2626', categoria: 'Pavimentação', foco: 'Vias públicas', metricas: ['Localização', 'Responsável técnico', 'Meta mensal', 'Status'] },
+  { slug: 'varricao', nome: 'Varrição', descricao: 'Controle de varrição de ruas por rotas, distrito e turno.', cor: '#06b6d4', categoria: 'Limpeza urbana', foco: 'Rotas', metricas: ['Rota / Distrito', 'Prevista × executada', 'Turno', 'Fiscal'] },
 ];
 
-const categorias = Array.from(new Set(SERVICOS.map((servico) => servico.categoria)));
+interface Numeros { abertas: number; atrasadas: number; conferir: number; feitasMes: number }
+const ZERO: Numeros = { abertas: 0, atrasadas: 0, conferir: 0, feitasMes: 0 };
 
+/** Serviços Urbanos — catálogo dos serviços com os números ao vivo de cada um */
 export function ServicosPage() {
-  const { id: entityId } = useParams<{ id: string }>();
+  const { entityId, session } = useTenant();
+  const nav = useNavigate();
   const [busca, setBusca] = useState('');
   const [view, setView] = useState<'card' | 'lista'>('card');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [ajudaSlug, setAjudaSlug] = useState<string | null>(null);
-  const [ajudaNome, setAjudaNome] = useState('');
-  const [ajudaCor, setAjudaCor] = useState('');
+  const [ajuda, setAjuda] = useState<Servico | null>(null);
+  const [linhas, setLinhas] = useState<LinhaOS[] | null>(null);
 
-  const abrirAjuda = useCallback((e: MouseEvent, slug: string, nome: string, cor: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setAjudaSlug(slug);
-    setAjudaNome(nome);
-    setAjudaCor(cor);
-  }, []);
+  useEffect(() => { osApi.painel(entityId).then(d => setLinhas(d.linhas)).catch(() => setLinhas([])); }, [entityId]);
 
-  const { session } = useTenant();
   const permitidos = session.servicosPermitidos;
   const meus = useMemo(() => permitidos ? SERVICOS.filter(s => permitidos.includes(CENTRO_IDS[s.slug])) : SERVICOS, [permitidos]);
-
-  const filtered = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return meus;
-
-    return meus.filter((servico) =>
-      [servico.nome, servico.descricao, servico.categoria, servico.foco, ...servico.metricas]
-        .some((campo) => campo.toLowerCase().includes(termo)),
-    );
-  }, [busca, meus]);
-
-  const ativos = SERVICOS.filter((servico) => servico.status === 'ativo').length;
-  const totalCampos = SERVICOS.reduce((total, servico) => total + servico.metricas.length, 0);
+  const numeros = useMemo(() => {
+    const m: Record<string, Numeros> = {};
+    const mes = new Date().toISOString().slice(0, 7);
+    for (const l of linhas ?? []) {
+      const n = m[l.servico.id] ?? (m[l.servico.id] = { ...ZERO });
+      if (l.etapa === 'AGUARDANDO_APROVACAO' || l.etapa === 'REGISTRADA' || l.etapa === 'EXECUTADA') n.abertas++;
+      if (l.atrasada) n.atrasadas++;
+      if (l.etapa === 'EXECUTADA') n.conferir++;
+      if (l.executadoEm?.startsWith(mes)) n.feitasMes++;
+    }
+    return m;
+  }, [linhas]);
+  const num = (s: Servico) => numeros[CENTRO_IDS[s.slug]] ?? ZERO;
+  const termo = busca.trim().toLowerCase();
+  const filtrados = meus.filter(s => !termo || [s.nome, s.descricao, s.categoria, s.foco, ...s.metricas].some(c => c.toLowerCase().includes(termo)));
+  const tot = meus.reduce((a, s) => { const n = num(s); return { abertas: a.abertas + n.abertas, atrasadas: a.atrasadas + n.atrasadas, conferir: a.conferir + n.conferir, feitasMes: a.feitasMes + n.feitasMes }; }, { ...ZERO });
+  const categorias = new Set(meus.map(s => s.categoria)).size;
+  const abrir = (s: Servico) => nav(rotaTenant(entityId, `servicos/${s.slug}`));
 
   return (
-    <div className="tn-page sv-services-page">
-      <section className="sv-ops-hero">
-        <div className="sv-ops-hero-grid" />
-        <div className="sv-ops-hero-copy">
-          <span className="sv-hero-kicker">
-            <Sparkles size={14} />
-            Operacao urbana integrada
-          </span>
-          <h2>Servicos Urbanos</h2>
-          <p>Registro diario, indicadores e execucao por modulo para a Secretaria de Obras.</p>
-          <div className="sv-hero-badges">
-            <span><BadgeCheck size={14} /> {ativos} modulos ativos</span>
-            <span><MapPin size={14} /> Itaberaba</span>
-            <span><Activity size={14} /> Registro diario</span>
-          </div>
-        </div>
-        <div className="sv-hero-console" aria-hidden="true">
-          <div className="sv-console-top">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="sv-console-map">
-            {SERVICOS.slice(0, 8).map((servico, index) => (
-              <i
-                key={servico.id}
-                style={{
-                  '--sv-cor': servico.cor,
-                  '--pin-x': `${14 + ((index * 23) % 72)}%`,
-                  '--pin-y': `${22 + ((index * 17) % 58)}%`,
-                } as React.CSSProperties}
-              />
-            ))}
-          </div>
-        </div>
+    <Pagina>
+      <Cabecalho rotulo="Serviços Urbanos" selo={<Selo icone="wrench" />}
+        eyebrow={<>Gestão de Obras · <Link to={rotaTenant(entityId, 'os')}>Ordens de Serviço</Link></>}
+        titulo="Serviços Urbanos" extras={<span className="os-pill mint"><i />{meus.length} {meus.length === 1 ? 'serviço' : 'serviços'}</span>}
+        sub="Cada serviço tem sua tela com as ocorrências do mês, análises, planejamento e solicitações de material."
+        direita={<Placar n={linhas ? tot.abertas : '—'} de="OS" rotulo="abertas agora" />} />
+
+      <section className="os-kpis" aria-label="Resumo">
+        <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#635BFF,#8B85FF)', '--ks': 'rgba(99,91,255,.8)' } as React.CSSProperties}>
+          <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg></span>Serviços</div>
+          <div className="v"><span className="os-num">{meus.length}</span><span className="os-delta neutro">{categorias} frentes</span></div>
+          <small>que você atende</small>
+        </article>
+        <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#10C6D4,#635BFF)', '--ks': 'rgba(16,198,212,.8)', '--kg': 'rgba(16,198,212,.16)' } as React.CSSProperties}>
+          <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg></span>Abertas agora</div>
+          <div className="v"><span className="os-num" key={tot.abertas}>{linhas ? tot.abertas : '—'}</span></div>
+          <small>somando todos os serviços</small>
+        </article>
+        <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#E5534B,#F59088)', '--ks': 'rgba(229,83,75,.8)', '--kg': 'rgba(229,83,75,.14)' } as React.CSSProperties}>
+          <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></span>Atrasadas</div>
+          <div className="v"><span className="os-num" key={tot.atrasadas} style={{ color: tot.atrasadas ? 'var(--coral)' : undefined }}>{linhas ? tot.atrasadas : '—'}</span></div>
+          <small>passaram do prazo do serviço</small>
+        </article>
+        <article className="os-kpi" style={{ '--k': 'linear-gradient(135deg,#19B88A,#10C6D4)', '--ks': 'rgba(25,184,138,.8)', '--kg': 'rgba(25,184,138,.16)' } as React.CSSProperties}>
+          <div className="t"><span className="os-ic"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg></span>Feitas no mês</div>
+          <div className="v"><span className="os-num" key={tot.feitasMes}>{linhas ? tot.feitasMes : '—'}</span>{tot.conferir > 0 && <span className="os-pill cyan" style={{ height: 20, fontSize: 10.5 }}><i />{tot.conferir} a conferir</span>}</div>
+          <small>baixas dadas em {new Date().toLocaleDateString('pt-BR', { month: 'long' })}</small>
+        </article>
       </section>
 
-      <div className="sv-kpi-strip">
-        <div className="sv-kpi-card tone-blue">
-          <ClipboardList size={20} />
-          <span>Total de servicos</span>
-          <strong>{SERVICOS.length}</strong>
-          <small>Modulos cadastrados</small>
-        </div>
-        <div className="sv-kpi-card tone-green">
-          <CheckCircle2 size={20} />
-          <span>Servicos ativos</span>
-          <strong>{ativos}</strong>
-          <small>Disponiveis para operacao</small>
-        </div>
-        <div className="sv-kpi-card tone-cyan">
-          <Tags size={20} />
-          <span>Campos chave</span>
-          <strong>{totalCampos}</strong>
-          <small>Metricas acompanhadas</small>
-        </div>
-        <div className="sv-kpi-card tone-amber">
-          <Layers3 size={20} />
-          <span>Categorias</span>
-          <strong>{categorias.length}</strong>
-          <small>Frentes de trabalho</small>
-        </div>
-      </div>
-
-      <section className="tn-panel sv-services-panel">
-        <div className="tn-panel-head sv-services-head">
-          <div className="tn-panel-head-left">
-            <span>Catalogo operacional</span>
-            <h3>Servicos cadastrados</h3>
+      <Cartao icone="wrench" titulo="Serviços" meta={`${filtrados.length} de ${meus.length}`} ajuda="Ajuda: Serviços Urbanos"
+        direita={<>
+          <div className="so-seg" role="radiogroup" aria-label="Como mostrar">
+            <label className={view === 'card' ? 'on' : ''}><input type="radio" name="view" checked={view === 'card'} onChange={() => setView('card')} /><Ic n="layers" style={{ width: 14, height: 14 }} />Cartões</label>
+            <label className={view === 'lista' ? 'on' : ''}><input type="radio" name="view" checked={view === 'lista'} onChange={() => setView('lista')} /><Ic n="list" style={{ width: 14, height: 14 }} />Lista</label>
           </div>
-          <div className="sv-panel-actions">
-            <div className="sv-view-toggle" aria-label="Alternar visualizacao">
-              <button
-                type="button"
-                className={`sv-view-btn${view === 'card' ? ' is-active' : ''}`}
-                onClick={() => setView('card')}
-                title="Visualizacao em cards"
-              >
-                <Grid3X3 size={14} />
-                Cards
-              </button>
-              <button
-                type="button"
-                className={`sv-view-btn${view === 'lista' ? ' is-active' : ''}`}
-                onClick={() => setView('lista')}
-                title="Visualizacao em lista"
-              >
-                <List size={14} />
-                Lista
-              </button>
-            </div>
-
-            <label className="sv-search-wrap">
-              <Search className="sv-search-icon" size={14} />
-              <input
-                className="sv-search"
-                type="search"
-                placeholder="Buscar servico..."
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-              />
-            </label>
-          </div>
-        </div>
-
-        {view === 'card' && (
-          <div className="sv-grid sv-services-grid">
-            {filtered.map((servico, idx) => (
-              <Link
-                key={servico.id}
-                to={`/t/${entityId}/servicos/${servico.slug}`}
-                className="sv-card sv-service-card"
-                style={{ '--sv-delay': `${idx * 0.035}s`, '--sv-cor': servico.cor } as React.CSSProperties}
-              >
-                <button
-                  type="button"
-                  className="sv-help-btn"
-                  style={{ '--sv-cor': servico.cor } as React.CSSProperties}
-                  onClick={(e) => abrirAjuda(e, servico.slug, servico.nome, servico.cor)}
-                  title="Ver instrucoes de uso"
-                >
-                  <CircleHelp size={14} />
-                </button>
-
-                <div className="sv-card-bar" />
-                <div className="sv-card-inner">
-                  <div className="sv-card-head">
-                    <div className="sv-card-icon">
-                      <servico.Icon size={25} strokeWidth={1.9} />
-                    </div>
-                    <div className="sv-status-stack">
-                      <span className="sv-status-pill"><i />Ativo</span>
-                      <span className="sv-count-pill">{servico.metricas.length} campos</span>
-                    </div>
-                  </div>
-
-                  <div className="sv-card-body">
-                    <span className="sv-category">{servico.categoria}</span>
-                    <strong className="sv-card-nome">{servico.nome}</strong>
-                    <p className="sv-card-desc">{servico.descricao}</p>
-                  </div>
-
-                  <div className="sv-card-metricas">
-                    {servico.metricas.map((metrica) => (
-                      <span key={metrica} className="sv-metrica">{metrica}</span>
-                    ))}
-                  </div>
-
-                  <div className="sv-card-footer">
-                    <span className="sv-focus-label">{servico.foco}</span>
-                    <span className="sv-card-cta">
-                      Abrir registro
-                      <ArrowRight size={13} />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-            {filtered.length === 0 && (
-              <div className="sv-empty">
-                <Search size={32} />
-                <strong>Nenhum servico encontrado</strong>
-                <span>Tente outro termo de busca.</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {view === 'lista' && (
-          <div className="tn-accordion-list sv-services-list">
-            {filtered.map((servico, idx) => {
-              const isOpen = expandedId === servico.id;
+          <label className="so-field" style={{ width: 230 }}><span className="so-sr">Buscar serviço</span>
+            <span className="so-ctrl"><Ic n="search" /><input type="search" placeholder="Buscar serviço…" value={busca} onChange={e => setBusca(e.target.value)} /></span>
+          </label>
+        </>}>
+        {filtrados.length === 0 ? <p className="so-help" style={{ textAlign: 'center', padding: 18 }}>Nenhum serviço com esse nome.</p> : view === 'card' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
+            {filtrados.map((s, i) => {
+              const n = num(s);
               return (
-                <div
-                  key={servico.id}
-                  className={`tn-acc-item sv-list-item${isOpen ? ' is-open' : ''}`}
-                  style={{ '--item-delay': `${idx * 0.03}s`, '--sv-cor': servico.cor } as React.CSSProperties}
-                >
-                  <div className="tn-acc-head sv-acc-head" onClick={() => setExpandedId(isOpen ? null : servico.id)}>
-                    <div className="sv-acc-icon">
-                      <servico.Icon size={21} strokeWidth={1.9} />
-                    </div>
-
-                    <div className="tn-acc-main">
-                      <strong>{servico.nome}</strong>
-                      <span>{servico.descricao}</span>
-                    </div>
-
-                    <div className="tn-acc-col sv-acc-metricas-col">
-                      <span className="tn-acc-col-label">Campos registrados</span>
-                      <div className="sv-acc-metricas-inline">
-                        {servico.metricas.slice(0, 3).map((metrica) => (
-                          <span key={metrica} className="sv-metrica">{metrica}</span>
-                        ))}
-                        {servico.metricas.length > 3 && (
-                          <span className="sv-metrica">+{servico.metricas.length - 3}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="tn-acc-col">
-                      <span className="tn-acc-col-label">Status</span>
-                      <span className="tn-acc-col-val">
-                        <span className="sv-status-pill"><i />Ativo</span>
-                      </span>
-                    </div>
-
-                    <div className="tn-acc-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="sv-help-btn-list"
-                        style={{ '--sv-cor': servico.cor } as React.CSSProperties}
-                        onClick={(e) => abrirAjuda(e, servico.slug, servico.nome, servico.cor)}
-                        title="Ver instrucoes de uso"
-                      >
-                        <CircleHelp size={14} />
-                      </button>
-                      <Link
-                        to={`/t/${entityId}/servicos/${servico.slug}`}
-                        className="tn-icon-btn"
-                        title="Abrir registro"
-                      >
-                        <ArrowRight size={15} />
-                      </Link>
-                    </div>
-
-                    <div className="tn-acc-chevron">
-                      <ChevronDown size={15} />
-                    </div>
-                  </div>
-
-                  {isOpen && (
-                    <div className="tn-acc-body">
-                      <div className="tn-acc-body-grid">
-                        {servico.metricas.map((metrica) => (
-                          <div key={metrica} className="tn-acc-body-field">
-                            <span>Campo registrado</span>
-                            <strong>{metrica}</strong>
-                          </div>
-                        ))}
-                        <div className="tn-acc-body-field">
-                          <span>Tipo</span>
-                          <strong>Registro diario</strong>
-                        </div>
-                      </div>
-                      <div className="tn-acc-body-actions">
-                        <Link to={`/t/${entityId}/servicos/${servico.slug}`} className="tn-btn-secondary">
-                          <ArrowRight size={13} />
-                          Abrir registro diario
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <article key={s.slug} className="os-sc" style={{ '--c': s.cor, animation: `so-rise .55s var(--ease) ${i * 40}ms both`, cursor: 'pointer' } as React.CSSProperties}
+                  onClick={() => abrir(s)}>
+                  <span className="top">
+                    <span className="m"><IconeServico nome={s.nome} /></span>
+                    <span style={{ minWidth: 0, flex: 1 }}><small style={{ display: 'block', fontSize: 10, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: s.cor }}>{s.categoria}</small><b>{s.nome}</b></span>
+                    <span onClick={e => e.stopPropagation()}><button type="button" className="so-qh" aria-label={`Como usar ${s.nome}`} title="Como usar" onClick={() => setAjuda(s)}>?</button></span>
+                  </span>
+                  <small style={{ lineHeight: 1.45 }}>{s.descricao}</small>
+                  <span className="so-tags">{s.metricas.map(m => <span key={m} className="so-tag">{m}</span>)}</span>
+                  <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    <span className={`os-pill ${n.abertas ? 'brand' : 'ghost'}`} style={{ height: 22, fontSize: 10.5 }}><i />{n.abertas} {n.abertas === 1 ? 'aberta' : 'abertas'}</span>
+                    {n.atrasadas > 0 && <span className="os-pill coral" style={{ height: 22, fontSize: 10.5 }}><i />{n.atrasadas} {n.atrasadas === 1 ? 'atrasada' : 'atrasadas'}</span>}
+                    {n.conferir > 0 && <span className="os-pill cyan" style={{ height: 22, fontSize: 10.5 }}><i />{n.conferir} a conferir</span>}
+                  </span>
+                  <span className="ft"><span>{s.foco}</span><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: s.cor }}>Abrir<Ic n="seta" style={{ width: 13, height: 13 }} /></span></span>
+                </article>
               );
             })}
-            {filtered.length === 0 && (
-              <div className="sv-empty">
-                <AlertTriangle size={32} />
-                <strong>Nenhum servico encontrado</strong>
-                <span>Tente outro termo de busca.</span>
-              </div>
-            )}
+          </div>
+        ) : (
+          <div className="so-tw">
+            <table className="so-table os-rows">
+              <thead><tr><th scope="col">Serviço</th><th scope="col">O que o fiscal registra</th><th scope="col">Abertas</th><th scope="col">Atrasadas</th><th scope="col">A conferir</th><th scope="col"><span className="so-sr">Ações</span></th></tr></thead>
+              <tbody>
+                {filtrados.map(s => {
+                  const n = num(s);
+                  return (
+                    <tr key={s.slug} onClick={() => abrir(s)} style={{ cursor: 'pointer' }}>
+                      <td data-l="Serviço"><MarcaServico nome={s.nome} cor={s.cor} sub={s.categoria} /></td>
+                      <td data-l="O que registra"><span className="so-tags">{s.metricas.slice(0, 3).map(m => <span key={m} className="so-tag">{m}</span>)}{s.metricas.length > 3 && <span className="so-tag">+{s.metricas.length - 3}</span>}</span></td>
+                      <td data-l="Abertas" className="mono">{n.abertas}</td>
+                      <td data-l="Atrasadas" className="mono" style={{ color: n.atrasadas ? 'var(--coral)' : undefined }}>{n.atrasadas}</td>
+                      <td data-l="A conferir" className="mono">{n.conferir}</td>
+                      <td data-l="" className="r" onClick={e => e.stopPropagation()}>
+                        <span style={{ display: 'inline-flex', gap: 6 }}>
+                          <button type="button" className="so-qh" aria-label={`Como usar ${s.nome}`} onClick={() => setAjuda(s)}>?</button>
+                          <Link to={rotaTenant(entityId, `servicos/${s.slug}`)} className="so-btn so-ghost sm">Abrir<Ic n="seta" style={{ width: 13, height: 13 }} /></Link>
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </section>
+      </Cartao>
 
-      <ServicoInstrucoesDrawer
-        slug={ajudaSlug}
-        nomeServico={ajudaNome}
-        corServico={ajudaCor}
-        onClose={() => setAjudaSlug(null)}
-      />
-    </div>
+      <BarraAcoes esquerda={<><b>{meus.length} serviços</b><Sep />{linhas ? `${tot.abertas} OS abertas` : 'carregando…'}<Sep />{tot.atrasadas} atrasadas</>}>
+        <Link to={rotaTenant(entityId, 'os')} className="so-btn so-ghost"><Ic n="list" />Todas as OS</Link>
+        <Link to={rotaTenant(entityId, 'os?nova=1')} className="so-btn so-primary os-shine">Nova OS<Ic n="seta" className="arrow" /></Link>
+      </BarraAcoes>
+
+      <ServicoInstrucoesDrawer slug={ajuda?.slug ?? null} nomeServico={ajuda?.nome ?? ''} corServico={ajuda?.cor ?? '#635BFF'} onClose={() => setAjuda(null)} />
+    </Pagina>
   );
 }
+
