@@ -1,5 +1,6 @@
 import type { PrismaClient, TipoCentroDeCusto } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
+import { proximoNumero } from '../../../shared/sequencia.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 
 /* ── Centros de custo (onde a despesa é apropriada) ──
@@ -7,16 +8,36 @@ import { writeTenantAudit } from '../audit/audit.service.js';
    que pode ser trocado em cada ocorrência e em cada item de compra. */
 
 export interface DadosCentro {
-  codigo: string; nome: string; tipo: TipoCentroDeCusto;
+  nome: string; tipo: TipoCentroDeCusto;
   descricao?: string | null; responsavel?: string | null; ativo?: boolean; paiId?: string | null;
 }
 
 const FUSO_MS = -3 * 3600_000;
 
+/** Só os campos editáveis (o código nunca vem de fora) */
+const campos = ({ nome, tipo, descricao, responsavel, ativo, paiId }: DadosCentro) => ({ nome, tipo, descricao, responsavel, ativo, paiId });
+
+/* Código automático CC-001, CC-002… (sequência por órgão, não reaproveita número de centro excluído) */
+const CHAVE_SEQ = 'CC';
+const formatarCodigo = (n: number) => `CC-${String(n).padStart(3, '0')}`;
+
+export async function gerarCodigoCentro(prisma: Pick<PrismaClient, '$queryRaw' | 'centroDeCusto'>, entityId: string) {
+  for (;;) {
+    const codigo = formatarCodigo(await proximoNumero(prisma, entityId, CHAVE_SEQ));
+    if (!(await prisma.centroDeCusto.findFirst({ where: { entityId, codigo }, select: { id: true } }))) return codigo;
+  }
+}
+
+/** O código que o próximo centro vai receber (só para mostrar na tela) */
+async function proximoCodigo(prisma: PrismaClient, entityId: string) {
+  const r = await prisma.$queryRaw<{ ultimo: number }[]>`SELECT ultimo FROM sequencias WHERE entity_id = ${entityId} AND chave = ${CHAVE_SEQ}`;
+  return formatarCodigo(Number(r[0]?.ultimo ?? 0) + 1);
+}
+
 export async function listarCentros(prisma: PrismaClient, entityId: string) {
   const agora = new Date(Date.now() + FUSO_MS);
   const inicioMes = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1) - FUSO_MS);
-  const [centros, ocorrencias, ocorrenciasMes, valores, servicos] = await Promise.all([
+  const [centros, ocorrencias, ocorrenciasMes, valores, servicos, proximo] = await Promise.all([
     prisma.centroDeCusto.findMany({ where: { entityId }, orderBy: [{ ativo: 'desc' }, { codigo: 'asc' }] }),
     prisma.registroDiario.groupBy({ by: ['centroDeCustoId'], where: { entityId, centroDeCustoId: { not: null } }, _count: { _all: true } }),
     prisma.registroDiario.groupBy({ by: ['centroDeCustoId'], where: { entityId, centroDeCustoId: { not: null }, createdAt: { gte: inicioMes } }, _count: { _all: true } }),
@@ -26,6 +47,7 @@ export async function listarCentros(prisma: PrismaClient, entityId: string) {
       _sum: { valorTotal: true },
     }),
     prisma.centroCusto.findMany({ where: { entityId, centroDeCustoPadraoId: { not: null } }, select: { id: true, nome: true, centroDeCustoPadraoId: true } }),
+    proximoCodigo(prisma, entityId),
   ]);
   const semCentro = await prisma.pedidoCompraItemOrigem.aggregate({
     where: { entityId, centroDeCustoId: null, pedidoCompraItem: { pedidoCompra: { status: { not: 'CANCELLED' } } } },
@@ -41,12 +63,11 @@ export async function listarCentros(prisma: PrismaClient, entityId: string) {
       servicos: servicos.filter(s => s.centroDeCustoPadraoId === c.id).map(s => ({ id: s.id, nome: s.nome })),
     })),
     valorSemCentro: (semCentro._sum.valorTotal ?? 0).toString(),
+    proximoCodigo: proximo,
   };
 }
 
 async function validar(prisma: PrismaClient, entityId: string, dados: DadosCentro, id?: string) {
-  const dup = await prisma.centroDeCusto.findFirst({ where: { entityId, codigo: dados.codigo, ...(id ? { id: { not: id } } : {}) }, select: { id: true } });
-  if (dup) throw new AppError(409, 'CONFLICT', `Já existe um centro de custo com o código ${dados.codigo}`);
   if (dados.paiId) {
     if (dados.paiId === id) throw new AppError(400, 'VALIDATION_ERROR', 'Um centro não pode ser pai dele mesmo');
     const pai = await prisma.centroDeCusto.findFirst({ where: { id: dados.paiId, entityId }, select: { id: true } });
@@ -56,7 +77,7 @@ async function validar(prisma: PrismaClient, entityId: string, dados: DadosCentr
 
 export async function criarCentro(prisma: PrismaClient, entityId: string, userId: string, dados: DadosCentro) {
   await validar(prisma, entityId, dados);
-  const c = await prisma.centroDeCusto.create({ data: { entityId, ...dados } });
+  const c = await prisma.centroDeCusto.create({ data: { entityId, codigo: await gerarCodigoCentro(prisma, entityId), ...campos(dados) } });
   await writeTenantAudit(prisma, { entityId, userId, action: 'CENTRO_DE_CUSTO_CREATED', resource: 'centro_de_custo', newValue: { id: c.id, codigo: c.codigo, nome: c.nome } });
   return c;
 }
@@ -65,7 +86,7 @@ export async function atualizarCentro(prisma: PrismaClient, entityId: string, us
   const atual = await prisma.centroDeCusto.findFirst({ where: { id, entityId } });
   if (!atual) throw new AppError(404, 'NOT_FOUND', 'Centro de custo não encontrado');
   await validar(prisma, entityId, dados, id);
-  const c = await prisma.centroDeCusto.update({ where: { id }, data: dados });
+  const c = await prisma.centroDeCusto.update({ where: { id }, data: campos(dados) });
   await writeTenantAudit(prisma, { entityId, userId, action: 'CENTRO_DE_CUSTO_UPDATED', resource: 'centro_de_custo', previousValue: { codigo: atual.codigo, nome: atual.nome, ativo: atual.ativo }, newValue: { id, ...dados } });
   return c;
 }

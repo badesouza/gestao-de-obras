@@ -15,8 +15,8 @@ function validar<T>(schema: z.ZodType<T>, dados: unknown): T {
   return r.data;
 }
 
+/* o código (CC-001…) é gerado pelo sistema e não muda; se vier na requisição, é ignorado */
 const centroSchema = z.object({
-  codigo: z.string().trim().min(1, 'Informe o código').max(20).regex(/^[0-9A-Za-z.\-/]+$/, 'Código: use números, letras, ponto ou traço'),
   nome: z.string().trim().min(2, 'Informe o nome').max(200),
   tipo: z.enum(['SECRETARIA', 'SETOR', 'PROGRAMA', 'OBRA', 'OUTRO']),
   descricao: z.string().trim().max(1000).optional().nullable(),
@@ -82,7 +82,6 @@ export async function registerCentrosDeCustoRoutes(fastify: FastifyInstance) {
   fastify.post('/centros-de-custo/estrutura-sugerida', { preHandler: podeGerir }, async (req, reply) => {
     try {
       const b = validar(z.object({
-        codigoSecretaria: z.string().trim().min(1, 'Informe o código da secretaria').max(20).regex(/^[0-9A-Za-z.\-/]+$/, 'Código: use números, letras, ponto ou traço'),
         nomeSecretaria: z.string().trim().min(2, 'Informe o nome da secretaria').max(200),
         responsavel: z.string().trim().max(160).optional().nullable(),
       }), req.body);

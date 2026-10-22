@@ -17,7 +17,7 @@ const TIPOS: { code: TipoCentroDeCusto; nome: string; tom: string }[] = [
   { code: 'OUTRO', nome: 'Outro', tom: '' },
 ];
 
-interface Form { codigo: string; nome: string; tipo: TipoCentroDeCusto; paiId: string; responsavel: string }
+interface Form { nome: string; tipo: TipoCentroDeCusto; paiId: string; responsavel: string }
 
 /** Árvore: cada centro seguido dos que ficam dentro dele */
 function emArvore(itens: CentroDeCusto[]) {
@@ -37,19 +37,20 @@ export function CentrosCustoPage() {
   const { resumo, recarregar } = useResumoCadastros();
   const { toasts, showToast, closeToast } = useToast();
   const [itens, setItens] = useState<CentroDeCusto[] | null>(null);
+  const [proximoCodigo, setProximoCodigo] = useState('');
   const [semCentro, setSemCentro] = useState<{ id: string; nome: string }[]>([]);
   const [pessoas, setPessoas] = useState<string[]>([]);
   const [editando, setEditando] = useState<CentroDeCusto | null>(null);
-  const [form, setForm] = useState<Form>({ codigo: '', nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
+  const [form, setForm] = useState<Form>({ nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
   const [salvando, setSalvando] = useState(false);
   const [aberto, setAberto] = useState(false);
-  const [sugerida, setSugerida] = useState<{ codigo: string; nome: string } | null>(null);
+  const [sugerida, setSugerida] = useState<{ nome: string } | null>(null);
   const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async () => {
     try {
       const [l, p] = await Promise.all([centrosDeCustoApi.listar(entityId), frotaApi.servicosSemCentro(entityId)]);
-      setItens(l.itens.filter(c => c.ativo)); setSemCentro(p.servicosSemCentro);
+      setItens(l.itens.filter(c => c.ativo)); setProximoCodigo(l.proximoCodigo); setSemCentro(p.servicosSemCentro);
     } catch (e) { showToast(msgErro(e, 'Não foi possível abrir os centros de custo'), 'error'); setItens([]); }
   }, [entityId, showToast]);
   useEffect(() => { carregar(); }, [carregar]);
@@ -58,37 +59,29 @@ export function CentrosCustoPage() {
   const arvore = useMemo(() => emArvore(itens ?? []), [itens]);
   const topo = arvore.find(x => x.nivel === 0 && x.c.tipo === 'SECRETARIA')?.c ?? null;
 
-  const proximoCodigo = useCallback((paiId: string) => {
-    const pai = itens?.find(c => c.id === paiId);
-    if (!pai) return '';
-    const filhos = (itens ?? []).filter(c => c.paiId === pai.id).map(c => Number(c.codigo.split('.').pop())).filter(n => !Number.isNaN(n));
-    return `${pai.codigo}.${String((filhos.length ? Math.max(...filhos) : 0) + 1).padStart(2, '0')}`;
-  }, [itens]);
-
   function fechar() { setAberto(false); setEditando(null); }
   function novo() {
     setEditando(null); setAberto(true);
-    const paiId = topo?.id ?? '';
-    setForm({ codigo: paiId ? proximoCodigo(paiId) : '', nome: '', tipo: 'SETOR', paiId, responsavel: '' });
+    setForm({ nome: '', tipo: 'SETOR', paiId: topo?.id ?? '', responsavel: '' });
   }
 
   if (!itens) return <Pagina><Carregando /></Pagina>;
 
   function abrir(c: CentroDeCusto) {
     setEditando(c); setAberto(true);
-    setForm({ codigo: c.codigo, nome: c.nome, tipo: c.tipo, paiId: c.paiId ?? '', responsavel: c.responsavel ?? '' });
+    setForm({ nome: c.nome, tipo: c.tipo, paiId: c.paiId ?? '', responsavel: c.responsavel ?? '' });
   }
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm(f => ({ ...f, [k]: v }));
 
   async function salvar() {
-    if (!form.codigo.trim() || !form.nome.trim()) { showToast('Informe o código e o nome', 'warning'); return; }
+    if (!form.nome.trim()) { showToast('Informe o nome', 'warning'); return; }
     setSalvando(true);
-    const d = { codigo: form.codigo.trim(), nome: form.nome.trim(), tipo: form.tipo, paiId: form.paiId || null, responsavel: form.responsavel.trim() || null };
+    const d = { nome: form.nome.trim(), tipo: form.tipo, paiId: form.paiId || null, responsavel: form.responsavel.trim() || null };
     try {
       if (editando) await centrosDeCustoApi.atualizar(entityId, editando.id, { ...d, descricao: editando.descricao, ativo: true });
-      else await centrosDeCustoApi.criar(entityId, d);
-      showToast(editando ? 'Centro salvo' : 'Centro criado');
-      fechar(); setForm({ codigo: '', nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
+      else { const c = await centrosDeCustoApi.criar(entityId, d); showToast(`Centro ${c.codigo} criado`); }
+      if (editando) showToast('Centro salvo');
+      fechar(); setForm({ nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
       await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
@@ -112,10 +105,10 @@ export function CentrosCustoPage() {
 
   async function estrutura() {
     if (!sugerida) return;
-    const codigo = sugerida.codigo.trim(); const nome = sugerida.nome.trim();
-    if (!codigo || !nome) { showToast('Informe o código e o nome da secretaria', 'warning'); return; }
+    const nome = sugerida.nome.trim();
+    if (!nome) { showToast('Informe o nome da secretaria', 'warning'); return; }
     try {
-      const r = await centrosDeCustoApi.estruturaSugerida(entityId, { codigoSecretaria: codigo, nomeSecretaria: nome });
+      const r = await centrosDeCustoApi.estruturaSugerida(entityId, { nomeSecretaria: nome });
       setSugerida(null);
       showToast(r.criados.length ? `${r.criados.length} centros criados` : 'A estrutura sugerida já estava montada');
       await carregar(); recarregar();
@@ -140,7 +133,7 @@ export function CentrosCustoPage() {
 
       <Cartao className="so-rise d1" icone="layers" titulo="Estrutura" meta={<><span className="mono">{itens.length}</span> centros</>} ajuda="Ajuda: Estrutura"
           direita={<>
-            <button type="button" className="so-btn so-ghost sm" onClick={() => setSugerida({ codigo: topo?.codigo ?? '02', nome: topo?.nome ?? 'Secretaria de Infraestrutura' })}>Montar estrutura sugerida</button>
+            <button type="button" className="so-btn so-ghost sm" onClick={() => setSugerida({ nome: topo?.nome ?? 'Secretaria de Infraestrutura' })}>Montar estrutura sugerida</button>
             <button type="button" className="so-btn so-primary sm" onClick={novo}><Ic n="plus" />Novo centro</button>
           </>}>
           <div className="so-tw">
@@ -187,8 +180,11 @@ export function CentrosCustoPage() {
             <button type="button" className="so-btn so-ghost" onClick={fechar}>Cancelar</button>
             <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar centro</button>
           </>}>
-          <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gap: 10 }}>
-            <label className="so-field"><span className="so-lbl">Código</span><span className="so-ctrl mono"><input type="text" value={form.codigo} onChange={e => set('codigo', e.target.value)} /></span></label>
+          <div style={{ display: 'grid', gridTemplateColumns: '112px minmax(0, 1fr)', gap: 10 }}>
+            <label className="so-field" title="O sistema dá o código sozinho, em sequência">
+              <span className="so-lbl">Código <span className="opt">automático</span></span>
+              <span className="so-ctrl mono off"><input type="text" readOnly tabIndex={-1} value={editando ? editando.codigo : proximoCodigo} /></span>
+            </label>
             <label className="so-field"><span className="so-lbl">Nome</span><span className="so-ctrl"><input type="text" placeholder="Praças e Áreas Verdes" value={form.nome} onChange={e => set('nome', e.target.value)} /></span></label>
           </div>
           <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 7 }}>
@@ -199,7 +195,7 @@ export function CentrosCustoPage() {
             <p className="so-help">Use <strong style={{ color: 'var(--ink)' }}>Obra</strong> para uma obra com dinheiro próprio (convênio, emenda) e ver o gasto dela separado.</p>
           </fieldset>
           <label className="so-field"><span className="so-lbl">Fica dentro de</span>
-            <span className="so-ctrl"><select value={form.paiId} onChange={e => { const v = e.target.value; setForm(f => ({ ...f, paiId: v, codigo: !editando && v ? proximoCodigo(v) : f.codigo })); }}>
+            <span className="so-ctrl"><select value={form.paiId} onChange={e => set('paiId', e.target.value)}>
               <option value="">Nenhum (é o topo)</option>
               {opcoesPai.map(({ c, nivel }) => <option key={c.id} value={c.id}>{'  '.repeat(nivel)}{c.codigo} · {c.nome}</option>)}
             </select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
@@ -219,10 +215,8 @@ export function CentrosCustoPage() {
             <button type="button" className="so-btn so-ghost" onClick={() => setSugerida(null)}>Cancelar</button>
             <button type="button" className="so-btn so-primary" onClick={estrutura}><Ic n="check" />Montar estrutura</button>
           </>}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 10 }}>
-            <label className="so-field"><span className="so-lbl">Código</span><span className="so-ctrl mono"><input type="text" value={sugerida.codigo} onChange={e => setSugerida({ ...sugerida, codigo: e.target.value })} /></span></label>
-            <label className="so-field"><span className="so-lbl">Nome da secretaria</span><span className="so-ctrl"><input type="text" value={sugerida.nome} onChange={e => setSugerida({ ...sugerida, nome: e.target.value })} /></span></label>
-          </div>
+          <label className="so-field"><span className="so-lbl">Nome da secretaria</span><span className="so-ctrl"><input type="text" value={sugerida.nome} onChange={e => setSugerida({ nome: e.target.value })} /></span></label>
+          <p className="so-help">{topo ? <>A secretaria <strong style={{ color: 'var(--ink)' }}>{topo.codigo} · {topo.nome}</strong> já existe: os centros novos entram dentro dela.</> : 'Os códigos (CC-001, CC-002…) são dados pelo sistema.'}</p>
         </Janela>
       )}
       <BarraAcoes esquerda={<><b>{itens.length}</b> centros{semCentro.length > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro.length} {semCentro.length === 1 ? 'serviço' : 'serviços'} sem centro</span></>}<Sep />passo 6 de 7</>}>

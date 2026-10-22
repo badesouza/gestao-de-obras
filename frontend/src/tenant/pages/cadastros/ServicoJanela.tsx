@@ -116,7 +116,7 @@ export function ServicoJanela({ servicoId, onFechar, onSalvo, showToast }: {
   const [verOrigens, setVerOrigens] = useState(false);
   const [semCentroAntigos, setSemCentroAntigos] = useState(0);
   const [acertarAntigos, setAcertarAntigos] = useState(true);
-  const [novoCentro, setNovoCentro] = useState<{ codigo: string; nome: string; paiId: string } | null>(null);
+  const [novoCentro, setNovoCentro] = useState<{ nome: string; paiId: string } | null>(null);
   const [novoEquip, setNovoEquip] = useState<{ tipo: 'EQUIPAMENTO' | 'VEICULO'; nome: string; patrimonio: string } | null>(null);
   const [buscaEquip, setBuscaEquip] = useState('');
   const [acaoSel, setAcaoSel] = useState<number>(-1); // -1 = "Tipo de serviço"
@@ -224,9 +224,9 @@ export function ServicoJanela({ servicoId, onFechar, onSalvo, showToast }: {
 
   async function criarCentro() {
     if (!novoCentro) return;
-    if (!novoCentro.codigo.trim() || novoCentro.nome.trim().length < 2) { showToast('Informe o código e o nome do centro', 'warning'); return; }
+    if (novoCentro.nome.trim().length < 2) { showToast('Informe o nome do centro', 'warning'); return; }
     try {
-      const c = await centrosDeCustoApi.criar(entityId, { codigo: novoCentro.codigo.trim(), nome: novoCentro.nome.trim(), tipo: 'SETOR', paiId: novoCentro.paiId || null });
+      const c = await centrosDeCustoApi.criar(entityId, { nome: novoCentro.nome.trim(), tipo: 'SETOR', paiId: novoCentro.paiId || null });
       setBase(b => (b ? { ...b, centros: [...b.centros, { id: c.id, codigo: c.codigo, nome: c.nome, paiId: c.paiId }].sort((a, z) => a.codigo.localeCompare(z.codigo, 'pt-BR', { numeric: true })) } : b));
       set('centroDeCustoId', c.id); setNovoCentro(null);
       showToast(`Centro ${c.codigo} criado`);
@@ -367,16 +367,12 @@ export function ServicoJanela({ servicoId, onFechar, onSalvo, showToast }: {
                 <button type="button" className="so-btn so-dashed" style={{ alignSelf: 'flex-start' }}
                   onClick={() => {
                     const topo = base.centros.find(c => !c.paiId);
-                    const filhos = topo ? base.centros.filter(c => c.paiId === topo.id).length : 0;
-                    setNovoCentro({ codigo: topo ? `${topo.codigo}.${String(filhos + 1).padStart(2, '0')}` : '', nome: form.nome, paiId: topo?.id ?? '' });
+                    setNovoCentro({ nome: form.nome, paiId: topo?.id ?? '' });
                   }}><Ic n="plus" />Criar um centro novo aqui</button>
               ) : (
                 <div className="so-wz-box">
                   <div className="so-fs-t">Novo centro de custo</div>
-                  <div className="so-wz-cc">
-                    <label className="so-field"><span className="so-lbl">Código</span><span className="so-ctrl mono"><input value={novoCentro.codigo} onChange={e => setNovoCentro({ ...novoCentro, codigo: e.target.value })} /></span></label>
-                    <label className="so-field"><span className="so-lbl">Nome</span><span className="so-ctrl"><input value={novoCentro.nome} placeholder="Ex.: Drenagem" onChange={e => setNovoCentro({ ...novoCentro, nome: e.target.value })} /></span></label>
-                  </div>
+                  <label className="so-field"><span className="so-lbl">Nome <span className="opt">o código (CC-…) sai sozinho</span></span><span className="so-ctrl"><input value={novoCentro.nome} placeholder="Ex.: Drenagem" onChange={e => setNovoCentro({ ...novoCentro, nome: e.target.value })} /></span></label>
                   <label className="so-field"><span className="so-lbl">Fica dentro de</span>
                     <span className="so-ctrl"><select value={novoCentro.paiId} onChange={e => setNovoCentro({ ...novoCentro, paiId: e.target.value })}><option value="">Nenhum (é o topo)</option>{base.centros.filter(c => !c.paiId).map(c => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
                   </label>

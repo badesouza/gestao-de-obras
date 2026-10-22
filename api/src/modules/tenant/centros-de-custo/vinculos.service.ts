@@ -1,6 +1,7 @@
 import type { PrismaClient } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
+import { gerarCodigoCentro } from './centros-de-custo.service.js';
 
 /* ── Serviços urbanos × centro de custo, tudo de uma vez ──
    Cada serviço aponta o seu centro padrão. Ao salvar, dá para acertar
@@ -68,28 +69,25 @@ export async function salvarVinculos(prisma: PrismaClient, entityId: string, use
 /** Estrutura sugerida: a secretaria e um setor por serviço (só para os serviços ainda sem centro) */
 export async function montarEstruturaSugerida(
   prisma: PrismaClient, entityId: string, userId: string,
-  d: { codigoSecretaria: string; nomeSecretaria: string; responsavel?: string | null },
+  d: { nomeSecretaria: string; responsavel?: string | null },
 ) {
   const servicos = await prisma.centroCusto.findMany({ where: { entityId, status: 'ACTIVE' }, orderBy: { nome: 'asc' }, select: { id: true, nome: true, centroDeCustoPadraoId: true } });
   const sem = servicos.filter(s => !s.centroDeCustoPadraoId);
   if (!sem.length) throw new AppError(409, 'CONFLICT', 'Todos os serviços já têm centro de custo');
-  const raiz = d.codigoSecretaria.trim();
   const criados = await prisma.$transaction(async (tx) => {
-    let secretaria = await tx.centroDeCusto.findFirst({ where: { entityId, codigo: raiz } });
-    secretaria ??= await tx.centroDeCusto.create({ data: { entityId, codigo: raiz, nome: d.nomeSecretaria.trim(), tipo: 'SECRETARIA', responsavel: d.responsavel ?? null } });
-    const usados = new Set((await tx.centroDeCusto.findMany({ where: { entityId, codigo: { startsWith: `${raiz}.` } }, select: { codigo: true } })).map(c => c.codigo));
-    let n = 1;
     const novos: { codigo: string; nome: string }[] = [];
+    let secretaria = await tx.centroDeCusto.findFirst({ where: { entityId, tipo: 'SECRETARIA', paiId: null, ativo: true }, orderBy: { codigo: 'asc' } });
+    if (!secretaria) {
+      secretaria = await tx.centroDeCusto.create({ data: { entityId, codigo: await gerarCodigoCentro(tx, entityId), nome: d.nomeSecretaria.trim(), tipo: 'SECRETARIA', responsavel: d.responsavel ?? null } });
+      novos.push({ codigo: secretaria.codigo, nome: secretaria.nome });
+    }
     for (const s of sem) {
-      while (usados.has(`${raiz}.${String(n).padStart(2, '0')}`)) n++;
-      const codigo = `${raiz}.${String(n).padStart(2, '0')}`;
-      usados.add(codigo);
-      const c = await tx.centroDeCusto.create({ data: { entityId, codigo, nome: s.nome, tipo: 'SETOR', paiId: secretaria.id } });
+      const c = await tx.centroDeCusto.create({ data: { entityId, codigo: await gerarCodigoCentro(tx, entityId), nome: s.nome, tipo: 'SETOR', paiId: secretaria.id } });
       await tx.centroCusto.update({ where: { id: s.id }, data: { centroDeCustoPadraoId: c.id } });
-      novos.push({ codigo, nome: s.nome });
+      novos.push({ codigo: c.codigo, nome: s.nome });
     }
     return novos;
   });
-  await writeTenantAudit(prisma, { entityId, userId, action: 'CENTRO_DE_CUSTO_ESTRUTURA_SUGERIDA', resource: 'centro_de_custo', newValue: { raiz, criados: criados.length } });
+  await writeTenantAudit(prisma, { entityId, userId, action: 'CENTRO_DE_CUSTO_ESTRUTURA_SUGERIDA', resource: 'centro_de_custo', newValue: { criados: criados.length } });
   return { criados };
 }
