@@ -6,7 +6,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Ajuda, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const TIPOS: { code: TipoCentroDeCusto; nome: string; tom: string }[] = [
@@ -42,6 +42,8 @@ export function CentrosCustoPage() {
   const [editando, setEditando] = useState<CentroDeCusto | null>(null);
   const [form, setForm] = useState<Form>({ codigo: '', nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
   const [salvando, setSalvando] = useState(false);
+  const [aberto, setAberto] = useState(false);
+  const [sugerida, setSugerida] = useState<{ codigo: string; nome: string } | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -62,18 +64,17 @@ export function CentrosCustoPage() {
     return `${pai.codigo}.${String((filhos.length ? Math.max(...filhos) : 0) + 1).padStart(2, '0')}`;
   }, [itens]);
 
+  function fechar() { setAberto(false); setEditando(null); }
   function novo() {
-    setEditando(null);
+    setEditando(null); setAberto(true);
     const paiId = topo?.id ?? '';
     setForm({ codigo: paiId ? proximoCodigo(paiId) : '', nome: '', tipo: 'SETOR', paiId, responsavel: '' });
   }
-  useEffect(() => { if (itens && !editando && !form.nome && !form.codigo) novo(); /* primeira carga */ // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens]);
 
   if (!itens) return <Pagina><Carregando /></Pagina>;
 
   function abrir(c: CentroDeCusto) {
-    setEditando(c);
+    setEditando(c); setAberto(true);
     setForm({ codigo: c.codigo, nome: c.nome, tipo: c.tipo, paiId: c.paiId ?? '', responsavel: c.responsavel ?? '' });
   }
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm(f => ({ ...f, [k]: v }));
@@ -86,7 +87,7 @@ export function CentrosCustoPage() {
       if (editando) await centrosDeCustoApi.atualizar(entityId, editando.id, { ...d, descricao: editando.descricao, ativo: true });
       else await centrosDeCustoApi.criar(entityId, d);
       showToast(editando ? 'Centro salvo' : 'Centro criado');
-      setEditando(null); setForm({ codigo: '', nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
+      fechar(); setForm({ codigo: '', nome: '', tipo: 'SETOR', paiId: '', responsavel: '' });
       await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
@@ -97,17 +98,17 @@ export function CentrosCustoPage() {
     try {
       const r = await centrosDeCustoApi.remover(entityId, c.id);
       showToast(r.desativado ? 'Já recebeu lançamento: foi desativado e some das listas novas' : 'Centro removido', r.desativado ? 'warning' : 'success');
-      setEditando(null); await carregar(); recarregar();
+      fechar(); await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
 
   async function estrutura() {
-    const codigo = window.prompt('Código da secretaria (o topo da estrutura):', topo?.codigo ?? '02');
-    if (!codigo) return;
-    const nome = window.prompt('Nome da secretaria:', topo?.nome ?? 'Secretaria de Infraestrutura');
-    if (!nome) return;
+    if (!sugerida) return;
+    const codigo = sugerida.codigo.trim(); const nome = sugerida.nome.trim();
+    if (!codigo || !nome) { showToast('Informe o código e o nome da secretaria', 'warning'); return; }
     try {
       const r = await centrosDeCustoApi.estruturaSugerida(entityId, { codigoSecretaria: codigo, nomeSecretaria: nome });
+      setSugerida(null);
       showToast(r.criados.length ? `${r.criados.length} centros criados` : 'A estrutura sugerida já estava montada');
       await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
@@ -129,10 +130,9 @@ export function CentrosCustoPage() {
         </div>
       )}
 
-      <div className="so-split">
-        <Cartao className="grow so-rise d1" icone="layers" titulo="Estrutura" meta={<><span className="mono">{itens.length}</span> centros</>} ajuda="Ajuda: Estrutura"
+      <Cartao className="so-rise d1" icone="layers" titulo="Estrutura" meta={<><span className="mono">{itens.length}</span> centros</>} ajuda="Ajuda: Estrutura"
           direita={<>
-            <button type="button" className="so-btn so-ghost sm" onClick={estrutura}>Montar estrutura sugerida</button>
+            <button type="button" className="so-btn so-ghost sm" onClick={() => setSugerida({ codigo: topo?.codigo ?? '02', nome: topo?.nome ?? 'Secretaria de Infraestrutura' })}>Montar estrutura sugerida</button>
             <button type="button" className="so-btn so-primary sm" onClick={novo}><Ic n="plus" />Novo centro</button>
           </>}>
           <div className="so-tw">
@@ -165,45 +165,57 @@ export function CentrosCustoPage() {
             </table>
           </div>
           <Aviso tom="plain">Centro que já recebeu lançamento não é apagado: é desativado e some das listas novas.</Aviso>
-        </Cartao>
+      </Cartao>
 
-        <section className="so-panel side" aria-label={editando ? 'Editar centro de custo' : 'Novo centro de custo'} key={editando?.id ?? 'novo'}>
-          <header className="so-chead">
-            <span className="so-cic"><Ic n={editando ? 'editar' : 'plus'} /></span>
-            <h2>{editando ? 'Editar centro de custo' : 'Novo centro de custo'}</h2>
-            <div className="right"><Ajuda texto="Ajuda: Centro de custo" />{editando && <button type="button" className="so-x" aria-label="Fechar" onClick={novo}><Ic n="x" /></button>}</div>
-          </header>
-          <div className="so-cbody">
-            <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gap: 10 }}>
-              <label className="so-field"><span className="so-lbl">Código</span><span className="so-ctrl mono"><input type="text" value={form.codigo} onChange={e => set('codigo', e.target.value)} /></span></label>
-              <label className="so-field"><span className="so-lbl">Nome</span><span className="so-ctrl"><input type="text" placeholder="Praças e Áreas Verdes" value={form.nome} onChange={e => set('nome', e.target.value)} /></span></label>
-            </div>
-            <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 7 }}>
-              <legend className="so-lbl" style={{ marginBottom: 6 }}>Tipo</legend>
-              <div className="so-seg">
-                {TIPOS.map(t => <label key={t.code} className={form.tipo === t.code ? 'on' : ''}><input type="radio" name="tipo" checked={form.tipo === t.code} onChange={() => set('tipo', t.code)} /> {t.nome}</label>)}
-              </div>
-              <p className="so-help">Use <strong style={{ color: 'var(--ink)' }}>Obra</strong> para uma obra com dinheiro próprio (convênio, emenda) e ver o gasto dela separado.</p>
-            </fieldset>
-            <label className="so-field"><span className="so-lbl">Fica dentro de</span>
-              <span className="so-ctrl"><select value={form.paiId} onChange={e => { const v = e.target.value; setForm(f => ({ ...f, paiId: v, codigo: !editando && v ? proximoCodigo(v) : f.codigo })); }}>
-                <option value="">Nenhum (é o topo)</option>
-                {opcoesPai.map(({ c, nivel }) => <option key={c.id} value={c.id}>{'  '.repeat(nivel)}{c.codigo} · {c.nome}</option>)}
-              </select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
-            </label>
-            <label className="so-field"><span className="so-lbl">Responsável <span className="opt">opcional</span></span>
-              <span className="so-ctrl"><input list="cc-responsaveis" placeholder="Ninguém" value={form.responsavel} onChange={e => set('responsavel', e.target.value)} /></span>
-              <datalist id="cc-responsaveis">{pessoas.map(p => <option key={p} value={p} />)}</datalist>
-            </label>
-            <div className="so-pfoot">
-              {editando && <button type="button" className="so-btn so-danger" style={{ marginRight: 'auto' }} onClick={() => remover(editando)}>Remover</button>}
-              <button type="button" className="so-btn so-ghost" onClick={novo}>Cancelar</button>
-              <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar centro</button>
-            </div>
+      {aberto && (
+        <Janela key={editando?.id ?? 'novo'} icone={editando ? 'editar' : 'pie'}
+          eyebrow="Centros de custo · estrutura"
+          titulo={editando ? `Editar ${editando.codigo} · ${editando.nome}` : 'Novo centro de custo'}
+          sub="Para onde vai o gasto. Quem escolhe o centro é o serviço, no passo 6."
+          largura={600} onFechar={fechar} ajuda="Ajuda: Centro de custo"
+          rodape={<>
+            {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}>Remover</button>}
+            <button type="button" className="so-btn so-ghost" onClick={fechar}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar centro</button>
+          </>}>
+          <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gap: 10 }}>
+            <label className="so-field"><span className="so-lbl">Código</span><span className="so-ctrl mono"><input type="text" value={form.codigo} onChange={e => set('codigo', e.target.value)} /></span></label>
+            <label className="so-field"><span className="so-lbl">Nome</span><span className="so-ctrl"><input type="text" placeholder="Praças e Áreas Verdes" value={form.nome} onChange={e => set('nome', e.target.value)} /></span></label>
           </div>
-        </section>
-      </div>
+          <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 7 }}>
+            <legend className="so-lbl" style={{ marginBottom: 6 }}>Tipo</legend>
+            <div className="so-seg">
+              {TIPOS.map(t => <label key={t.code} className={form.tipo === t.code ? 'on' : ''}><input type="radio" name="tipo" checked={form.tipo === t.code} onChange={() => set('tipo', t.code)} /> {t.nome}</label>)}
+            </div>
+            <p className="so-help">Use <strong style={{ color: 'var(--ink)' }}>Obra</strong> para uma obra com dinheiro próprio (convênio, emenda) e ver o gasto dela separado.</p>
+          </fieldset>
+          <label className="so-field"><span className="so-lbl">Fica dentro de</span>
+            <span className="so-ctrl"><select value={form.paiId} onChange={e => { const v = e.target.value; setForm(f => ({ ...f, paiId: v, codigo: !editando && v ? proximoCodigo(v) : f.codigo })); }}>
+              <option value="">Nenhum (é o topo)</option>
+              {opcoesPai.map(({ c, nivel }) => <option key={c.id} value={c.id}>{'  '.repeat(nivel)}{c.codigo} · {c.nome}</option>)}
+            </select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+          </label>
+          <label className="so-field"><span className="so-lbl">Responsável <span className="opt">opcional</span></span>
+            <span className="so-ctrl"><input list="cc-responsaveis" placeholder="Ninguém" value={form.responsavel} onChange={e => set('responsavel', e.target.value)} /></span>
+            <datalist id="cc-responsaveis">{pessoas.map(p => <option key={p} value={p} />)}</datalist>
+          </label>
+        </Janela>
+      )}
 
+      {sugerida && (
+        <Janela icone="layers" eyebrow="Centros de custo · estrutura sugerida" titulo="Montar estrutura sugerida"
+          sub="Cria a secretaria no topo e os centros mais comuns embaixo dela. O que já existe não é duplicado."
+          largura={520} onFechar={() => setSugerida(null)} ajuda="Ajuda: Estrutura"
+          rodape={<>
+            <button type="button" className="so-btn so-ghost" onClick={() => setSugerida(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" onClick={estrutura}><Ic n="check" />Montar estrutura</button>
+          </>}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(0, 1fr)', gap: 10 }}>
+            <label className="so-field"><span className="so-lbl">Código</span><span className="so-ctrl mono"><input type="text" value={sugerida.codigo} onChange={e => setSugerida({ ...sugerida, codigo: e.target.value })} /></span></label>
+            <label className="so-field"><span className="so-lbl">Nome da secretaria</span><span className="so-ctrl"><input type="text" value={sugerida.nome} onChange={e => setSugerida({ ...sugerida, nome: e.target.value })} /></span></label>
+          </div>
+        </Janela>
+      )}
       <BarraAcoes esquerda={<><b>{itens.length}</b> centros{semCentro.length > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro.length} {semCentro.length === 1 ? 'serviço' : 'serviços'} sem centro</span></>}<Sep />passo 5 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Veículos</Link>
         <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-primary">Continuar: Serviços<Ic n="seta" className="arrow" /></Link>

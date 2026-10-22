@@ -5,7 +5,7 @@ import type { CampoServico, FichaServico, MomentoCampo, TipoCampo, TipoServico }
 import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
-import { Aviso, BarraAcoes, Cabecalho, Carregando, Cartao, Ic, Pagina, Selo, Sep, msgErro, rotaTenant } from '../../components/sisobras/so';
+import { Aviso, BarraAcoes, Cabecalho, Carregando, Cartao, Ic, Janela, Pagina, Selo, Sep, msgErro, rotaTenant } from '../../components/sisobras/so';
 import { CAMPOS_FIXOS, CORES, padroesDoServico } from './servico-padroes';
 
 interface Form {
@@ -43,7 +43,8 @@ export function FichaServicoPage() {
   const [ficha, setFicha] = useState<FichaServico | null>(null);
   const [form, setForm] = useState<Form | null>(null);
   const [novoSub, setNovoSub] = useState('');
-  const [editCampo, setEditCampo] = useState<number | null>(null);
+  /* janela de um campo: i = posição na lista (null = campo novo); c = rascunho */
+  const [campoJ, setCampoJ] = useState<{ i: number | null; c: CampoServico } | null>(null);
   const [vincular, setVincular] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -82,7 +83,7 @@ export function FichaServicoPage() {
         municipePode: f.municipePode, nomeMunicipe: f.nomeMunicipe || null, centroDeCustoId: f.centroDeCustoId || null,
         licitacaoIds: f.licitacaoIds, campos: f.campos.map(c => ({ ...c, opcoes: c.tipo === 'LISTA' ? c.opcoes : [] })),
       });
-      setFicha(r); setForm(paraForm(r)); setEditCampo(null);
+      setFicha(r); setForm(paraForm(r)); setCampoJ(null);
       showToast(ativo ? 'Ficha salva' : 'Serviço desativado');
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
@@ -226,43 +227,61 @@ export function FichaServicoPage() {
               <table className="so-table">
                 <thead><tr><th scope="col">Campo</th><th scope="col">Tipo</th><th scope="col">Quando</th><th scope="col" className="c">Obrigatório</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
                 <tbody>
-                  {form.campos.map((c, i) => editCampo === i ? (
-                    <tr key={i} className="sel">
-                      <td colSpan={5}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 180px), 1fr))', gap: 8 }}>
-                          <label className="so-field"><span className="so-lbl">Nome</span><span className="so-ctrl"><input autoFocus value={c.nome} onChange={e => setCampo(i, { nome: e.target.value })} /></span></label>
-                          <label className="so-field"><span className="so-lbl">Explicação <span className="opt">opcional</span></span><span className="so-ctrl"><input value={c.detalhe ?? ''} onChange={e => setCampo(i, { detalhe: e.target.value || null })} /></span></label>
-                          <label className="so-field"><span className="so-lbl">Tipo</span><span className="so-ctrl"><select value={c.tipo} onChange={e => setCampo(i, { tipo: e.target.value as TipoCampo })}>{(Object.keys(TIPO_CAMPO) as TipoCampo[]).map(t => <option key={t} value={t}>{TIPO_CAMPO[t]}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span></label>
-                          <label className="so-field"><span className="so-lbl">Quando</span><span className="so-ctrl"><select value={c.momento} onChange={e => setCampo(i, { momento: e.target.value as MomentoCampo })}><option value="ABERTURA">Abertura</option><option value="BAIXA">Baixa</option></select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span></label>
-                          {c.tipo === 'LISTA' && (
-                            <label className="so-field" style={{ gridColumn: '1 / -1' }}><span className="so-lbl">Opções <span className="opt">separe com vírgula</span></span><span className="so-ctrl"><input value={c.opcoes.join(', ')} onChange={e => setCampo(i, { opcoes: e.target.value.split(',').map(x => x.trimStart()) })} /></span></label>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                          <label className={`so-ckrow${c.obrigatorio ? ' on' : ''}`} style={{ marginRight: 'auto' }}><input type="checkbox" className="so-ck" checked={c.obrigatorio} onChange={e => setCampo(i, { obrigatorio: e.target.checked })} /> Obrigatório</label>
-                          <button type="button" className="so-btn so-danger sm" onClick={() => { set('campos', form.campos.filter((_, j) => j !== i)); setEditCampo(null); }}>Tirar campo</button>
-                          <button type="button" className="so-btn so-ghost sm" onClick={() => setEditCampo(null)}><Ic n="check" />Pronto</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
+                  {form.campos.map((c, i) => (
                     <tr key={i}>
                       <td data-l="Campo"><span className="strong">{c.nome || 'Sem nome'}</span><span className="sub">{c.tipo === 'LISTA' && c.opcoes.length ? c.opcoes.filter(Boolean).join(', ') : c.detalhe ?? ''}</span></td>
                       <td data-l="Tipo">{TIPO_CAMPO[c.tipo]}</td>
                       <td data-l="Quando"><span className={`so-badge ${c.momento === 'ABERTURA' ? 'brand' : 'mint'}`}>{c.momento === 'ABERTURA' ? 'Abertura' : 'Baixa'}</span></td>
                       <td data-l="Obrigatório" className="c"><input type="checkbox" className="so-ck" checked={c.obrigatorio} aria-label="Obrigatório" onChange={e => setCampo(i, { obrigatorio: e.target.checked })} /></td>
-                      <td data-l="" className="r"><button type="button" className="so-btn so-ghost sm" onClick={() => setEditCampo(i)}>Editar</button></td>
+                      <td data-l="" className="r"><button type="button" className="so-btn so-ghost sm" onClick={() => setCampoJ({ i, c: { ...c, opcoes: [...c.opcoes] } })}>Editar</button></td>
                     </tr>
                   ))}
                   {!form.campos.length && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 16 }}>Nenhum campo próprio. Só os de toda OS.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <button type="button" className="so-btn so-dashed" style={{ alignSelf: 'flex-start' }} onClick={() => { set('campos', [...form.campos, { nome: '', detalhe: null, tipo: 'TEXTO', opcoes: [], momento: 'BAIXA', obrigatorio: false }]); setEditCampo(form.campos.length); }}><Ic n="plus" />Adicionar campo</button>
+            <button type="button" className="so-btn so-dashed" style={{ alignSelf: 'flex-start' }} onClick={() => setCampoJ({ i: null, c: { nome: '', detalhe: null, tipo: 'TEXTO', opcoes: [], momento: 'BAIXA', obrigatorio: false } })}><Ic n="plus" />Adicionar campo</button>
             <p className="so-help" style={{ fontSize: 11.5 }}><strong style={{ color: 'var(--brand-ink)' }}>Abertura</strong> = o fiscal preenche ao registrar a ocorrência. <strong style={{ color: 'var(--mint)' }}>Baixa</strong> = preenche quando termina o serviço, junto com as fotos do depois.</p>
           </div>
         </div>
       </Cartao>
+
+      {campoJ && (() => {
+        const c = campoJ.c;
+        const muda = (d: Partial<CampoServico>) => setCampoJ({ ...campoJ, c: { ...c, ...d } });
+        const guardar = () => {
+          if (!c.nome.trim()) { showToast('Dê um nome ao campo', 'warning'); return; }
+          if (c.tipo === 'LISTA' && !c.opcoes.some(o => o.trim())) { showToast('Informe as opções da lista', 'warning'); return; }
+          const limpo = { ...c, nome: c.nome.trim(), opcoes: c.tipo === 'LISTA' ? c.opcoes.map(o => o.trim()).filter(Boolean) : [] };
+          set('campos', campoJ.i === null ? [...form.campos, limpo] : form.campos.map((x, j) => j === campoJ.i ? limpo : x));
+          setCampoJ(null);
+        };
+        return (
+          <Janela icone={campoJ.i === null ? 'plus' : 'editar'} eyebrow={`Ficha · ${form.nome}`}
+            titulo={campoJ.i === null ? 'Novo campo' : `Editar ${form.campos[campoJ.i]?.nome || 'campo'}`}
+            sub="Um campo só deste serviço, que o fiscal preenche na abertura ou na baixa da OS."
+            largura={600} onFechar={() => setCampoJ(null)} ajuda="Ajuda: O que o fiscal preenche"
+            rodape={<>
+              {campoJ.i !== null && <button type="button" className="so-btn so-danger esq" onClick={() => { set('campos', form.campos.filter((_, j) => j !== campoJ.i)); setCampoJ(null); }}>Tirar campo</button>}
+              <button type="button" className="so-btn so-ghost" onClick={() => setCampoJ(null)}>Cancelar</button>
+              <button type="button" className="so-btn so-primary" onClick={guardar}><Ic n="check" />{campoJ.i === null ? 'Adicionar campo' : 'Guardar campo'}</button>
+            </>}>
+            <div className="so-row2">
+              <label className="so-field"><span className="so-lbl">Nome <span className="req">*</span></span><span className="so-ctrl"><input value={c.nome} placeholder="Ex.: Tipo de luminária" onChange={e => muda({ nome: e.target.value })} /></span></label>
+              <label className="so-field"><span className="so-lbl">Explicação <span className="opt">opcional</span></span><span className="so-ctrl"><input value={c.detalhe ?? ''} onChange={e => muda({ detalhe: e.target.value || null })} /></span></label>
+            </div>
+            <div className="so-row2">
+              <label className="so-field"><span className="so-lbl">Tipo</span><span className="so-ctrl"><select value={c.tipo} onChange={e => muda({ tipo: e.target.value as TipoCampo })}>{(Object.keys(TIPO_CAMPO) as TipoCampo[]).map(t => <option key={t} value={t}>{TIPO_CAMPO[t]}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span></label>
+              <label className="so-field"><span className="so-lbl">Quando</span><span className="so-ctrl"><select value={c.momento} onChange={e => muda({ momento: e.target.value as MomentoCampo })}><option value="ABERTURA">Abertura</option><option value="BAIXA">Baixa</option></select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span></label>
+            </div>
+            {c.tipo === 'LISTA' && (
+              <label className="so-field"><span className="so-lbl">Opções <span className="opt">separe com vírgula</span></span><span className="so-ctrl"><input value={c.opcoes.join(', ')} placeholder="LED, Sódio, Mista" onChange={e => muda({ opcoes: e.target.value.split(',').map(x => x.trimStart()) })} /></span></label>
+            )}
+            <label className={`so-ckrow${c.obrigatorio ? ' on' : ''}`}><input type="checkbox" className="so-ck" checked={c.obrigatorio} onChange={e => muda({ obrigatorio: e.target.checked })} /> Obrigatório</label>
+            <p className="so-help"><strong style={{ color: 'var(--brand-ink)' }}>Abertura</strong> = o fiscal preenche ao registrar a ocorrência. <strong style={{ color: 'var(--mint)' }}>Baixa</strong> = preenche quando termina o serviço, junto com as fotos do depois.</p>
+          </Janela>
+        );
+      })()}
 
       <BarraAcoes esquerda={<><span className="so-dotc" style={{ background: form.cor, width: 10, height: 10 }} /><b>{form.nome}</b><Sep />{form.campos.length} campos próprios<Sep />{ligadas.length} contratos</>}>
         <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar à lista</Link>

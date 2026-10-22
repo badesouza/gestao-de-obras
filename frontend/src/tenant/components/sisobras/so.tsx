@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { cadastrosBaseApi } from '../../../lib/api-client';
 import type { ChavePasso, ResumoCadastros, SituacaoPasso } from '../../../lib/api-client';
@@ -289,4 +290,45 @@ export function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
 export function msgErro(e: unknown, padrao = 'Não foi possível salvar') {
   const m = (e as { body?: { message?: string } })?.body?.message;
   return m || padrao;
+}
+
+/* ═══════════════════════ Janela (modal) ═══════════════════════ */
+
+/** Janela no padrão SisObras: abre pelo botão, com selo, título, corpo e rodapé de ações.
+    Fecha no X, no Esc ou no Cancelar (clicar fora não fecha, para não perder o que foi digitado). */
+export function Janela({ icone, tom, eyebrow, titulo, sub, ajuda, largura = 560, onFechar, rodape, children, rotulo }: {
+  icone: NomeIcone; tom?: 'mint' | 'amber'; eyebrow?: ReactNode; titulo: ReactNode; sub?: ReactNode; ajuda?: string;
+  largura?: number; onFechar: () => void; rodape?: ReactNode; children: ReactNode; rotulo?: string;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const fechar = useRef(onFechar);
+  fechar.current = onFechar;
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar.current(); };
+    window.addEventListener('keydown', esc);
+    const foco = ref.current?.querySelector<HTMLElement>('.so-dlg-b input:not([type=checkbox]):not([type=radio]):not([disabled]), .so-dlg-b select, .so-dlg-b textarea');
+    setTimeout(() => foco?.focus(), 40);
+    return () => window.removeEventListener('keydown', esc);
+  }, []);
+  return createPortal(
+    <div className="so so-scrim fixo" role="presentation">
+      <section ref={ref} className="so-dialog so-janela" role="dialog" aria-modal="true" aria-label={rotulo ?? (typeof titulo === 'string' ? titulo : undefined)} style={{ width: largura }}>
+        <div className="so-dlg-h">
+          <Selo icone={icone} tom={tom} pequeno />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {eyebrow && <div className="so-eyebrow">{eyebrow}</div>}
+            <h2 style={{ marginTop: eyebrow ? 3 : 0 }}>{titulo}</h2>
+            {sub && <p>{sub}</p>}
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+            {ajuda && <Ajuda texto={ajuda} />}
+            <button type="button" className="so-x" aria-label="Fechar" onClick={onFechar}><Ic n="x" /></button>
+          </div>
+        </div>
+        <div className="so-dlg-b">{children}</div>
+        {rodape && <div className="so-dlg-f">{rodape}</div>}
+      </section>
+    </div>,
+    document.body,
+  );
 }

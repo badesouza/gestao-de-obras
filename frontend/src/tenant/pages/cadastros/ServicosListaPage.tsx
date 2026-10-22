@@ -5,7 +5,7 @@ import type { ServicoResumo, TipoServico } from '../../../lib/api-client';
 import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
-import { Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros } from '../../components/sisobras/so';
+import { Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros } from '../../components/sisobras/so';
 import { padroesDoServico } from './servico-padroes';
 
 type Filtro = 'todos' | 'MANUTENCAO' | 'CONSTRUCAO' | 'sem-centro' | 'inativos';
@@ -76,17 +76,6 @@ export function ServicosListaPage() {
           </div>
           <button type="button" className="so-btn so-primary" onClick={() => setNovo({ nome: '', tipo: 'MANUTENCAO' })}><Ic n="plus" />Novo serviço</button>
         </div>
-        {novo && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: 10, borderRadius: 12, border: '1px dashed var(--line-2)', background: 'var(--surface-2)' }}>
-            <span className="so-ctrl" style={{ flex: '1 1 240px' }}><input autoFocus placeholder="Nome do serviço (ex.: Drenagem)" value={novo.nome} onChange={e => setNovo({ ...novo, nome: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') criar(); if (e.key === 'Escape') setNovo(null); }} /></span>
-            <div className="so-seg">
-              <label className={novo.tipo === 'MANUTENCAO' ? 'on' : ''}><input type="radio" name="tipoNovo" checked={novo.tipo === 'MANUTENCAO'} onChange={() => setNovo({ ...novo, tipo: 'MANUTENCAO' })} /> Manutenção</label>
-              <label className={novo.tipo === 'CONSTRUCAO' ? 'on' : ''}><input type="radio" name="tipoNovo" checked={novo.tipo === 'CONSTRUCAO'} onChange={() => setNovo({ ...novo, tipo: 'CONSTRUCAO' })} /> Construção</label>
-            </div>
-            <button type="button" className="so-btn so-primary" onClick={criar}><Ic n="check" />Criar e abrir a ficha</button>
-            <button type="button" className="so-btn so-ghost" onClick={() => setNovo(null)}>Cancelar</button>
-          </div>
-        )}
         <div className="so-tw">
           <table className="so-table">
             <thead><tr><th scope="col">Serviço</th><th scope="col">Centro de custo</th><th scope="col" className="c">Contratos</th><th scope="col" className="c">Quem atende</th><th scope="col" className="c">Munícipe pede?</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
@@ -106,6 +95,27 @@ export function ServicosListaPage() {
           </table>
         </div>
       </Cartao>
+
+      {novo && (
+        <Janela icone="wrench" eyebrow="Serviços · novo" titulo="Novo serviço"
+          sub="Dê o nome e o tipo. Em seguida abre a ficha para escolher o centro de custo, os contratos e o que o fiscal preenche."
+          largura={520} onFechar={() => setNovo(null)} ajuda="Ajuda: Serviços"
+          rodape={<>
+            <button type="button" className="so-btn so-ghost" onClick={() => setNovo(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" onClick={criar}>Criar e abrir a ficha<Ic n="seta" className="arrow" /></button>
+          </>}>
+          <label className="so-field"><span className="so-lbl">Nome do serviço <span className="req">*</span></span>
+            <span className="so-ctrl"><input placeholder="Ex.: Drenagem" value={novo.nome} onChange={e => setNovo({ ...novo, nome: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') criar(); }} /></span>
+          </label>
+          <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0 }}>
+            <legend className="so-lbl" style={{ marginBottom: 6 }}>Tipo</legend>
+            <div className="so-seg">
+              <label className={novo.tipo === 'MANUTENCAO' ? 'on' : ''}><input type="radio" name="tipoNovo" checked={novo.tipo === 'MANUTENCAO'} onChange={() => setNovo({ ...novo, tipo: 'MANUTENCAO' })} /> Manutenção</label>
+              <label className={novo.tipo === 'CONSTRUCAO' ? 'on' : ''}><input type="radio" name="tipoNovo" checked={novo.tipo === 'CONSTRUCAO'} onChange={() => setNovo({ ...novo, tipo: 'CONSTRUCAO' })} /> Construção</label>
+            </div>
+          </fieldset>
+        </Janela>
+      )}
 
       <BarraAcoes esquerda={<><b>{ativos.length}</b> serviços{semCentro > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro} sem centro de custo</span></>}<Sep />passo 6 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Centros de custo</Link>

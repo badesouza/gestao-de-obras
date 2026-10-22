@@ -6,7 +6,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Ajuda, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 function iniciais(nome: string) {
@@ -34,7 +34,8 @@ export function EquipesPage() {
     try {
       const d = await equipesCampoApi.listar(entityId);
       setDados(d); setTotalUsuarios(d.lideres.length);
-      const alvo = d.equipes.find(e => e.id === (manter ?? selId)) ?? d.equipes.find(e => !e.lider) ?? d.equipes[0] ?? null;
+      /* a janela de edição só abre pelo botão Editar (ou logo depois de criar a equipe) */
+      const alvo = manter ? d.equipes.find(e => e.id === manter) ?? null : null;
       if (alvo) escolher(alvo);
       else setSelId(null);
     } catch (e) { showToast(msgErro(e, 'Não foi possível abrir as equipes'), 'error'); }
@@ -56,7 +57,7 @@ export function EquipesPage() {
     setSalvando(true);
     try {
       await equipesCampoApi.salvar(entityId, sel.id, { nome, liderUserId: lider || null, veiculoId: veiculo || null });
-      showToast('Equipe salva'); await carregar(sel.id); recarregar();
+      showToast('Equipe salva'); setSelId(null); await carregar(null); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
   }
@@ -98,18 +99,10 @@ export function EquipesPage() {
         <Link to="#" role="tab" aria-selected="true" className="so-tab on"><Ic n="hardhat" />Equipes <span className="n">{dados.equipes.length}</span>{semLider > 0 && <span className="w">{semLider} sem líder</span>}</Link>
       </nav>
 
-      <div className="so-split">
-        <Cartao className="grow so-rise" icone="hardhat" titulo="Equipes"
+      <Cartao className="so-rise" icone="hardhat" titulo="Equipes"
           meta={<><span className="mono">{dados.equipes.length}</span> equipes{semLider > 0 && <> · <span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semLider} sem líder</span></>}</>}
           direita={<button type="button" className="so-btn so-primary sm" onClick={() => setNova('')}><Ic n="plus" />Nova equipe</button>} ajuda="Ajuda: Equipes">
           <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>Cada equipe tem <strong style={{ color: 'var(--ink)' }}>um líder</strong> (usuário do sistema) e seus <strong style={{ color: 'var(--ink)' }}>membros</strong>, que não precisam de login.</p>
-          {nova !== null && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              <span className="so-ctrl" style={{ flex: '1 1 220px', maxWidth: 360 }}><input autoFocus placeholder="Nome da equipe (ex.: Iluminação 2)" value={nova} onChange={e => setNova(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') criar(); if (e.key === 'Escape') setNova(null); }} /></span>
-              <button type="button" className="so-btn so-primary" onClick={criar}><Ic n="check" />Criar</button>
-              <button type="button" className="so-btn so-ghost" onClick={() => setNova(null)}>Cancelar</button>
-            </div>
-          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 230px), 1fr))', gap: 10 }}>
             {dados.equipes.map(e => (
               <article key={e.id} className={`so-card${!e.lider ? ' warn' : ''}${e.id === selId ? ' so-panel' : ''}`} style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -135,54 +128,62 @@ export function EquipesPage() {
             ))}
             {!dados.equipes.length && <p style={{ color: 'var(--muted)', fontSize: 12.5 }}>Nenhuma equipe ainda. Crie a primeira no botão "Nova equipe".</p>}
           </div>
-        </Cartao>
+      </Cartao>
 
-        {sel && (
-          <section className="so-panel side" aria-label="Editar equipe" key={sel.id}>
-            <header className="so-chead">
-              <span className="so-cic"><Ic n="editar" /></span>
-              <h2>Editar equipe</h2>
-              <div className="right"><Ajuda texto="Ajuda: Editar equipe" /><button type="button" className="so-x" aria-label="Fechar" onClick={() => setSelId(null)}><Ic n="x" /></button></div>
-            </header>
-            <div className="so-cbody">
-              <label className="so-field"><span className="so-lbl">Nome da equipe <span className="req">*</span></span>
-                <span className="so-ctrl"><input type="text" value={nome} onChange={e => setNome(e.target.value)} /></span>
-              </label>
-              <label className="so-field"><span className="so-lbl">Líder <span className="opt">um fiscal ou coordenador</span></span>
-                <span className={`so-ctrl${!lider ? ' warn' : ''}`}><select value={lider} onChange={e => setLider(e.target.value)}><option value="">Escolha o líder…</option>{dados.lideres.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.perfil})</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
-              </label>
+      {nova !== null && (
+        <Janela icone="hardhat" eyebrow="Pessoas · equipes" titulo="Nova equipe"
+          sub="Dê um nome. Em seguida você escolhe o líder, os membros e o veículo."
+          largura={480} onFechar={() => setNova(null)} ajuda="Ajuda: Equipes"
+          rodape={<>
+            <button type="button" className="so-btn so-ghost" onClick={() => setNova(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" onClick={criar}>Criar e continuar<Ic n="seta" className="arrow" /></button>
+          </>}>
+          <label className="so-field"><span className="so-lbl">Nome da equipe <span className="req">*</span></span>
+            <span className="so-ctrl"><input type="text" placeholder="Ex.: Iluminação 2" value={nova} onChange={e => setNova(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') criar(); }} /></span>
+          </label>
+        </Janela>
+      )}
 
-              <div className="so-field" style={{ gap: 6 }}>
-                <span className="so-lbl">Membros <span className="opt">não entram no sistema</span></span>
-                {sel.membros.map(m => (
-                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 6px 6px 8px', border: '1px solid var(--line)', borderRadius: 11, background: 'var(--surface-2)' }}>
-                    <span className="so-person plain" style={{ border: 0, background: 'transparent', padding: 0, height: 'auto' }}><span className="av" style={{ width: 26, height: 26 }}>{iniciais(m.nome)}</span></span>
-                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>{m.nome}</div>{m.funcao && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{m.funcao}</div>}</div>
-                    <button type="button" className="so-x" aria-label={`Tirar ${m.nome} da equipe`} style={{ width: 26, height: 26 }} onClick={() => tirarMembro(m.id)}><Ic n="x" /></button>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  <span className="so-ctrl" style={{ flex: '1 1 110px' }}><input type="text" placeholder="Nome" aria-label="Nome do novo membro" value={mNome} onChange={e => setMNome(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMembro(); }} /></span>
-                  <span className="so-ctrl" style={{ flex: '1 1 90px' }}><input type="text" placeholder="Função" aria-label="Função do novo membro" value={mFuncao} onChange={e => setMFuncao(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMembro(); }} /></span>
-                  <button type="button" className="so-btn so-dashed" onClick={addMembro}><Ic n="plus" />Adicionar</button>
-                </div>
-                <p className="so-help">Na baixa da OS, o fiscal marca quem da equipe trabalhou.</p>
+      {sel && (
+        <Janela key={sel.id} icone="editar" eyebrow="Pessoas · equipes" titulo={`Editar ${sel.nome}`}
+          sub="Líder, membros e o veículo que a equipe usa."
+          largura={640} onFechar={() => setSelId(null)} ajuda="Ajuda: Editar equipe"
+          rodape={<>
+            <button type="button" className="so-btn so-danger esq" onClick={removerEquipe}>Remover</button>
+            <button type="button" className="so-btn so-ghost" onClick={() => setSelId(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar equipe</button>
+          </>}>
+          <div className="so-row2">
+            <label className="so-field"><span className="so-lbl">Nome da equipe <span className="req">*</span></span>
+              <span className="so-ctrl"><input type="text" value={nome} onChange={e => setNome(e.target.value)} /></span>
+            </label>
+            <label className="so-field"><span className="so-lbl">Líder <span className="opt">um fiscal ou coordenador</span></span>
+              <span className={`so-ctrl${!lider ? ' warn' : ''}`}><select value={lider} onChange={e => setLider(e.target.value)}><option value="">Escolha o líder…</option>{dados.lideres.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.perfil})</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+            </label>
+          </div>
+
+          <div className="so-field" style={{ gap: 6 }}>
+            <span className="so-lbl">Membros <span className="opt">não entram no sistema</span></span>
+            {sel.membros.map(m => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 6px 6px 8px', border: '1px solid var(--line)', borderRadius: 11, background: 'var(--surface-2)' }}>
+                <span className="so-person plain" style={{ border: 0, background: 'transparent', padding: 0, height: 'auto' }}><span className="av" style={{ width: 26, height: 26 }}>{iniciais(m.nome)}</span></span>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>{m.nome}</div>{m.funcao && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{m.funcao}</div>}</div>
+                <button type="button" className="so-x" aria-label={`Tirar ${m.nome} da equipe`} style={{ width: 26, height: 26 }} onClick={() => tirarMembro(m.id)}><Ic n="x" /></button>
               </div>
-
-              <label className="so-field"><span className="so-lbl">Veículo da equipe <span className="opt">opcional · vem do passo 4</span></span>
-                <span className="so-ctrl"><select value={veiculo} onChange={e => setVeiculo(e.target.value)}><option value="">Nenhum</option>{dados.veiculos.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
-              </label>
-
-              <div className="so-pfoot">
-                <button type="button" className="so-btn so-danger" style={{ marginRight: 'auto' }} onClick={removerEquipe}>Remover</button>
-                <button type="button" className="so-btn so-ghost" onClick={() => escolher(sel)}>Cancelar</button>
-                <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar equipe</button>
-              </div>
+            ))}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <span className="so-ctrl" style={{ flex: '1 1 110px' }}><input type="text" placeholder="Nome" aria-label="Nome do novo membro" value={mNome} onChange={e => setMNome(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMembro(); }} /></span>
+              <span className="so-ctrl" style={{ flex: '1 1 90px' }}><input type="text" placeholder="Função" aria-label="Função do novo membro" value={mFuncao} onChange={e => setMFuncao(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addMembro(); }} /></span>
+              <button type="button" className="so-btn so-dashed" onClick={addMembro}><Ic n="plus" />Adicionar</button>
             </div>
-          </section>
-        )}
-      </div>
+            <p className="so-help">Na baixa da OS, o fiscal marca quem da equipe trabalhou.</p>
+          </div>
 
+          <label className="so-field"><span className="so-lbl">Veículo da equipe <span className="opt">opcional · vem do passo 4</span></span>
+            <span className="so-ctrl"><select value={veiculo} onChange={e => setVeiculo(e.target.value)}><option value="">Nenhum</option>{dados.veiculos.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+          </label>
+        </Janela>
+      )}
       <BarraAcoes esquerda={<><b>{dados.equipes.length}</b> equipes{semLider > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semLider} sem líder</span></>}<Sep />passo 3 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Usuários</Link>
         <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-primary">Continuar: Veículos e equipamentos<Ic n="seta" className="arrow" /></Link>

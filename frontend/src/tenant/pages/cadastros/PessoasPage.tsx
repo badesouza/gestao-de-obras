@@ -8,7 +8,7 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import { LinkGeradoDialog } from '../../components/sisobras/LinkGeradoDialog';
 import {
-  Ajuda, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const SITUACAO: Record<SituacaoPessoa, { texto: string; tom: string; link: string }> = {
@@ -41,7 +41,7 @@ export function PessoasPage() {
   const [params, setParams] = useSearchParams();
   const [dados, setDados] = useState<ListaPessoas | null>(null);
   const [filtro, setFiltro] = useState('todos');
-  const [editando, setEditando] = useState<Pessoa | null | 'novo'>('novo');
+  const [editando, setEditando] = useState<Pessoa | null | 'novo'>(null);
   const [form, setForm] = useState<Form>(VAZIO);
   const [erros, setErros] = useState<Record<string, boolean>>({});
   const [salvando, setSalvando] = useState(false);
@@ -68,12 +68,13 @@ export function PessoasPage() {
     (filtro === 'todos' || u.perfil.code === filtro) &&
     (!busca.trim() || `${u.nome} ${u.email}`.toLowerCase().includes(busca.trim().toLowerCase())));
   const modelo = dados.modelos.find(m => m.code === form.modelo);
-  const pessoaEditada = editando !== 'novo' ? editando : null;
+  const pessoaEditada = editando && editando !== 'novo' ? editando : null;
 
-  function abrirNovo() {
-    setEditando('novo'); setForm(VAZIO); setErros({});
+  function fechar() {
+    setEditando(null); setErros({});
     if (params.get('editar')) { params.delete('editar'); setParams(params, { replace: true }); }
   }
+  function abrirNovo() { fechar(); setEditando('novo'); setForm(VAZIO); }
   function abrir(p: Pessoa) {
     setEditando(p); setForm(paraForm(p)); setErros({});
     setParams({ editar: p.id }, { replace: true });
@@ -101,6 +102,7 @@ export function PessoasPage() {
         setLink({ dados: r, novo: true });
         setForm(VAZIO);
       }
+      fechar();
       await carregar(); recarregar();
     } catch (err) { showToast(msgErro(err), 'error'); }
     finally { setSalvando(false); }
@@ -117,7 +119,7 @@ export function PessoasPage() {
     try {
       await pessoasApi.situacao(entityId, p.id, ativar);
       showToast(ativar ? 'Pessoa ativada' : 'Pessoa desativada');
-      await carregar(); recarregar(); abrirNovo();
+      await carregar(); recarregar(); fechar();
     } catch (err) { showToast(msgErro(err), 'error'); }
   }
 
@@ -132,8 +134,7 @@ export function PessoasPage() {
         <Link to={rotaTenant(entityId, 'cadastros/equipes')} role="tab" aria-selected="false" className="so-tab"><Ic n="hardhat" />Equipes <span className="n">{dados.equipes.length}</span>{avisoEquipes && <span className="w">{avisoEquipes.replace(/ equipes?/, '')}</span>}</Link>
       </nav>
 
-      <div className="so-split">
-        <Cartao className="grow so-rise" icone="users" titulo="Usuários" meta={<><span className="mono">{dados.usuarios.filter(u => u.situacao !== 'INATIVO').length}</span> ativos</>} ajuda="Ajuda: Usuários">
+      <Cartao className="so-rise" icone="users" titulo="Usuários" meta={<><span className="mono">{dados.usuarios.filter(u => u.situacao !== 'INATIVO').length}</span> ativos</>} ajuda="Ajuda: Usuários">
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <label className="so-ctrl" style={{ flex: '1 1 200px' }}><Ic n="search" /><input type="search" placeholder="Buscar por nome ou e-mail" aria-label="Buscar usuário" value={busca} onChange={e => setBusca(e.target.value)} /></label>
             <button type="button" className="so-btn so-primary" onClick={abrirNovo}><Ic n="plus" />Novo usuário</button>
@@ -164,95 +165,95 @@ export function PessoasPage() {
               </tbody>
             </table>
           </div>
-        </Cartao>
+      </Cartao>
 
-        <section className="so-panel side" aria-label={tituloPainel} key={pessoaEditada?.id ?? 'novo'}>
-          <header className="so-chead">
-            <span className="so-cic"><Ic n={pessoaEditada ? 'editar' : 'userPlus'} /></span>
-            <h2>{tituloPainel}</h2>
-            <div className="right"><Ajuda texto={`Ajuda: ${tituloPainel}`} />{pessoaEditada && <button type="button" className="so-x" aria-label="Fechar" onClick={abrirNovo}><Ic n="x" /></button>}</div>
-          </header>
-          <div className="so-cbody">
+      {editando && (
+        <Janela key={pessoaEditada?.id ?? 'novo'} icone={pessoaEditada ? 'editar' : 'userPlus'}
+          eyebrow={pessoaEditada ? `Pessoas · ${pessoaEditada.email}` : 'Pessoas · usuários'}
+          titulo={pessoaEditada ? `Editar ${pessoaEditada.nome}` : tituloPainel}
+          sub={pessoaEditada ? 'Dados, modelo de acesso, equipe e serviços que a pessoa atende.' : 'Quem entra no sistema. Ao cadastrar, sai um link para a pessoa criar a própria senha.'}
+          largura={760} onFechar={fechar} ajuda={`Ajuda: ${tituloPainel}`}
+          rodape={<>
+            {pessoaEditada && pessoaEditada.id !== session.id && (
+              <button type="button" className="so-btn so-danger esq" onClick={() => alternarSituacao(pessoaEditada)}>
+                {pessoaEditada.situacao === 'INATIVO' ? 'Ativar' : 'Desativar'}
+              </button>
+            )}
+            <button type="button" className="so-btn so-ghost" onClick={fechar}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}>
+              {pessoaEditada ? <><Ic n="check" />Salvar</> : <>Cadastrar e gerar link<Ic n="seta" className="arrow" /></>}
+            </button>
+          </>}>
+          <div className="so-row2">
             <label className="so-field"><span className="so-lbl">Nome completo <span className="req">*</span></span>
               <span className={`so-ctrl${erros.nome ? ' invalid' : ''}`}><input type="text" value={form.nome} onChange={e => set('nome', e.target.value)} /></span>
             </label>
             <label className="so-field"><span className="so-lbl">E-mail <span className="req">*</span> <span className="opt">é o login</span></span>
               <span className={`so-ctrl${erros.email ? ' invalid' : ''}`}><input type="email" value={form.email} onChange={e => set('email', e.target.value)} /></span>
             </label>
+          </div>
+          <div className="so-row2">
             <label className="so-field"><span className="so-lbl">Celular (WhatsApp)</span>
               <span className="so-ctrl mono"><input type="tel" placeholder="(75) 90000-0000" value={form.celular} onChange={e => set('celular', formatPhone(e.target.value))} /></span>
             </label>
-
-            <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0 }}>
-              <legend className="so-lbl" style={{ marginBottom: 6 }}>Modelo de acesso <span className="opt">marca as caixas; você ajusta na aba Acessos</span></legend>
-              <div className="so-opts">
-                {dados.modelos.filter(m => m.existe).map(m => (
-                  <label key={m.code} className={`so-opt${form.modelo === m.code ? ' on' : ''}`}>
-                    <input type="radio" name="modelo" checked={form.modelo === m.code} onChange={() => set('modelo', m.code)} />
-                    <span className="mt"><Ic n="shieldCheck" /></span>
-                    <span className="tx"><b>{m.nome}</b><small>{m.descricao}</small></span>
-                    <span className="mc"><Ic n="check" /></span>
-                  </label>
-                ))}
-              </div>
-              {pessoaEditada ? (
-                <Link to={rotaTenant(entityId, `cadastros/pessoas/${pessoaEditada.id}/acessos`)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, fontWeight: 800, textDecoration: 'none' }}>
-                  Ver e ajustar os acessos <span className="so-cnt part">{pessoaEditada.marcados} de {pessoaEditada.total} marcados</span><Ic n="seta" style={{ width: 14, height: 14 }} />
-                </Link>
-              ) : (
-                <span className="so-help" style={{ marginTop: 6 }}>O modelo {modelo?.nome} marca {modelo?.marcados ?? 0} de {dados.totalCaixas} caixas. Depois de cadastrar, você ajusta uma por uma na aba Acessos.</span>
-              )}
-              {pessoaEditada && form.modelo !== pessoaEditada.perfil.code && <span className="so-help" style={{ color: 'var(--amber)', fontWeight: 700 }}>Trocar o modelo marca de novo as caixas dele ao salvar.</span>}
-            </fieldset>
-
             <label className="so-field"><span className="so-lbl">Equipe <span className="opt">opcional</span></span>
               <span className="so-ctrl"><select value={form.equipeId} onChange={e => set('equipeId', e.target.value)}><option value="">Nenhuma</option>{dados.equipes.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
             </label>
-            {form.equipeId && (
-              <label className={`so-ckrow${form.lider ? ' on' : ''}`} style={{ marginTop: -4 }}><input type="checkbox" className="so-ck" checked={form.lider} onChange={e => set('lider', e.target.checked)} /> É o líder desta equipe</label>
-            )}
-
-            <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 8 }}>
-              <legend className="so-lbl" style={{ marginBottom: 6 }}>Serviços que atende</legend>
-              <div className="so-seg">
-                <label className={form.todos ? 'on' : ''}><input type="radio" name="atende" checked={form.todos} onChange={() => set('todos', true)} /> Todos</label>
-                <label className={!form.todos ? 'on' : ''}><input type="radio" name="atende" checked={!form.todos} onChange={() => set('todos', false)} /> Só estes</label>
-              </div>
-              {!form.todos && (
-                <div className="so-tags">
-                  {dados.servicos.map(s => {
-                    const on = form.servicoIds.includes(s.id);
-                    return (
-                      <button key={s.id} type="button" className={`so-tag btn${on ? ' on' : ''}`} aria-pressed={on}
-                        onClick={() => set('servicoIds', on ? form.servicoIds.filter(x => x !== s.id) : [...form.servicoIds, s.id])}>
-                        {on && <Ic n="check" />}{s.nome}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <p className="so-help">{form.todos ? 'Vê e abre OS de todos os serviços.' : 'Só vê e abre OS desses serviços.'}</p>
-            </fieldset>
-
-            {!pessoaEditada && (
-              <Aviso icone="link">Não tem campo de senha: ao cadastrar, o sistema gera um <strong>link</strong> para a pessoa criar a própria senha. Você envia por WhatsApp ou e-mail.</Aviso>
-            )}
-
-            <div className="so-pfoot">
-              {pessoaEditada && pessoaEditada.id !== session.id && (
-                <button type="button" className="so-btn so-danger" style={{ marginRight: 'auto' }} onClick={() => alternarSituacao(pessoaEditada)}>
-                  {pessoaEditada.situacao === 'INATIVO' ? 'Ativar' : 'Desativar'}
-                </button>
-              )}
-              <button type="button" className="so-btn so-ghost" onClick={abrirNovo}>Cancelar</button>
-              <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}>
-                {pessoaEditada ? <><Ic n="check" />Salvar</> : <>Cadastrar e gerar link<Ic n="seta" className="arrow" /></>}
-              </button>
-            </div>
           </div>
-        </section>
-      </div>
+          {form.equipeId && (
+            <label className={`so-ckrow${form.lider ? ' on' : ''}`} style={{ marginTop: -4 }}><input type="checkbox" className="so-ck" checked={form.lider} onChange={e => set('lider', e.target.checked)} /> É o líder desta equipe</label>
+          )}
 
+          <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0 }}>
+            <legend className="so-lbl" style={{ marginBottom: 6 }}>Modelo de acesso <span className="opt">marca as caixas; você ajusta na aba Acessos</span></legend>
+            <div className="so-opts c2">
+              {dados.modelos.filter(m => m.existe).map(m => (
+                <label key={m.code} className={`so-opt${form.modelo === m.code ? ' on' : ''}`}>
+                  <input type="radio" name="modelo" checked={form.modelo === m.code} onChange={() => set('modelo', m.code)} />
+                  <span className="mt"><Ic n="shieldCheck" /></span>
+                  <span className="tx"><b>{m.nome}</b><small>{m.descricao}</small></span>
+                  <span className="mc"><Ic n="check" /></span>
+                </label>
+              ))}
+            </div>
+            {pessoaEditada ? (
+              <Link to={rotaTenant(entityId, `cadastros/pessoas/${pessoaEditada.id}/acessos`)} style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, fontWeight: 800, textDecoration: 'none' }}>
+                Ver e ajustar os acessos <span className="so-cnt part">{pessoaEditada.marcados} de {pessoaEditada.total} marcados</span><Ic n="seta" style={{ width: 14, height: 14 }} />
+              </Link>
+            ) : (
+              <span className="so-help" style={{ marginTop: 6 }}>O modelo {modelo?.nome} marca {modelo?.marcados ?? 0} de {dados.totalCaixas} caixas. Depois de cadastrar, você ajusta uma por uma na aba Acessos.</span>
+            )}
+            {pessoaEditada && form.modelo !== pessoaEditada.perfil.code && <span className="so-help" style={{ color: 'var(--amber)', fontWeight: 700 }}>Trocar o modelo marca de novo as caixas dele ao salvar.</span>}
+          </fieldset>
+
+
+          <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 8 }}>
+            <legend className="so-lbl" style={{ marginBottom: 6 }}>Serviços que atende</legend>
+            <div className="so-seg">
+              <label className={form.todos ? 'on' : ''}><input type="radio" name="atende" checked={form.todos} onChange={() => set('todos', true)} /> Todos</label>
+              <label className={!form.todos ? 'on' : ''}><input type="radio" name="atende" checked={!form.todos} onChange={() => set('todos', false)} /> Só estes</label>
+            </div>
+            {!form.todos && (
+              <div className="so-tags">
+                {dados.servicos.map(s => {
+                  const on = form.servicoIds.includes(s.id);
+                  return (
+                    <button key={s.id} type="button" className={`so-tag btn${on ? ' on' : ''}`} aria-pressed={on}
+                      onClick={() => set('servicoIds', on ? form.servicoIds.filter(x => x !== s.id) : [...form.servicoIds, s.id])}>
+                      {on && <Ic n="check" />}{s.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p className="so-help">{form.todos ? 'Vê e abre OS de todos os serviços.' : 'Só vê e abre OS desses serviços.'}</p>
+          </fieldset>
+
+          {!pessoaEditada && (
+            <Aviso icone="link">Não tem campo de senha: ao cadastrar, o sistema gera um <strong>link</strong> para a pessoa criar a própria senha. Você envia por WhatsApp ou e-mail.</Aviso>
+          )}
+        </Janela>
+      )}
       <BarraAcoes esquerda={<><b>{dados.usuarios.length}</b> usuários<Sep /><b>{dados.equipes.length}</b> equipes<Sep />passo 3 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/lugares')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Lugares</Link>
         <Link to={rotaTenant(entityId, 'cadastros/equipes')} className="so-btn so-primary">Continuar: Equipes<Ic n="seta" className="arrow" /></Link>

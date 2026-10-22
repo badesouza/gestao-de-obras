@@ -7,7 +7,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Ajuda, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const CENTRO_PADRAO: [number, number] = [-12.5253, -40.3083];
@@ -59,7 +59,7 @@ export function LugaresPage() {
   const [bairros, setBairros] = useState<BairroLugar[]>([]);
   const [filtro, setFiltro] = useState<string>('todas');
   const [busca, setBusca] = useState('');
-  const [painel, setPainel] = useState<Painel>({ modo: 'novo' });
+  const [painel, setPainel] = useState<Painel>(null);
   const [novaMacro, setNovaMacro] = useState<string | null>(null);
 
   // campos do painel
@@ -112,7 +112,7 @@ export function LugaresPage() {
       else await cadastrosBaseApi.criarBairro(entityId, dados);
       showToast(painel?.modo === 'editar' ? 'Bairro salvo' : 'Bairro cadastrado');
       await carregar(); recarregar();
-      abrir({ modo: 'novo' });
+      setPainel(null);
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
   }
@@ -122,7 +122,7 @@ export function LugaresPage() {
     try {
       const r = await cadastrosBaseApi.removerBairro(entityId, b.id);
       showToast(r.desativado ? 'O bairro tem OS: ficou inativo e o histórico continua' : 'Bairro removido', r.desativado ? 'warning' : 'success');
-      await carregar(); recarregar(); abrir({ modo: 'novo' });
+      await carregar(); recarregar(); setPainel(null);
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
 
@@ -132,7 +132,7 @@ export function LugaresPage() {
     try {
       const r = await cadastrosBaseApi.colarBairros(entityId, lista, macroId || null);
       showToast(`${r.criados} bairro(s) cadastrado(s)${r.repetidos.length ? ` · ${r.repetidos.length} já existiam` : ''}`);
-      await carregar(); recarregar(); abrir({ modo: 'novo' });
+      await carregar(); recarregar(); setPainel(null);
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
   }
@@ -160,17 +160,9 @@ export function LugaresPage() {
           ))}
           {semMacro > 0 && <button type="button" className={`so-chip alert${filtro === 'sem' ? ' on' : ''}`} onClick={() => setFiltro('sem')}>Sem macrozona <span className="n">{semMacro}</span></button>}
         </div>
-        {novaMacro !== null && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <span className="so-ctrl" style={{ flex: '1 1 220px', maxWidth: 360 }}><input autoFocus placeholder="Nome da macrozona (ex.: Norte)" value={novaMacro} onChange={e => setNovaMacro(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') criarMacro(); if (e.key === 'Escape') setNovaMacro(null); }} /></span>
-            <button type="button" className="so-btn so-primary" onClick={criarMacro}><Ic n="check" />Criar</button>
-            <button type="button" className="so-btn so-ghost" onClick={() => setNovaMacro(null)}>Cancelar</button>
-          </div>
-        )}
       </Cartao>
 
-      <div className="so-split">
-        <Cartao className="grow so-rise d1" icone="pin" titulo="Bairros" meta={<><span className="mono">{bairros.length}</span> no total</>} ajuda="Ajuda: Bairros">
+      <Cartao className="so-rise d1" icone="pin" titulo="Bairros" meta={<><span className="mono">{bairros.length}</span> no total</>} ajuda="Ajuda: Bairros">
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <label className="so-ctrl" style={{ flex: '1 1 220px' }}><Ic n="search" /><input type="search" placeholder="Buscar bairro" aria-label="Buscar bairro" value={busca} onChange={e => setBusca(e.target.value)} /></label>
             <button type="button" className="so-btn so-ghost" onClick={() => abrir({ modo: 'colar' })}>Colar lista</button>
@@ -201,59 +193,69 @@ export function LugaresPage() {
             </table>
           </div>
           <Aviso tom="plain">Bairro que já tem OS não é apagado: fica inativo e some das listas novas, mas o histórico continua.</Aviso>
-        </Cartao>
+      </Cartao>
 
-        {painel && (
-          <section className="so-panel side" aria-label={tituloPainel} key={painel.modo === 'editar' ? painel.bairro.id : painel.modo}>
-            <header className="so-chead">
-              <span className="so-cic"><Ic n={painel.modo === 'editar' ? 'editar' : painel.modo === 'colar' ? 'list' : 'plus'} /></span>
-              <h2>{tituloPainel}</h2>
-              <div className="right"><Ajuda texto={`Ajuda: ${tituloPainel}`} /><button type="button" className="so-x" aria-label="Fechar" onClick={() => setPainel(null)}><Ic n="x" /></button></div>
-            </header>
-            <div className="so-cbody">
-              {painel.modo === 'colar' ? (
-                <>
-                  <label className="so-field"><span className="so-lbl">Bairros <span className="opt">um por linha</span></span>
-                    <textarea value={lista} onChange={e => setLista(e.target.value)} rows={9} placeholder={'Centro\nSão João\nBarro Vermelho'}
-                      style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 10, padding: '9px 11px', font: '600 13px var(--font-ui)', color: 'var(--ink)', resize: 'vertical', outline: 'none' }} />
-                  </label>
-                  <label className="so-field"><span className="so-lbl">Macrozona de todos</span>
-                    <span className="so-ctrl"><select value={macroId} onChange={e => setMacroId(e.target.value)}><option value="">Escolher depois</option>{macros.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
-                  </label>
-                  <div className="so-pfoot">
-                    <button type="button" className="so-btn so-ghost" onClick={() => abrir({ modo: 'novo' })}>Cancelar</button>
-                    <button type="button" className="so-btn so-primary" disabled={salvando} onClick={colar}><Ic n="check" />Cadastrar todos</button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <label className="so-field"><span className="so-lbl">Nome do bairro <span className="req">*</span></span>
-                    <span className={`so-ctrl${erroNome ? ' invalid' : ''}`}><input type="text" value={nome} onChange={e => { setNome(e.target.value); if (e.target.value.trim()) setErroNome(false); }} /></span>
-                  </label>
-                  <label className="so-field"><span className="so-lbl">Macrozona <span className="req">*</span></span>
-                    <span className="so-ctrl"><select value={macroId} onChange={e => setMacroId(e.target.value)}><option value="" disabled>Escolha…</option>{macros.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
-                    {macros.length === 0 && <span className="so-help">Crie uma macrozona primeiro (botão "Nova macrozona").</span>}
-                  </label>
-                  <div className="so-field">
-                    <span className="so-lbl">Ponto no mapa <span className="opt">opcional</span></span>
-                    <MapaPonto ponto={ponto} onPonto={setPonto} centro={centroMapa} />
-                    <p className="so-help">
-                      Clique no mapa no meio do bairro. Serve para o painel mostrar onde estão as OS.
-                      {ponto && <> <span className="mono" style={{ color: 'var(--brand-ink)' }}>{ponto[0].toFixed(4)} · {ponto[1].toFixed(4)}</span> · <a href="#" onClick={e => { e.preventDefault(); setPonto(null); }}>tirar o ponto</a></>}
-                    </p>
-                  </div>
-                  <div className="so-pfoot">
-                    {painel.modo === 'editar' && <button type="button" className="so-btn so-danger" style={{ marginRight: 'auto' }} onClick={() => removerBairro(painel.bairro)}>Remover</button>}
-                    <button type="button" className="so-btn so-ghost" onClick={() => painel.modo === 'editar' ? abrir({ modo: 'novo' }) : setPainel(null)}>Cancelar</button>
-                    <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvarBairro}><Ic n="check" />Salvar bairro</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-        )}
-      </div>
+      {novaMacro !== null && (
+        <Janela icone="map" eyebrow="Lugares · macrozona" titulo="Nova macrozona" sub="Uma região da cidade que agrupa bairros. Ex.: Norte, Sede, Zona rural."
+          largura={460} onFechar={() => setNovaMacro(null)} ajuda="Ajuda: Macrozonas"
+          rodape={<>
+            <button type="button" className="so-btn so-ghost" onClick={() => setNovaMacro(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" onClick={criarMacro}><Ic n="check" />Criar macrozona</button>
+          </>}>
+          <label className="so-field"><span className="so-lbl">Nome da macrozona <span className="req">*</span></span>
+            <span className="so-ctrl"><input type="text" placeholder="Ex.: Norte" value={novaMacro} onChange={e => setNovaMacro(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') criarMacro(); }} /></span>
+          </label>
+        </Janela>
+      )}
 
+      {painel && (
+        <Janela key={painel.modo === 'editar' ? painel.bairro.id : painel.modo}
+          icone={painel.modo === 'editar' ? 'editar' : painel.modo === 'colar' ? 'list' : 'pin'}
+          eyebrow={painel.modo === 'editar' ? `Lugares · ${painel.bairro.macrozona ?? 'sem macrozona'}` : 'Lugares · bairros'}
+          titulo={painel.modo === 'editar' ? `Editar ${painel.bairro.nome}` : tituloPainel}
+          sub={painel.modo === 'colar' ? 'Cole um bairro por linha. Os que já existem são pulados.' : 'O bairro aparece ao abrir uma OS, nos filtros do painel e na página do munícipe.'}
+          largura={painel.modo === 'colar' ? 520 : 620} onFechar={() => setPainel(null)} ajuda={`Ajuda: ${tituloPainel}`}
+          rodape={painel.modo === 'colar' ? <>
+            <button type="button" className="so-btn so-ghost" onClick={() => setPainel(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" disabled={salvando} onClick={colar}><Ic n="check" />Cadastrar todos</button>
+          </> : <>
+            {painel.modo === 'editar' && <button type="button" className="so-btn so-danger esq" onClick={() => removerBairro(painel.bairro)}>Remover</button>}
+            <button type="button" className="so-btn so-ghost" onClick={() => setPainel(null)}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvarBairro}><Ic n="check" />Salvar bairro</button>
+          </>}>
+          {painel.modo === 'colar' ? (
+            <>
+              <label className="so-field"><span className="so-lbl">Bairros <span className="opt">um por linha</span></span>
+                <textarea value={lista} onChange={e => setLista(e.target.value)} rows={9} placeholder={'Centro\nSão João\nBarro Vermelho'}
+                  style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 10, padding: '9px 11px', font: '600 13px var(--font-ui)', color: 'var(--ink)', resize: 'vertical', outline: 'none' }} />
+              </label>
+              <label className="so-field"><span className="so-lbl">Macrozona de todos</span>
+                <span className="so-ctrl"><select value={macroId} onChange={e => setMacroId(e.target.value)}><option value="">Escolher depois</option>{macros.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+              </label>
+            </>
+          ) : (
+            <>
+              <div className="so-row2">
+                <label className="so-field"><span className="so-lbl">Nome do bairro <span className="req">*</span></span>
+                  <span className={`so-ctrl${erroNome ? ' invalid' : ''}`}><input type="text" value={nome} onChange={e => { setNome(e.target.value); if (e.target.value.trim()) setErroNome(false); }} onKeyDown={e => { if (e.key === 'Enter') salvarBairro(); }} /></span>
+                </label>
+                <label className="so-field"><span className="so-lbl">Macrozona <span className="req">*</span></span>
+                  <span className="so-ctrl"><select value={macroId} onChange={e => setMacroId(e.target.value)}><option value="" disabled>Escolha…</option>{macros.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+                  {macros.length === 0 && <span className="so-help">Crie uma macrozona primeiro (botão "Nova macrozona").</span>}
+                </label>
+              </div>
+              <div className="so-field">
+                <span className="so-lbl">Ponto no mapa <span className="opt">opcional</span></span>
+                <MapaPonto ponto={ponto} onPonto={setPonto} centro={centroMapa} />
+                <p className="so-help">
+                  Clique no mapa no meio do bairro. Serve para o painel mostrar onde estão as OS.
+                  {ponto && <> <span className="mono" style={{ color: 'var(--brand-ink)' }}>{ponto[0].toFixed(4)} · {ponto[1].toFixed(4)}</span> · <a href="#" onClick={e => { e.preventDefault(); setPonto(null); }}>tirar o ponto</a></>}
+                </p>
+              </div>
+            </>
+          )}
+        </Janela>
+      )}
       <BarraAcoes esquerda={<><b>{macros.length}</b> macrozonas<Sep /><b>{bairros.length}</b> bairros{semPonto > 0 && <><Sep />{semPonto} sem ponto no mapa</>}<Sep />passo 2 de 6</>}>
         <Link to={rotaTenant(entityId, 'cadastros/orgao')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Órgão</Link>
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-primary">Continuar: Pessoas<Ic n="seta" className="arrow" /></Link>

@@ -5,7 +5,7 @@ import type { ConfigFluxo, DadosFluxo, OrigemOS, PassoFluxo, PessoaFluxo } from 
 import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
-import { Ajuda, BarraAcoes, Cabecalho, Carregando, Ic, Pagina, Placar, Selo, Sep, msgErro, rotaTenant } from '../../components/sisobras/so';
+import { Ajuda, BarraAcoes, Cabecalho, Carregando, Ic, Janela, Pagina, Placar, Selo, Sep, msgErro, rotaTenant } from '../../components/sisobras/so';
 
 /** Caixas de cada passo (as mesmas da tela Acessos) */
 const CHAVES: Record<PassoFluxo, string[]> = {
@@ -168,64 +168,60 @@ export function FluxoAprovacoesPage() {
           <div className="so-trail" aria-label="Etapas">
             {etapas.map((t, i) => <span key={t.nome} className="st"><i>{String(i + 1).padStart(2, '0')}</i><span>{t.nome}</span></span>)}
           </div>
-          <div className="so-split">
-            <div className="grow" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {passos.map(d => {
-                const on = ligado(d);
-                const sem = semNinguem(d);
-                const destaque = !!janelaAqui && !!d.passo && janelaAqui.passo === d.passo;
-                return (
-                  <article key={d.n} className={`so-card${sem ? ' warn' : destaque ? ' so-panel' : ''}`} style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 }}>
-                      <span className="so-cic n">{d.n}</span>
-                      <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                        <h3 style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', margin: 0 }}>{d.nome}</h3>
-                        <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.45 }}>{d.desc}</p>
-                      </div>
-                      {d.liga
-                        ? <label className={`so-toggle${on ? ' on' : ''}`}><input type="checkbox" role="switch" className="so-switch" checked={on} disabled={!podeEditar} onChange={() => setCfg({ ...cfg!, [d.liga!]: !on })} /> {on ? 'Ligado' : 'Desligado'}</label>
-                        : <span className="so-badge">Sempre ligado</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {passos.map(d => {
+              const on = ligado(d);
+              const sem = semNinguem(d);
+              const destaque = !!janelaAqui && !!d.passo && janelaAqui.passo === d.passo;
+              return (
+                <article key={d.n} className={`so-card${sem ? ' warn' : destaque ? ' so-panel' : ''}`} style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 }}>
+                    <span className="so-cic n">{d.n}</span>
+                    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', margin: 0 }}>{d.nome}</h3>
+                      <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.45 }}>{d.desc}</p>
                     </div>
-                    {d.passo && (
-                      <div className="so-people so-recuo">
-                        <span className="so-k">Quem faz</span>
-                        {membros![d.passo].map(id => {
-                          const p = porId.get(id);
-                          if (!p) return null;
-                          return (
-                            <span key={id} className="so-person"><span className="av">{iniciais(p.nome)}</span><span><b>{p.nome}</b> · {atendeTxt(p)}</span>
-                              {podeEditar && <button type="button" className="rm" aria-label={`Desvincular ${p.nome}`} onClick={() => desvincular(d.passo!, id)}><Ic n="x" /></button>}
-                            </span>
-                          );
-                        })}
-                        {podeEditar && <button type="button" className="so-btn so-dashed sm" style={{ borderRadius: 999 }} onClick={() => setJanela({ passo: d.passo!, sel: [...membros![d.passo!]], busca: '' })}><Ic n="plus" />Vincular login</button>}
-                      </div>
-                    )}
-                    {d.info && (
-                      <div className="so-note plain so-recuo-m"><Ic n="info" /><span>Quem faz: os fiscais e equipes de cada serviço ({dados!.qtdBaixa} {dados!.qtdBaixa === 1 ? 'pessoa' : 'pessoas'}), conforme os serviços que cada um atende. <Link to={rotaTenant(entityId, 'cadastros/pessoas')} style={{ fontWeight: 800 }}>ver em Pessoas</Link></span></div>
-                    )}
-                    {sem && (
-                      <div className="so-warnline so-recuo-m"><Ic n="alerta" />Ninguém vinculado. O que chegar neste passo vai ficar parado{dados!.admins > 0 ? ' (só o administrador geral consegue fazer)' : ''}.</div>
-                    )}
-                    {d.opcoes && on && (
-                      <div className="so-recuo o" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {d.opcoes.map(o => {
-                          const marcado = opcaoLigada(o.chave);
-                          return (
-                            <label key={o.chave} className={`so-ckrow${marcado ? ' on' : ''}`}>
-                              <input type="checkbox" className="so-ck" checked={marcado} disabled={o.travado || !podeEditar} onChange={() => trocarOpcao(o.chave)} /> <span>{o.texto}</span>
-                              {o.travado && <span className="so-badge" style={{ marginLeft: 'auto' }}>trava fixa</span>}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-
-            {janelaAqui && JanelaVincular()}
+                    {d.liga
+                      ? <label className={`so-toggle${on ? ' on' : ''}`}><input type="checkbox" role="switch" className="so-switch" checked={on} disabled={!podeEditar} onChange={() => setCfg({ ...cfg!, [d.liga!]: !on })} /> {on ? 'Ligado' : 'Desligado'}</label>
+                      : <span className="so-badge">Sempre ligado</span>}
+                  </div>
+                  {d.passo && (
+                    <div className="so-people so-recuo">
+                      <span className="so-k">Quem faz</span>
+                      {membros![d.passo].map(id => {
+                        const p = porId.get(id);
+                        if (!p) return null;
+                        return (
+                          <span key={id} className="so-person"><span className="av">{iniciais(p.nome)}</span><span><b>{p.nome}</b> · {atendeTxt(p)}</span>
+                            {podeEditar && <button type="button" className="rm" aria-label={`Desvincular ${p.nome}`} onClick={() => desvincular(d.passo!, id)}><Ic n="x" /></button>}
+                          </span>
+                        );
+                      })}
+                      {podeEditar && <button type="button" className="so-btn so-dashed sm" style={{ borderRadius: 999 }} onClick={() => setJanela({ passo: d.passo!, sel: [...membros![d.passo!]], busca: '' })}><Ic n="plus" />Vincular login</button>}
+                    </div>
+                  )}
+                  {d.info && (
+                    <div className="so-note plain so-recuo-m"><Ic n="info" /><span>Quem faz: os fiscais e equipes de cada serviço ({dados!.qtdBaixa} {dados!.qtdBaixa === 1 ? 'pessoa' : 'pessoas'}), conforme os serviços que cada um atende. <Link to={rotaTenant(entityId, 'cadastros/pessoas')} style={{ fontWeight: 800 }}>ver em Pessoas</Link></span></div>
+                  )}
+                  {sem && (
+                    <div className="so-warnline so-recuo-m"><Ic n="alerta" />Ninguém vinculado. O que chegar neste passo vai ficar parado{dados!.admins > 0 ? ' (só o administrador geral consegue fazer)' : ''}.</div>
+                  )}
+                  {d.opcoes && on && (
+                    <div className="so-recuo o" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {d.opcoes.map(o => {
+                        const marcado = opcaoLigada(o.chave);
+                        return (
+                          <label key={o.chave} className={`so-ckrow${marcado ? ' on' : ''}`}>
+                            <input type="checkbox" className="so-ck" checked={marcado} disabled={o.travado || !podeEditar} onChange={() => trocarOpcao(o.chave)} /> <span>{o.texto}</span>
+                            {o.travado && <span className="so-badge" style={{ marginLeft: 'auto' }}>trava fixa</span>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -239,41 +235,38 @@ export function FluxoAprovacoesPage() {
     const osPasso = j.passo.startsWith('os.');
     const trocar = (id: string) => setJanela({ ...j, sel: j.sel.includes(id) ? j.sel.filter(x => x !== id) : [...j.sel, id] });
     return (
-      <section className="so-panel side" aria-label="Vincular login">
-        <header className="so-chead">
-          <span className="so-cic"><Ic n="link" /></span>
-          <h3>Vincular login · {NOME_PASSO[j.passo]}</h3>
-          <div className="right"><button type="button" className="so-x" aria-label="Fechar" onClick={() => setJanela(null)}><Ic n="x" /></button></div>
-        </header>
-        <div className="so-cbody">
-          <label className="so-ctrl"><Ic n="search" /><input type="search" placeholder="Buscar pessoa" aria-label="Buscar pessoa" value={j.busca} onChange={e => setJanela({ ...j, busca: e.target.value })} autoFocus /></label>
-          <div className="so-opts">
-            {lista.map(p => {
-              const on = j.sel.includes(p.id);
-              const aviso = avisoCandidato(j.passo, p);
-              return (
-                <label key={p.id} className={`so-opt${on ? ' on' : ''}`}>
-                  <input type="checkbox" checked={on} onChange={() => trocar(p.id)} />
-                  <span className="mt" style={{ borderRadius: '50%', fontSize: 10.5, fontWeight: 800 }}>{iniciais(p.nome)}</span>
-                  <span className="tx"><b>{p.nome}</b><small>{p.perfil} · {p.atende ? `só ${p.atende}` : 'atende todos'}</small>
-                    {aviso && <small style={{ color: 'var(--amber)', fontWeight: 700, marginTop: 2 }}>{aviso}</small>}
-                  </span>
-                  <span className="mc"><Ic n="check" /></span>
-                </label>
-              );
-            })}
-            {!lista.length && <p className="so-help">Ninguém encontrado.</p>}
-          </div>
-          <p className="so-help">
-            {osPasso ? 'A pessoa faz este passo só nas OS dos serviços que ela atende (cadastro em Pessoas). ' : 'Vincular marca a caixa deste passo nos acessos da pessoa. '}
-            Ainda não tem login? <Link to={rotaTenant(entityId, 'cadastros/pessoas')}>Cadastrar pessoa</Link>
-          </p>
-          <div className="so-pfoot">
-            <button type="button" className="so-btn so-ghost" onClick={() => setJanela(null)}>Cancelar</button>
-            <button type="button" className="so-btn so-primary" onClick={() => { setMembros({ ...membros!, [j.passo]: j.sel }); setJanela(null); }}><Ic n="check" />Vincular</button>
-          </div>
+      <Janela icone="link" eyebrow={`Fluxo e aprovações · ${osPasso ? 'Ordem de Serviço' : 'Pedido de compra'}`}
+        titulo={`Vincular login · ${NOME_PASSO[j.passo]}`}
+        sub="Marque quem faz este passo. Vincular marca a caixa do passo nos acessos da pessoa."
+        largura={620} onFechar={() => setJanela(null)} rotulo="Vincular login"
+        rodape={<>
+          <span className="so-help esq">{j.sel.length} {j.sel.length === 1 ? 'pessoa marcada' : 'pessoas marcadas'}</span>
+          <button type="button" className="so-btn so-ghost" onClick={() => setJanela(null)}>Cancelar</button>
+          <button type="button" className="so-btn so-primary" onClick={() => { setMembros({ ...membros!, [j.passo]: j.sel }); setJanela(null); }}><Ic n="check" />Vincular</button>
+        </>}>
+        <label className="so-ctrl"><Ic n="search" /><input type="search" placeholder="Buscar pessoa" aria-label="Buscar pessoa" value={j.busca} onChange={e => setJanela({ ...j, busca: e.target.value })} /></label>
+        <div className="so-opts c2">
+          {lista.map(p => {
+            const on = j.sel.includes(p.id);
+            const aviso = avisoCandidato(j.passo, p);
+            return (
+              <label key={p.id} className={`so-opt${on ? ' on' : ''}`}>
+                <input type="checkbox" checked={on} onChange={() => trocar(p.id)} />
+                <span className="mt" style={{ borderRadius: '50%', fontSize: 10.5, fontWeight: 800 }}>{iniciais(p.nome)}</span>
+                <span className="tx"><b>{p.nome}</b><small>{p.perfil} · {p.atende ? `só ${p.atende}` : 'atende todos'}</small>
+                  {aviso && <small style={{ color: 'var(--amber)', fontWeight: 700, marginTop: 2 }}>{aviso}</small>}
+                </span>
+                <span className="mc"><Ic n="check" /></span>
+              </label>
+            );
+          })}
+          {!lista.length && <p className="so-help">Ninguém encontrado.</p>}
         </div>
-      </section>
+        <p className="so-help">
+          {osPasso ? 'A pessoa faz este passo só nas OS dos serviços que ela atende (cadastro em Pessoas). ' : ''}
+          Ainda não tem login? <Link to={rotaTenant(entityId, 'cadastros/pessoas')}>Cadastrar pessoa</Link>
+        </p>
+      </Janela>
     );
   }
 
@@ -308,6 +301,8 @@ export function FluxoAprovacoesPage() {
           <label className="so-ctrl num"><input type="number" min={1} max={90} value={cfg.metaDias} disabled={!podeEditar} aria-label="Prazo em dias" onChange={e => setCfg({ ...cfg, metaDias: Number(e.target.value) })} /><span className="suf">dias</span></label>
         </div>
       </section>
+
+      {janela && JanelaVincular()}
 
       <BarraAcoes esquerda={<>
         <b>2</b> fluxos<Sep />

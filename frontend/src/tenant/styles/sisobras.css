@@ -707,3 +707,17 @@ a.so-node{text-decoration:none}
 /* Fluxo e aprovações: o que fica sob o número do passo */
 .so-recuo{padding-left:44px}.so-recuo.o{padding-left:36px}.so-recuo-m{margin-left:44px}
 @media (max-width:560px){.so-recuo,.so-recuo.o{padding-left:0}.so-recuo-m{margin-left:0}}
+
+/* ================= janela de cadastro (abre pelo botão) ================= */
+.so-scrim.fixo{display:flex;padding:28px 16px}
+.so-janela{margin:auto;max-width:100%}
+.so-janela .so-dlg-h{padding:20px 20px 6px}
+.so-janela .so-dlg-b{padding:12px 20px 18px}
+.so-dlg-f{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:var(--surface-2)}
+.so-dlg-f .esq{margin-right:auto}
+.so-janela .so-mapa{height:230px}
+@media (max-width:560px){.so-janela .so-dlg-h{padding:18px 14px 4px}.so-janela .so-dlg-b{padding:10px 14px 16px}.so-dlg-f{padding:12px 14px}.so-dlg-f .so-btn{flex:1 1 auto}}
+/* janela alta: o rodapé com os botões fica sempre à vista; a página de trás não rola junto */
+.so-scrim.fixo{overscroll-behavior:contain}
+.so-janela{overflow:clip}
+.so-janela .so-dlg-f{position:sticky;bottom:-28px;z-index:2;box-shadow:0 -10px 20px -16px rgba(23,33,60,.35)}

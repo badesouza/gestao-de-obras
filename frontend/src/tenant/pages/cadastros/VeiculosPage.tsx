@@ -6,7 +6,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Ajuda, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Selinho, Sep, msgErro, rotaTenant, useResumoCadastros,
+  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Selinho, Sep, msgErro, rotaTenant, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const SITUACAO: Record<SituacaoFrota, { texto: string; tom: string }> = {
@@ -29,6 +29,7 @@ export function VeiculosPage() {
   const [dados, setDados] = useState<ListaFrota | null>(null);
   const [filtro, setFiltro] = useState<'todos' | SituacaoFrota>('todos');
   const [editando, setEditando] = useState<ItemFrota | null>(null);
+  const [aberto, setAberto] = useState(false);
   const [form, setForm] = useState<Form>(VAZIO);
   const [erroNome, setErroNome] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -37,7 +38,7 @@ export function VeiculosPage() {
     try { setDados(await frotaApi.listar(entityId, tipo)); }
     catch (e) { showToast(msgErro(e, 'Não foi possível abrir a lista'), 'error'); }
   }, [entityId, tipo, showToast]);
-  useEffect(() => { setDados(null); setEditando(null); setForm(VAZIO); setFiltro('todos'); carregar(); }, [carregar]);
+  useEffect(() => { setDados(null); setEditando(null); setAberto(false); setForm(VAZIO); setFiltro('todos'); carregar(); }, [carregar]);
 
   if (!dados) return <Pagina><Carregando /></Pagina>;
 
@@ -46,8 +47,9 @@ export function VeiculosPage() {
   const visiveis = dados.itens.filter(i => filtro === 'todos' || i.situacao === filtro);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm(f => ({ ...f, [k]: v }));
 
+  function fechar() { setAberto(false); setEditando(null); }
   function abrir(i: ItemFrota | null) {
-    setEditando(i); setErroNome(false);
+    setEditando(i); setErroNome(false); setAberto(true);
     setForm(i ? { nome: i.nome, subtipo: i.subtipo ?? '', placa: i.placa ?? '', patrimonio: i.patrimonio ?? '', equipeId: i.equipe?.id ?? '' } : VAZIO);
   }
 
@@ -59,7 +61,7 @@ export function VeiculosPage() {
       if (editando) await frotaApi.atualizar(entityId, editando.id, d);
       else await frotaApi.criar(entityId, d);
       showToast(editando ? 'Salvo' : `${ehVeiculo ? 'Veículo' : 'Equipamento'} cadastrado`);
-      abrir(null); await carregar(); recarregar();
+      fechar(); await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
     finally { setSalvando(false); }
   }
@@ -69,7 +71,7 @@ export function VeiculosPage() {
     try {
       const r = await frotaApi.remover(entityId, i.id);
       showToast(r.desativado ? 'Já foi usado em OS: ficou inativo e o histórico continua' : 'Removido', r.desativado ? 'warning' : 'success');
-      abrir(null); await carregar(); recarregar();
+      fechar(); await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
 
@@ -86,8 +88,7 @@ export function VeiculosPage() {
         <button type="button" role="tab" aria-selected={!ehVeiculo} className={`so-tab${!ehVeiculo ? ' on' : ''}`} onClick={() => aba('equipamentos')}><Ic n="wrench" />Equipamentos <span className="n">{dados.contagem.equipamentos}</span></button>
       </nav>
 
-      <div className="so-split">
-        <Cartao className="grow so-rise" icone={ehVeiculo ? 'truck' : 'wrench'} titulo={ehVeiculo ? 'Veículos' : 'Equipamentos'} meta={<><span className="mono">{dados.itens.length}</span> cadastrados</>} ajuda={`Ajuda: ${ehVeiculo ? 'Veículos' : 'Equipamentos'}`}>
+      <Cartao className="so-rise" icone={ehVeiculo ? 'truck' : 'wrench'} titulo={ehVeiculo ? 'Veículos' : 'Equipamentos'} meta={<><span className="mono">{dados.itens.length}</span> cadastrados</>} ajuda={`Ajuda: ${ehVeiculo ? 'Veículos' : 'Equipamentos'}`}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <div className="so-chips" style={{ marginRight: 'auto' }}>
               <button type="button" className={`so-chip${filtro === 'todos' ? ' on' : ''}`} onClick={() => setFiltro('todos')}>Todos <span className="n">{dados.itens.length}</span></button>
@@ -117,15 +118,20 @@ export function VeiculosPage() {
               </tbody>
             </table>
           </div>
-        </Cartao>
+      </Cartao>
 
-        <section className="so-panel side" aria-label={editando ? `Editar ${nomeTipo}` : `Novo ${nomeTipo}`} key={`${tipo}-${editando?.id ?? 'novo'}`}>
-          <header className="so-chead">
-            <span className="so-cic"><Ic n={editando ? 'editar' : 'plus'} /></span>
-            <h2>{editando ? `Editar ${nomeTipo}` : `Novo ${nomeTipo}`}</h2>
-            <div className="right"><Ajuda texto={`Ajuda: ${editando ? 'Editar' : 'Novo'} ${nomeTipo}`} />{editando && <button type="button" className="so-x" aria-label="Fechar" onClick={() => abrir(null)}><Ic n="x" /></button>}</div>
-          </header>
-          <div className="so-cbody">
+      {aberto && (
+        <Janela key={`${tipo}-${editando?.id ?? 'novo'}`} icone={editando ? 'editar' : ehVeiculo ? 'truck' : 'wrench'}
+          eyebrow={`Veículos e equipamentos · ${ehVeiculo ? 'veículos' : 'equipamentos'}`}
+          titulo={editando ? `Editar ${editando.nome}` : `Novo ${nomeTipo}`}
+          sub="Na baixa da OS, o fiscal escolhe daqui o que foi usado."
+          largura={620} onFechar={fechar} ajuda={`Ajuda: ${editando ? 'Editar' : 'Novo'} ${nomeTipo}`}
+          rodape={<>
+            {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}>Remover</button>}
+            <button type="button" className="so-btn so-ghost" onClick={fechar}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar {nomeTipo}</button>
+          </>}>
+          <div className="so-row2">
             <label className="so-field"><span className="so-lbl">Tipo</span>
               <span className="so-ctrl"><input list={`tipos-${tipo}`} placeholder="Escolha ou escreva" value={form.subtipo} onChange={e => set('subtipo', e.target.value)} /></span>
               <datalist id={`tipos-${tipo}`}>{dados.tipos.map(t => <option key={t} value={t} />)}</datalist>
@@ -133,31 +139,25 @@ export function VeiculosPage() {
             <label className="so-field"><span className="so-lbl">Como a equipe chama <span className="req">*</span></span>
               <span className={`so-ctrl${erroNome ? ' invalid' : ''}`}><input type="text" placeholder={ehVeiculo ? 'Caminhão basculante 02' : 'Roçadeira costal 03'} value={form.nome} onChange={e => { set('nome', e.target.value); if (e.target.value.trim()) setErroNome(false); }} /></span>
             </label>
-            <div className={ehVeiculo ? 'so-row2' : undefined}>
-              {ehVeiculo && (
-                <label className="so-field"><span className="so-lbl">Placa</span>
-                  <span className="so-ctrl mono"><input type="text" placeholder="ABC1D23" value={form.placa} onChange={e => set('placa', e.target.value.toUpperCase())} /></span>
-                </label>
-              )}
-              <label className="so-field"><span className="so-lbl">Patrimônio</span>
-                <span className="so-ctrl mono"><input type="text" placeholder="0000" value={form.patrimonio} onChange={e => set('patrimonio', e.target.value)} /></span>
-              </label>
-            </div>
+          </div>
+          <div className={ehVeiculo ? 'so-row2' : undefined}>
             {ehVeiculo && (
-              <label className="so-field"><span className="so-lbl">Equipe que usa <span className="opt">opcional</span></span>
-                <span className="so-ctrl"><select value={form.equipeId} onChange={e => set('equipeId', e.target.value)}><option value="">Nenhuma (uso geral)</option>{dados.equipes.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+              <label className="so-field"><span className="so-lbl">Placa</span>
+                <span className="so-ctrl mono"><input type="text" placeholder="ABC1D23" value={form.placa} onChange={e => set('placa', e.target.value.toUpperCase())} /></span>
               </label>
             )}
-            <Aviso>A situação muda sozinha: fica <strong>Na oficina</strong> quando abrem uma OS de Oficina / Frota para ele e volta a <strong>Em uso</strong> quando ela é finalizada.</Aviso>
-            <div className="so-pfoot">
-              {editando && <button type="button" className="so-btn so-danger" style={{ marginRight: 'auto' }} onClick={() => remover(editando)}>Remover</button>}
-              <button type="button" className="so-btn so-ghost" onClick={() => abrir(null)}>Cancelar</button>
-              <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar {nomeTipo}</button>
-            </div>
+            <label className="so-field"><span className="so-lbl">Patrimônio</span>
+              <span className="so-ctrl mono"><input type="text" placeholder="0000" value={form.patrimonio} onChange={e => set('patrimonio', e.target.value)} /></span>
+            </label>
           </div>
-        </section>
-      </div>
-
+          {ehVeiculo && (
+            <label className="so-field"><span className="so-lbl">Equipe que usa <span className="opt">opcional</span></span>
+              <span className="so-ctrl"><select value={form.equipeId} onChange={e => set('equipeId', e.target.value)}><option value="">Nenhuma (uso geral)</option>{dados.equipes.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+            </label>
+          )}
+          <Aviso>A situação muda sozinha: fica <strong>Na oficina</strong> quando abrem uma OS de Oficina / Frota para ele e volta a <strong>Em uso</strong> quando ela é finalizada.</Aviso>
+        </Janela>
+      )}
       <BarraAcoes esquerda={<><b>{dados.contagem.veiculos}</b> veículos<Sep /><b>{dados.contagem.equipamentos}</b> equipamentos<Sep />passo 4 de 6 · opcional</>}>
         <Link to={rotaTenant(entityId, 'cadastros/equipes')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Pessoas</Link>
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-ghost">Pular este passo</Link>
