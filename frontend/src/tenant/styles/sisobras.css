@@ -744,6 +744,11 @@ a.so-node{text-decoration:none}
 .so-acao:hover::before{opacity:1}
 .so-acao.edit:hover{box-shadow:0 10px 18px -8px rgba(99,91,255,.65)}
 .so-acao.del:hover{box-shadow:0 10px 18px -8px rgba(229,83,75,.6)}
+/* chave dos acessos: ciano, gira como se abrisse a fechadura */
+.so-acao.chave{color:#0B8A96;background:var(--cyan-soft);border-color:color-mix(in srgb,var(--cyan) 35%,transparent)}
+.so-acao.chave::before{background:linear-gradient(145deg,#10C6D4,#4F7BFF)}
+.so-acao.chave:hover{box-shadow:0 10px 18px -8px rgba(16,198,212,.6)}
+.so-acao.chave:hover .i{transform:rotate(-35deg)}
 .so-acao.edit:hover .i{transform:rotate(-14deg) translateY(-1px)}
 .so-acao .tampa{transform-origin:5px 6px;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
 .so-acao.del:hover .tampa{transform:translateY(-1.5px) rotate(-16deg)}

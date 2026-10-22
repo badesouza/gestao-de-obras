@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { pessoasApi } from '../../../lib/api-client';
 import type { LinkGerado, ListaPessoas, ModeloAcesso, Pessoa, SituacaoPessoa } from '../../../lib/api-client';
 import { formatPhone } from '../../../lib/masks';
@@ -35,6 +35,7 @@ function paraForm(p: Pessoa): Form {
 /** Tela 4 · Passo 3 — Pessoas (usuários) */
 export function PessoasPage() {
   const { entityId, session } = useTenant();
+  const navigate = useNavigate();
   const { resumo, recarregar } = useResumoCadastros();
   const { toasts, showToast, closeToast } = useToast();
   const [busca, setBusca] = useState('');
@@ -179,7 +180,7 @@ export function PessoasPage() {
                       <td data-l="Equipe · atende"><span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{u.equipes.length ? u.equipes.map(q => `${q.nome}${u.liderDe === q.id ? ' (líder)' : ''}`).join(', ') : '—'}</span><span className="sub">{u.atende === null ? 'vê todos os serviços' : u.atende.length ? `atende ${u.atende.map(s => s.nome).join(', ')}` : 'nenhum serviço'}</span></td>
                       <td data-l="Acesso"><span className={`so-badge ${sit.tom}`}><span className="dot" />{sit.texto}</span></td>
                       <td data-l="Link de senha" className="r">{sit.link && <button type="button" className="so-btn so-ghost sm" onClick={() => novoLink(u)}>{sit.link}</button>}</td>
-                      <td data-l="" className="acoes"><AcoesLinha nome={u.nome} onEditar={() => abrir(u)} onExcluir={u.id !== session.id ? () => excluir(u) : undefined} /></td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={u.nome} onAcessos={() => navigate(rotaTenant(entityId, `cadastros/pessoas/${u.id}/acessos`))} onEditar={() => abrir(u)} onExcluir={u.id !== session.id ? () => excluir(u) : undefined} /></td>
                     </tr>
                   );
                 })}

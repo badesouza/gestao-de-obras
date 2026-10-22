@@ -345,11 +345,18 @@ export function Janela({ icone, tom, eyebrow, titulo, sub, ajuda, largura = 560,
 /* ═══════════════════════ Editar e excluir ═══════════════════════ */
 
 /** Os dois botões de ícone de cada linha/cartão: lápis (editar) e lixeira (excluir) */
-export function AcoesLinha({ nome, onEditar, onExcluir, textoEditar = 'Editar' }: {
+export function AcoesLinha({ nome, onEditar, onExcluir, onAcessos, textoEditar = 'Editar' }: {
   nome: string; onEditar?: () => void; onExcluir?: () => void; textoEditar?: string;
+  /** chave: abre os acessos (caixas por menu) da pessoa */
+  onAcessos?: () => void;
 }) {
   return (
     <span className="so-acoes">
+      {onAcessos && (
+        <button type="button" className="so-acao chave" title={`Acessos de ${nome}`} aria-label={`Acessos de ${nome}`} onClick={onAcessos}>
+          <Ic n="key" />
+        </button>
+      )}
       {onEditar && (
         <button type="button" className="so-acao edit" title={`${textoEditar} ${nome}`} aria-label={`${textoEditar} ${nome}`} onClick={onEditar}>
           <Ic n="editar" />
