@@ -1317,3 +1317,21 @@ model ServicoCampo {
   @@index([servicoId, ordem])
   @@map("servico_campos")
 }
+
+/// Metas do serviço por mês (aba Planejamento e "meta × realizado" das Análises)
+model MetaServico {
+  id            String   @id
+  entityId      String   @map("entity_id")
+  centroCustoId String   @map("centro_custo_id")
+  year          Int
+  month         Int
+  metaRegistros Decimal? @map("meta_registros") @db.Decimal(14, 2)
+  metaProducao  Decimal? @map("meta_producao") @db.Decimal(14, 2)
+  metaHoras     Decimal? @map("meta_horas") @db.Decimal(14, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @map("updated_at")
+
+  @@unique([entityId, centroCustoId, year, month])
+  @@index([centroCustoId, year])
+  @@map("metas_servico")
+}

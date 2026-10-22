@@ -17,18 +17,9 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import type { TooltipProps } from 'recharts';
 import { tenantApi, type CellValue, type RegistroDiarioRow } from '../../lib/api-client';
 import type { ServicoConfig } from '../pages/servico-config';
+import { Aviso, Cartao, Carregando } from './sisobras/so';
 
 type Analytics = Awaited<ReturnType<typeof tenantApi.centrosCusto.analytics>>;
 type AnalyticsPoint = { name: string; value: number };
@@ -60,13 +51,9 @@ interface Props {
   month: number;
 }
 
-const CHART_COLORS = ['#2563eb', '#16a34a', '#f97316', '#7c3aed', '#0891b2', '#dc2626'];
+const CHART_COLORS = ['#635BFF', '#19B88A', '#E8962A', '#8B5CF6', '#0FB5C2', '#E5534B'];
 const numberFmt = new Intl.NumberFormat('pt-BR');
 const decimalFmt = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
-
-function cls(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ');
-}
 
 function formatMetric(value: number) {
   return Number.isInteger(value) ? numberFmt.format(value) : decimalFmt.format(value);
@@ -91,8 +78,8 @@ function monthName(year: number, month: number) {
 function metricLabel(slug: string) {
   if (slug === 'varricao') return 'Extensão executada';
   if (slug === 'coleta-entulhos') return 'Volume coletado';
-  if (slug === 'tapa-buracos') return 'Area executada';
-  if (slug === 'pintura') return 'Area pintada';
+  if (slug === 'tapa-buracos') return 'Área executada';
+  if (slug === 'pintura') return 'Área pintada';
   if (slug === 'rocagem') return 'Área roçada';
   return 'Produção medida';
 }
@@ -105,8 +92,8 @@ function shortMetricLabel(slug: string) {
 
 function metricUnit(slug: string) {
   if (slug === 'varricao') return 'm';
-  if (slug === 'coleta-entulhos') return 'm3';
-  return 'm2';
+  if (slug === 'coleta-entulhos') return 'm³';
+  return 'm²';
 }
 
 function performanceBadge(rate: number) {
@@ -235,211 +222,70 @@ function computeSheetMetrics(rows: RegistroDiarioRow[], propMap: PropMap, config
   };
 }
 
-function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
-  if (!active || !payload?.length) return null;
-
-  return (
-    <div className="rounded-[10px] border border-white/10 bg-[#0a1010] px-3 py-2 text-xs text-white shadow-2xl">
-      {label ? <p className="mb-1 font-semibold text-white/55">{label}</p> : null}
-      <div className="space-y-1">
-        {payload.map((item) => (
-          <div key={item.name} className="flex min-w-36 items-center justify-between gap-4">
-            <span className="flex items-center gap-2 text-white/70">
-              <span className="h-2 w-2 rounded-full" style={{ background: item.color ?? '#94a3b8' }} />
-              {item.name}
-            </span>
-            <strong className="text-white">{formatMetric(Number(item.value ?? 0))}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RankingBairros({ bairros, metricTitle, unit }: {
-  bairros: BairroDetail[]; metricTitle: string; unit: string;
-}) {
-  const [hov, setHov] = useState<string | null>(null);
+/** Tabela dos bairros atendidos (produção, horas, produtividade, irregulares) */
+function RankingBairros({ bairros, metricTitle, unit }: { bairros: BairroDetail[]; metricTitle: string; unit: string }) {
+  if (!bairros.length) return <p className="so-help">Nenhum bairro informado no período.</p>;
   const maxReg = Math.max(...bairros.map(b => b.registros), 1);
   const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v);
-
   return (
-    <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-      <style>{`.rb-row { transition: background 0.15s; } .rb-row:hover { background: #f8fafc !important; }`}</style>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-            {['Bairro', 'Reg.', metricTitle, 'Horas', `${unit}/h`, 'Irreg.'].map((h, i) => (
-              <th key={i} style={{
-                padding: i === 0 ? '9px 14px' : '9px 8px',
-                textAlign: i === 0 ? 'left' : 'right',
-                fontSize: 9, fontWeight: 800, letterSpacing: '0.1em',
-                textTransform: 'uppercase', color: '#94a3b8',
-                width: i === 0 ? 'auto' : i === 1 ? 52 : i === 2 ? 72 : i === 3 ? 56 : i === 4 ? 68 : 48,
-              }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
+    <div className="so-tw">
+      <table className="so-table os-rows">
+        <thead><tr><th scope="col">Bairro</th><th scope="col" style={{ textAlign: 'right' }}>Reg.</th><th scope="col" style={{ textAlign: 'right' }}>{metricTitle}</th><th scope="col" style={{ textAlign: 'right' }}>Horas</th><th scope="col" style={{ textAlign: 'right' }}>{unit}/h</th><th scope="col" style={{ textAlign: 'right' }}>Irreg.</th></tr></thead>
         <tbody>
-          {bairros.slice(0, 12).map((item, idx) => {
-            const isHov = hov === item.name;
-            const pct = (item.registros / maxReg) * 100;
-            return (
-              <tr key={item.name} className="rb-row"
-                style={{ borderBottom: '1px solid #f8fafc', background: 'transparent' }}
-                onMouseEnter={() => setHov(item.name)}
-                onMouseLeave={() => setHov(null)}>
-                <td style={{ padding: '10px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: '#cbd5e1', fontFamily: 'monospace', minWidth: 16 }}>{idx + 1}</span>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</div>
-                      {isHov && (
-                        <div style={{ marginTop: 3, height: 3, borderRadius: 99, background: '#f1f5f9', overflow: 'hidden', width: '100%' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #2563eb80, #2563eb)', borderRadius: 99, transition: 'width 0.4s' }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right' }}>
-                  <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 800, color: '#2563eb', background: '#eff6ff', borderRadius: 99, padding: '1px 7px', border: '1px solid #bfdbfe' }}>
-                    {item.registros}
+          {bairros.slice(0, 12).map((item, idx) => (
+            <tr key={item.name}>
+              <td data-l="Bairro">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)', minWidth: 16 }}>{idx + 1}</span>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <b style={{ display: 'block', color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</b>
+                    <span className="os-sla" style={{ minWidth: 0, marginTop: 4 }}><span className="b" style={{ height: 4 }}><span style={{ width: `${(item.registros / maxReg) * 100}%` }} /></span></span>
                   </span>
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: item.producao > 0 ? '#7c3aed' : '#e2e8f0' }}>
-                  {item.producao > 0 ? fmt(item.producao) : '—'}
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: item.horas > 0 ? '#b45309' : '#e2e8f0' }}>
-                  {item.horas > 0 ? fmt(item.horas) : '—'}
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 12, fontWeight: 600, color: item.produtividade > 0 ? '#0369a1' : '#e2e8f0' }}>
-                  {item.produtividade > 0 ? fmt(item.produtividade) : '—'}
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right' }}>
-                  {item.irregulares > 0 ? (
-                    <span style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', background: '#fef2f2', borderRadius: 99, padding: '1px 7px', border: '1px solid #fecaca' }}>
-                      {item.irregulares}
-                    </span>
-                  ) : (
-                    <span style={{ color: '#e2e8f0', fontSize: 12 }}>—</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+                </span>
+              </td>
+              <td data-l="Reg." style={{ textAlign: 'right' }}><span className="os-pill brand" style={{ height: 22, fontSize: 11 }}>{item.registros}</span></td>
+              <td data-l={metricTitle} className="mono" style={{ textAlign: 'right', color: item.producao > 0 ? 'var(--ink)' : 'var(--faint)' }}>{item.producao > 0 ? fmt(item.producao) : '—'}</td>
+              <td data-l="Horas" className="mono" style={{ textAlign: 'right', color: item.horas > 0 ? 'var(--ink-2)' : 'var(--faint)' }}>{item.horas > 0 ? fmt(item.horas) : '—'}</td>
+              <td data-l={`${unit}/h`} className="mono" style={{ textAlign: 'right', color: item.produtividade > 0 ? 'var(--cyan)' : 'var(--faint)' }}>{item.produtividade > 0 ? fmt(item.produtividade) : '—'}</td>
+              <td data-l="Irreg." style={{ textAlign: 'right' }}>{item.irregulares > 0 ? <span className="os-pill coral" style={{ height: 22, fontSize: 11 }}>{item.irregulares}</span> : <span style={{ color: 'var(--faint)' }}>—</span>}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
 
-function Panel({
-  eyebrow,
-  title,
-  icon,
-  children,
-  className,
-}: {
-  eyebrow: string;
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
+/** Cartão de cada análise, no padrão SisObras */
+function Panel({ eyebrow, title, icon, children, className }: { eyebrow: string; title: string; icon: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section
-      className={cls(
-        'rounded-[18px] border border-white/80 bg-white p-5 shadow-[0_18px_50px_rgba(10,26,26,0.07)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(10,26,26,0.12)]',
-        className,
-      )}
-    >
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--tn-muted)]">
-            {eyebrow}
-          </p>
-          <h3 className="mt-1 text-[17px] font-bold text-[var(--tn-ink)]">{title}</h3>
-        </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-slate-100 text-slate-500">
-          {icon}
-        </div>
-      </div>
+    <Cartao icone={<span style={{ display: 'grid', placeItems: 'center' }}>{icon}</span>} titulo={title} meta={eyebrow} className={`os-lift${className ? ` ${className}` : ''}`} ajuda={`Ajuda: ${title}`}>
       {children}
-    </section>
+    </Cartao>
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  helper,
-  badge,
-  icon,
-  color,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-  badge: string;
-  icon: ReactNode;
-  color: string;
-}) {
+/** Indicador (os-kpi) com a cor do assunto */
+function KpiCard({ label, value, helper, badge, icon, color }: { label: string; value: string; helper: string; badge: string; icon: ReactNode; color: string }) {
   return (
-    <article className="group relative min-h-[104px] overflow-hidden rounded-[16px] border border-white/80 bg-white px-4 py-3.5 shadow-[0_12px_32px_rgba(10,26,26,0.07)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_46px_rgba(10,26,26,0.11)]">
-      <div className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
-      <div
-        className="absolute -bottom-12 -right-10 h-24 w-24 rounded-full opacity-10 transition duration-300 group-hover:scale-125"
-        style={{ background: color }}
-      />
-      <div className="relative flex items-start justify-between gap-3">
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-[12px]"
-          style={{ background: `${color}18`, color }}
-        >
-          {icon}
-        </div>
-        <span className="rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] font-bold uppercase text-slate-500 ring-1 ring-slate-200">
-          {badge}
-        </span>
-      </div>
-      <p className="relative mt-3 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--tn-muted)]">
-        {label}
-      </p>
-      <div className="relative mt-1 flex items-end justify-between gap-3">
-        <p className="text-3xl font-black leading-none text-[var(--tn-ink)]">{value}</p>
-      </div>
-      <p className="relative mt-2 line-clamp-2 text-xs font-medium leading-snug text-[var(--tn-muted)]">{helper}</p>
+    <article className="os-kpi" style={{ '--k': `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 65%, #fff))`, '--ks': color, '--kg': `color-mix(in srgb, ${color} 18%, transparent)` } as React.CSSProperties}>
+      <div className="t"><span className="os-ic">{icon}</span>{label}</div>
+      <div className="v"><span className="os-num sm">{value}</span><span className="os-delta neutro">{badge}</span></div>
+      <small>{helper}</small>
     </article>
   );
 }
 
 function Ranking({ data, color, emptyText }: { data: AnalyticsPoint[]; color: string; emptyText: string }) {
-  if (data.length === 0) {
-    return <p className="rounded-[12px] bg-slate-50 p-4 text-sm text-[var(--tn-muted)]">{emptyText}</p>;
-  }
-
+  if (data.length === 0) return <p className="so-help">{emptyText}</p>;
   const max = Math.max(...data.map((item) => item.value), 1);
-
   return (
-    <div className="space-y-3">
-      {data.slice(0, 8).map((item, index) => (
-        <div key={item.name} className="grid grid-cols-[24px_minmax(0,1fr)_42px] items-center gap-3">
-          <span className="text-right font-mono text-[11px] font-bold text-slate-400">{index + 1}</span>
-          <div className="min-w-0 rounded-[10px] px-2 py-1.5 transition hover:bg-slate-50">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <span className="truncate text-sm font-semibold text-slate-800" title={item.name}>
-                {item.name}
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${(item.value / max) * 100}%`, background: color }}
-              />
-            </div>
-          </div>
-          <strong className="text-right text-sm text-slate-900">{item.value}</strong>
+    <div className="os-bars">
+      {data.slice(0, 8).map((item) => (
+        <div key={item.name} className="os-bar" style={{ gridTemplateColumns: '120px minmax(0,1fr) 34px' }}>
+          <span title={item.name} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+          <span className="tk"><span style={{ width: `${Math.max(6, (item.value / max) * 100)}%`, background: `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, #fff), ${color})` }} /></span>
+          <span className="n">{item.value}</span>
         </div>
       ))}
     </div>
@@ -448,18 +294,13 @@ function Ranking({ data, color, emptyText }: { data: AnalyticsPoint[]; color: st
 
 function EmptyState({ color }: { color: string }) {
   return (
-    <div className="rounded-[18px] border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-      <div
-        className="mx-auto flex h-12 w-12 items-center justify-center rounded-full text-white"
-        style={{ background: color }}
-      >
-        <BarChart3 size={22} />
+    <Cartao icone="sliders" titulo="Análises do mês" meta="sem registros no período">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '22px 12px', textAlign: 'center' }}>
+        <span className="os-ic" style={{ '--k': color, width: 44, height: 44, borderRadius: 14 } as React.CSSProperties}><BarChart3 size={20} /></span>
+        <b style={{ fontSize: 15, color: 'var(--ink)' }}>Sem dados para análise neste mês</b>
+        <span className="so-help">Registre ocorrências no período para liberar os indicadores, rankings e gráficos deste serviço.</span>
       </div>
-      <h3 className="mt-4 text-lg font-bold text-[var(--tn-ink)]">Sem dados para análise neste mês</h3>
-      <p className="mx-auto mt-2 max-w-xl text-sm text-[var(--tn-muted)]">
-        Registre ocorrências no período para liberar KPIs, rankings e gráficos deste serviço.
-      </p>
-    </div>
+    </Cartao>
   );
 }
 
@@ -1349,256 +1190,129 @@ export function ServicoAnalytics({ entityId, centroId, config, year, month }: Pr
   const unit = metricUnit(config.slug);
   const metricTitle = shortMetricLabel(config.slug);
 
-  if (loading) {
-    return (
-      <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="h-36 animate-pulse rounded-[18px] bg-white shadow-sm" />
-        ))}
-      </div>
-    );
-  }
+  if (loading) return <Carregando texto="Carregando as análises…" />;
+  if (error) return <Aviso tom="amber">{error}</Aviso>;
+  if (!data || summary.total === 0) return <EmptyState color={config.cor} />;
 
-  if (error) return <div className="tn-alert m-6">{error}</div>;
-  if (!data || summary.total === 0) return <div className="p-6"><EmptyState color={config.cor} /></div>;
+  const tomBadge = badge.label === 'Excelente' ? 'mint' : badge.label === 'Em ritmo' ? 'brand' : badge.label === 'Sem dados' ? 'ghost' : 'amber';
+  const grade = (a: string) => ({ display: 'grid', gap: 12, gridTemplateColumns: a } as React.CSSProperties);
 
   return (
-    <div className="space-y-5 p-6">
-      <section
-        className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-[0_24px_70px_rgba(10,26,26,0.10)]"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(15,23,42,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.035) 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }}
-      >
-        <div className="mb-4 rounded-[18px] border border-slate-200/80 bg-white/88 px-4 py-3 shadow-sm backdrop-blur">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: config.cor }}>
-                Controle do mês
-              </p>
-              <h2 className="mt-1 text-2xl font-black leading-tight text-slate-950">
-                {config.nome}: produção, pendências e repasses operacionais.
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cls('rounded-full px-3 py-1 text-xs font-bold ring-1', badge.className)}>
-                {badge.label}
-              </span>
-              <span className="rounded-full bg-blue-50 px-3 py-1 font-mono text-[11px] font-bold capitalize text-blue-700 ring-1 ring-blue-200">
-                {labelMes}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <div className="rounded-[18px] border border-slate-200 bg-white/90 p-5 shadow-[0_14px_38px_rgba(10,26,26,0.08)] backdrop-blur">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full text-white" style={{ background: config.cor }}>
-                <Sparkles size={14} />
-              </span>
-              <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: config.cor }}>
-                Potencial do serviço
-              </p>
-            </div>
-            <div className="relative mx-auto h-56 max-w-72">
+    <>
+      <Cartao icone={<Sparkles size={16} />} titulo={`${config.nome}: produção, pendências e repasses`} meta="controle do mês" ajuda="Ajuda: Controle do mês"
+        direita={<><span className={`os-pill ${tomBadge}`}><i />{badge.label === 'Atencao' ? 'Atenção' : badge.label}</span><span className="so-badge" style={{ textTransform: 'capitalize' }}>{labelMes}</span></>}>
+        <div style={grade('repeat(auto-fit, minmax(300px, 1fr))')}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 16, background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+            <div className="so-fs-t">Potencial do serviço</div>
+            <div style={{ position: 'relative', height: 200, maxWidth: 300, width: '100%', margin: '0 auto' }}>
               <Speedometer value={summary.taxaConclusao} color={config.cor} />
             </div>
-            <div className="mt-4 space-y-2">
-              {[
-                ['Concluídas', formatMetric(summary.concluidos), '#16a34a'],
-                ['Em aberto', formatMetric(openItems), '#f97316'],
-                [metricLabel(config.slug), `${formatMetric(producaoTotal)} ${unit}`, config.cor],
-              ].map(([label, value, color]) => (
-                <div key={label} className="flex items-center justify-between rounded-[10px] border border-slate-200 bg-white px-3 py-2">
-                  <span className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                    <i className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-                    {label}
-                  </span>
-                  <strong className="text-sm font-black text-slate-950">{value}</strong>
-                </div>
-              ))}
-            </div>
+            {[
+              ['Concluídas', formatMetric(summary.concluidos), 'var(--mint)'],
+              ['Em aberto', formatMetric(openItems), 'var(--amber)'],
+              [metricLabel(config.slug), `${formatMetric(producaoTotal)} ${unit}`, config.cor],
+            ].map(([label, value, color]) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderRadius: 11, background: 'var(--surface)', border: '1px solid var(--line)' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)' }}><i style={{ width: 9, height: 9, borderRadius: '50%', background: color }} />{label}</span>
+                <b className="mono" style={{ color: 'var(--ink)' }}>{value}</b>
+              </div>
+            ))}
           </div>
-
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <KpiCard label="Total do mês" value={formatMetric(summary.total)} helper="Ocorrências registradas" badge="volume" icon={<Activity size={23} />} color={config.cor} />
-              <KpiCard label="Concluídas" value={formatMetric(summary.concluidos)} helper={`${summary.taxaConclusao}% do total`} badge="entrega" icon={<CheckCircle2 size={23} />} color="#16a34a" />
-              <KpiCard label={metricLabel(config.slug)} value={formatMetric(producaoTotal)} helper={`Total consolidado em ${unit}`} badge="medição" icon={<TrendingUp size={23} />} color="#7c3aed" />
-              <KpiCard label="Em aberto" value={formatMetric(openItems)} helper={openItems === 0 ? 'Sem pendências no período' : 'Pendentes de conclusão'} badge={openItems === 0 ? 'ok' : 'alerta'} icon={openItems === 0 ? <Target size={23} /> : <AlertTriangle size={23} />} color={openItems === 0 ? '#16a34a' : '#f97316'} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+            <div className="os-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+              <KpiCard label="Total do mês" value={formatMetric(summary.total)} helper="ocorrências registradas" badge="volume" icon={<Activity size={15} />} color={config.cor} />
+              <KpiCard label="Concluídas" value={formatMetric(summary.concluidos)} helper={`${summary.taxaConclusao}% do total`} badge="entrega" icon={<CheckCircle2 size={15} />} color="#19B88A" />
+              <KpiCard label={metricLabel(config.slug)} value={formatMetric(producaoTotal)} helper={`total em ${unit}`} badge="medição" icon={<TrendingUp size={15} />} color="#8B5CF6" />
+              <KpiCard label="Em aberto" value={formatMetric(openItems)} helper={openItems === 0 ? 'sem pendências no período' : 'pendentes de conclusão'} badge={openItems === 0 ? 'ok' : 'alerta'} icon={openItems === 0 ? <Target size={15} /> : <AlertTriangle size={15} />} color={openItems === 0 ? '#19B88A' : '#E8962A'} />
             </div>
-
-            <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-[14px] border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-                <p className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                  <Clock3 size={14} style={{ color: config.cor }} />
-                  Horas trabalhadas
-                </p>
-                <div className="mt-2 flex items-end justify-between gap-3">
-                  <strong className="text-xl font-black text-slate-950">{formatMetric(sheet.horas)}</strong>
-                  <span className="rounded-full bg-emerald-50 px-2 py-1 font-mono text-[10px] font-black text-emerald-700">
-                    {sheet.hasHoras ? 'OK' : 'N/C'}
-                  </span>
-                </div>
-              </div>
-              <div className="rounded-[14px] border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-                <p className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                  <Camera size={14} style={{ color: config.cor }} />
-                  Registros com foto
-                </p>
-                <div className="mt-2 flex items-end justify-between gap-3">
-                  <strong className="text-xl font-black text-slate-950">{formatMetric(summary.comFoto)}</strong>
-                  <span className="rounded-full bg-blue-50 px-2 py-1 font-mono text-[10px] font-black text-blue-700">
-                    evidências
-                  </span>
-                </div>
-              </div>
-              <div className="rounded-[14px] border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-                <p className="flex items-center gap-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                  <Zap size={14} style={{ color: config.cor }} />
-                  Produtividade média
-                </p>
-                <div className="mt-2 flex items-end justify-between gap-3">
-                  <strong className="text-xl font-black text-slate-950">{formatMetric(sheet.produtividade)}</strong>
-                  <span className="rounded-full bg-orange-50 px-2 py-1 font-mono text-[10px] font-black text-orange-700">
-                    {unit}/h
-                  </span>
-                </div>
-              </div>
+            <div className="os-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+              <KpiCard label="Horas trabalhadas" value={formatMetric(sheet.horas)} helper={sheet.hasHoras ? 'somadas no mês' : 'campo de horas não configurado'} badge={sheet.hasHoras ? 'ok' : 'n/c'} icon={<Clock3 size={15} />} color="#0FB5C2" />
+              <KpiCard label="Registros com foto" value={formatMetric(summary.comFoto)} helper="provas com carimbo" badge="evidências" icon={<Camera size={15} />} color="#635BFF" />
+              <KpiCard label="Produtividade média" value={formatMetric(sheet.produtividade)} helper={`${unit} por hora`} badge={`${unit}/h`} icon={<Zap size={15} />} color="#E8962A" />
+              <KpiCard label="Pico de produção" value={peak?.data ?? '--'} helper={peak ? `${peak.total} registros no dia` : 'sem pico no período'} badge="pico" icon={<Gauge size={15} />} color="#0FB5C2" />
             </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <KpiCard label="Descartes irregulares" value={formatMetric(sheet.irregulares)} helper={sheet.hasIrregular ? 'Ocorrências marcadas como irregulares' : 'Campo de descarte não configurado'} badge="risco" icon={<AlertTriangle size={23} />} color="#dc2626" />
-              <KpiCard label="Média por registro" value={formatMetric(sheet.mediaProducao)} helper={`${unit} por ocorrência`} badge="ticket" icon={<Target size={23} />} color="#2563eb" />
-              <KpiCard label="Horas médias" value={formatMetric(sheet.mediaHoras)} helper="Por registro no período" badge="média" icon={<Clock3 size={23} />} color="#f97316" />
-              <KpiCard label="Pico de produção" value={peak?.data ?? '--'} helper={peak ? `${peak.total} registros no dia` : 'Sem pico no período'} badge="pico" icon={<Gauge size={23} />} color="#0891b2" />
+            <div className="os-kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+              <KpiCard label="Descartes irregulares" value={formatMetric(sheet.irregulares)} helper={sheet.hasIrregular ? 'marcados como irregulares' : 'campo de descarte não configurado'} badge="risco" icon={<AlertTriangle size={15} />} color="#E5534B" />
+              <KpiCard label="Média por registro" value={formatMetric(sheet.mediaProducao)} helper={`${unit} por ocorrência`} badge="média" icon={<Target size={15} />} color="#635BFF" />
+              <KpiCard label="Horas médias" value={formatMetric(sheet.mediaHoras)} helper="por registro no período" badge="média" icon={<Clock3 size={15} />} color="#E8962A" />
             </div>
           </div>
         </div>
-      </section>
+      </Cartao>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.6fr)]">
-        <Panel eyebrow="Curva diária" title="Registros e conclusões por dia" icon={<Activity size={18} />}>
+      <div style={grade('repeat(auto-fit, minmax(min(100%, 420px), 1fr))')}>
+        <Panel eyebrow="curva diária" title="Registros e conclusões por dia" icon={<Activity size={16} />}>
           <CurvaDiaria dados={data.producaoDiaria} cor={config.cor} />
         </Panel>
-
-        <Panel eyebrow="Produção acumulada" title={metricLabel(config.slug)} icon={<TrendingUp size={18} />}>
-          <ProducaoAcumulada
-            total={producaoTotal}
-            unit={unit}
-            mediaRegistro={sheet.mediaProducao}
-            registros={summary.total}
-            concluidos={summary.concluidos}
-            cor={config.cor}
-          />
+        <Panel eyebrow="produção acumulada" title={metricLabel(config.slug)} icon={<TrendingUp size={16} />}>
+          <ProducaoAcumulada total={producaoTotal} unit={unit} mediaRegistro={sheet.mediaProducao} registros={summary.total} concluidos={summary.concluidos} cor={config.cor} />
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-3">
-        <Panel eyebrow="Status geral" title="Distribuição da produção" icon={<PieChartIcon size={18} />}>
+      <div style={grade('repeat(auto-fit, minmax(min(100%, 320px), 1fr))')}>
+        <Panel eyebrow="status geral" title="Distribuição da produção" icon={<PieChartIcon size={16} />}>
           <RoscaStatus dados={data.porStatus} total={statusTotal} />
         </Panel>
-
-        <Panel eyebrow="Território" title="Bairros mais atendidos" icon={<MapPin size={18} />}>
+        <Panel eyebrow="território" title="Bairros mais atendidos" icon={<MapPin size={16} />}>
           <Ranking data={data.porBairro} color={config.cor} emptyText="Nenhum bairro informado no período." />
         </Panel>
-
-        <Panel eyebrow="Equipe" title="Produção por turma" icon={<Users size={18} />}>
+        <Panel eyebrow="equipe" title="Produção por turma" icon={<Users size={16} />}>
           <EquipeCard dados={data.porEquipe} unit={unit} />
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
-        <Panel eyebrow="Meta vs realizado" title="Planejamento do mês" icon={<Target size={18} />}>
-          <MetaVsRealizado
-            entityId={entityId}
-            centroId={centroId}
-            year={year}
-            month={month}
-            realizado={{
-              registros: summary.total,
-              producao: producaoTotal,
-              horas: sheet.horas,
-              produtividade: sheet.produtividade,
-              mediaDaily: averageDaily,
-              mediaProducao: sheet.mediaProducao,
-              mediaHoras: sheet.mediaHoras,
-            }}
-            unit={unit}
-            metricLabel={metricLabel(config.slug)}
-          />
+      <div style={grade('repeat(auto-fit, minmax(min(100%, 420px), 1fr))')}>
+        <Panel eyebrow="meta × realizado" title="Planejamento do mês" icon={<Target size={16} />}>
+          <MetaVsRealizado entityId={entityId} centroId={centroId} year={year} month={month}
+            realizado={{ registros: summary.total, producao: producaoTotal, horas: sheet.horas, produtividade: sheet.produtividade, mediaDaily: averageDaily, mediaProducao: sheet.mediaProducao, mediaHoras: sheet.mediaHoras }}
+            unit={unit} metricLabel={metricLabel(config.slug)} />
         </Panel>
-
-        <Panel eyebrow="Ranking completo" title="Bairros atendidos com produção e horas" icon={<MapPin size={18} />}>
+        <Panel eyebrow="ranking completo" title="Bairros atendidos com produção e horas" icon={<MapPin size={16} />}>
           <RankingBairros bairros={sheet.bairros} metricTitle={metricTitle} unit={unit} />
         </Panel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Panel eyebrow="Modalidade" title="Tipo de serviço" icon={<Layers3 size={18} />}>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.porTipo.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 18, left: 24, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="4 8" horizontal={false} stroke="#e2e8f0" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={132} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#475569' }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="value" name="Registros" radius={[0, 8, 8, 0]} fill="#7c3aed" barSize={18} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <div style={grade('repeat(auto-fit, minmax(min(100%, 420px), 1fr))')}>
+        <Panel eyebrow="modalidade" title="Tipo de serviço" icon={<Layers3 size={16} />}>
+          <Ranking data={data.porTipo} color="#635BFF" emptyText="Nenhum tipo informado no período." />
         </Panel>
-
-        <Panel eyebrow="Origem" title="Entrada de demandas" icon={<Route size={18} />}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {data.porOrigem.length === 0 ? (
-              <p className="rounded-[12px] bg-slate-50 p-4 text-sm text-[var(--tn-muted)] sm:col-span-2">Nenhuma origem informada no período.</p>
-            ) : (
-              data.porOrigem.slice(0, 6).map((item: AnalyticsPoint, index: number) => (
-                <div key={item.name} className="rounded-[14px] border border-slate-100 bg-slate-50 p-4 transition duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-lg">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-[11px] text-white" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}>
-                      <Clock3 size={17} />
-                    </span>
-                    <strong className="text-2xl text-slate-900">{item.value}</strong>
-                  </div>
-                  <p className="mt-3 truncate text-sm font-semibold text-slate-600" title={item.name}>{item.name}</p>
+        <Panel eyebrow="origem" title="Entrada de demandas" icon={<Route size={16} />}>
+          {data.porOrigem.length === 0 ? <p className="so-help">Nenhuma origem informada no período.</p> : (
+            <div style={grade('repeat(auto-fill, minmax(150px, 1fr))')}>
+              {data.porOrigem.slice(0, 6).map((item: AnalyticsPoint, index: number) => (
+                <div key={item.name} className="os-lift" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, borderRadius: 14, background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span className="os-ic" style={{ '--k': CHART_COLORS[index % CHART_COLORS.length], '--ks': CHART_COLORS[index % CHART_COLORS.length] } as React.CSSProperties}><Route size={14} /></span>
+                    <b className="mono" style={{ fontSize: 22, color: 'var(--ink)' }}>{item.value}</b>
+                  </span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</span>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </Panel>
       </div>
 
-      <Panel eyebrow="Tabela analítica" title={`Por ${config.slug === 'coleta-entulhos' ? 'tipo de resíduo' : 'tipo de serviço'}`} icon={<Layers3 size={18} />}>
-        <div className="overflow-auto rounded-[14px] border border-slate-100">
-          <table className="min-w-[640px] w-full text-left text-sm">
-            <thead className="bg-slate-50 font-mono text-[10px] uppercase tracking-[0.08em] text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Tipo</th>
-                <th className="px-3 py-2 text-right">Qtd</th>
-                <th className="px-3 py-2 text-right">{metricTitle}</th>
-                <th className="px-3 py-2 text-right">% Qtd</th>
-                <th className="px-3 py-2 text-right">% {metricTitle}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {sheet.tipos.map((item) => (
-                <tr key={item.name} className="transition hover:bg-slate-50">
-                  <td className="px-3 py-2 font-semibold text-slate-800">{item.name}</td>
-                  <td className="px-3 py-2 text-right font-bold">{item.qtd}</td>
-                  <td className="px-3 py-2 text-right">{formatMetric(item.producao)}</td>
-                  <td className="px-3 py-2 text-right">{formatMetric(item.pctQtd)}%</td>
-                  <td className="px-3 py-2 text-right">{formatMetric(item.pctProducao)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Panel eyebrow="tabela analítica" title={`Por ${config.slug === 'coleta-entulhos' ? 'tipo de resíduo' : 'tipo de serviço'}`} icon={<Layers3 size={16} />}>
+        {sheet.tipos.length === 0 ? <p className="so-help">Nenhum tipo informado no período.</p> : (
+          <div className="so-tw">
+            <table className="so-table os-rows">
+              <thead><tr><th scope="col">Tipo</th><th scope="col" style={{ textAlign: 'right' }}>Qtd</th><th scope="col" style={{ textAlign: 'right' }}>{metricTitle}</th><th scope="col" style={{ textAlign: 'right' }}>% Qtd</th><th scope="col" style={{ textAlign: 'right' }}>% {metricTitle}</th></tr></thead>
+              <tbody>
+                {sheet.tipos.map((item) => (
+                  <tr key={item.name}>
+                    <td data-l="Tipo"><b style={{ color: 'var(--ink)' }}>{item.name}</b></td>
+                    <td data-l="Qtd" className="mono" style={{ textAlign: 'right', fontWeight: 700 }}>{item.qtd}</td>
+                    <td data-l={metricTitle} className="mono" style={{ textAlign: 'right' }}>{formatMetric(item.producao)}</td>
+                    <td data-l="% Qtd" className="mono" style={{ textAlign: 'right' }}>{formatMetric(item.pctQtd)}%</td>
+                    <td data-l={`% ${metricTitle}`} className="mono" style={{ textAlign: 'right' }}>{formatMetric(item.pctProducao)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
-    </div>
+    </>
   );
 }
