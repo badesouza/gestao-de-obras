@@ -465,14 +465,15 @@
 .lg-ac-conta .ic svg { width: 17px; height: 17px; }
 .lg-ac-conta .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .lg-ac-conta small { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
-.lg-ac-conta b { color: var(--ink); font-size: 14.5px; font-weight: 700; overflow-wrap: anywhere; }
+.lg-ac-conta b { color: var(--ink); font-size: 14.5px; font-weight: 700; overflow-wrap: break-word; }
 .lg-ac-conta .ok { flex: none; color: var(--mint); display: grid; place-items: center; }
 .lg-ac-conta .ok svg { width: 18px; height: 18px; }
 
 /* régua de força: 4 trechos que acendem */
 .lg-ac-forca { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--faint); }
-.lg-ac-forca .barras { display: grid; grid-template-columns: repeat(4, 22px); gap: 4px; flex: none; }
+.lg-ac-forca .barras { display: grid; grid-template-columns: repeat(4, 18px); gap: 4px; flex: none; }
 .lg-ac-forca .barras i { height: 4px; border-radius: 4px; background: rgba(140, 150, 255, .16); transition: background .35s var(--ease), box-shadow .35s var(--ease); }
+.lg-ac-forca .rot { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lg-ac-forca .rot b { font-weight: 700; }
 .lg-ac-forca.n1 .barras i:nth-child(-n+1) { background: var(--coral); }
 .lg-ac-forca.n2 .barras i:nth-child(-n+2) { background: var(--amber); }

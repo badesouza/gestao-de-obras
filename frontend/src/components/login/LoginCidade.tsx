@@ -67,7 +67,8 @@ function Kpi({ rotulo, valor, sufixo, cor, serie, barra }: { rotulo: string; val
   );
 }
 
-export function LoginCidade({ entityId, orgao, children }: { entityId?: string; orgao?: string; children: ReactNode }) {
+/** semNumeros: tira a faixa de números do dia (ex.: criar senha) e o cartão ganha a altura toda */
+export function LoginCidade({ entityId, orgao, semNumeros, children }: { entityId?: string; orgao?: string; semNumeros?: boolean; children: ReactNode }) {
   const largo = useLargo();
   const cartao = useRef<HTMLDivElement>(null);
   const [dados, setDados] = useState<EntradaPublica | null>(null);
@@ -113,7 +114,7 @@ export function LoginCidade({ entityId, orgao, children }: { entityId?: string; 
   const ultimoAbertas = s ? Math.max(1, ...s.abertas) : 1;
 
   return (
-    <div className={`cid${largo ? ' largo' : ''}`}>
+    <div className={`cid${largo ? ' largo' : ''}${semNumeros ? ' sem-numeros' : ''}`}>
       <section className="cid-mapa">
         <MapaVivo<Ultima> cores={cores} alvo={cartao} largCartao={largo ? 440 : 0} proximoPedido={proximoPedido} aoChegar={aoChegar} />
         <div className="cid-topo">
@@ -150,7 +151,7 @@ export function LoginCidade({ entityId, orgao, children }: { entityId?: string; 
         </div>
       </main>
 
-      {dados && (
+      {dados && !semNumeros && (
         <section className={`cid-kpis${reais ? '' : ' exemplo'}`} aria-label={reais ? 'Números de hoje' : 'Números de exemplo'}>
           {!reais && <span className="cid-exemplo">Exemplo · os números reais aparecem com as primeiras OS</span>}
           <Kpi rotulo="OS abertas hoje" valor={String(k.abertasHoje)} cor="#8B84FF" serie={s.abertas} barra={k.abertasHoje / ultimoAbertas * 100} />

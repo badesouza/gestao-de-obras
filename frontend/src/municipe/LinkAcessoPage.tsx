@@ -26,6 +26,12 @@ function forca(s: string) {
 }
 const FORCA = ['', 'fraca', 'razoável', 'boa', 'forte'];
 
+/** e-mail longo quebra depois do @, nunca no meio do domínio */
+function emailQuebravel(email?: string) {
+  const i = (email ?? '').indexOf('@');
+  return i < 0 ? email : <>{email!.slice(0, i)}<wbr />{email!.slice(i)}</>;
+}
+
 /** Página pública do link: criar a senha (ou aviso de link vencido) */
 export function LinkAcessoPage() {
   const { token } = useParams<{ token: string }>();
@@ -70,7 +76,7 @@ export function LinkAcessoPage() {
   const cena = (conteudo: React.ReactNode) => (
     <>
       {entrando !== null && <AberturaSisObras nome={entrando} />}
-      <LoginCidade entityId={ent?.id} orgao={ent?.nome || undefined}>
+      <LoginCidade entityId={ent?.id} orgao={ent?.nome || undefined} semNumeros>
         {conteudo}
         <LoginRodape />
       </LoginCidade>
@@ -111,7 +117,7 @@ export function LinkAcessoPage() {
       <form className="lg-form" onSubmit={e => { e.preventDefault(); void criar(); }}>
         <div className="lg-ac-conta">
           <span className="ic"><Mail /></span>
-          <span className="tx"><small>Seu login</small><b>{link.email}</b></span>
+          <span className="tx"><small>Seu login</small><b>{emailQuebravel(link.email)}</b></span>
           <span className="ok" title="Confirmado pelo cadastro"><ShieldCheck /></span>
         </div>
         {/* o navegador guarda a senha junto com o e-mail certo */}
@@ -133,7 +139,7 @@ export function LinkAcessoPage() {
           </div>
           <div className={`lg-ac-forca n${nivel}`} aria-live="polite">
             <span className="barras" aria-hidden="true"><i /><i /><i /><i /></span>
-            <span className="rot">{senha ? <>Senha <b>{FORCA[nivel] || 'curta demais'}</b></> : 'Letras e números deixam a senha forte'}</span>
+            <span className="rot">{senha ? <>Senha <b>{FORCA[nivel] || 'curta demais'}</b></> : 'Letras e números deixam mais forte'}</span>
           </div>
           {caps && <span className="lg-caps"><TriangleAlert />Caps Lock ligado</span>}
         </div>

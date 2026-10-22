@@ -117,6 +117,8 @@
 .cid.largo .cid-kpis { position: absolute; left: clamp(20px, 2.4vw, 36px); right: 20px; bottom: 18px; padding: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .cid.largo .cid-kpi:last-child:nth-child(odd), .cid.largo .cid-kpis.exemplo .cid-kpi:last-child { grid-column: auto; }
 .cid.largo .cid-kpis.exemplo .cid-exemplo { position: absolute; left: 0; top: -26px; }
+/* sem a faixa de números (criar senha): cartão usa a altura toda e rola se a janela for baixa */
+.cid.largo.sem-numeros .cid-lado { bottom: 0; overflow-y: auto; place-items: safe center; scrollbar-width: none; }
 @media (max-width: 1079px) { .cid.largo .cid-leg { display: none; } }
 @media (max-height: 720px) {
   .cid.largo .lg-cartao { padding-top: 16px; padding-bottom: 12px; }
