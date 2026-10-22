@@ -7,6 +7,7 @@ import { CENTRO_IDS, SERVICOS_CONFIG } from './servico-config';
 import { useOnline } from '../../lib/offline/pwa';
 import { Anel, EtapaBadge, FotoThumb, Kpi, KpiCarregando, Medidor, Sparkline } from '../components/obras/ui';
 import { haQuanto, iniciais, nomeCurto, servicoDoCentro, slugDoCentro } from '../components/obras/util';
+import '../styles/sala-noite.css';
 
 /* ── Sala de Situação ─────────────────────────────────────────────
    A primeira tela do secretário: o que está acontecendo na cidade agora. */
@@ -76,7 +77,7 @@ export function SalaSituacaoPage() {
   const verMapa = !!(session.adminGeral || session.acessos?.includes('painel.mapa'));
 
   if (erro && !dados) {
-    return <div className="ob-page"><div className="ob-erro">{erro}</div></div>;
+    return <div className="ob-page sala"><div className="ob-erro">{erro}</div></div>;
   }
 
   const k = dados?.kpis;
@@ -87,13 +88,32 @@ export function SalaSituacaoPage() {
     return slug ? `${base}/servicos/${slug}${os ? `?os=${os}` : ''}` : `${base}/servicos`;
   };
 
+  const [diaSemana, ...restoData] = dataLonga(agora).split(', ');
+
   return (
-    <div className="ob-page">
+    <div className="ob-page sala">
+      {/* prancha: laser descendo e mira de projeto andando pelo topo */}
+      <div className="sala-faixa" aria-hidden="true">
+        <span className="sala-laser" />
+        <span className="sala-cadlayer"><span className="sala-cad"><span className="h" /><span className="v" /><span className="ping" /><span className="bx" /><span className="tg" /></span></span>
+      </div>
 
       <header className="ob-head ob-reveal" style={{ '--i': 0 } as React.CSSProperties}>
+        <div className="sala-titulo">
+        <div className="sala-selo" aria-hidden="true">
+          <span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" />
+          <span className="sala-gsh" />
+          <span className="sala-sic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" opacity=".55" /><circle cx="12" cy="12" r="5" opacity=".75" />
+              <path className="varre" d="M12 12 L12 3" />
+              <circle cx="16.5" cy="8" r="1.4" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+        </div>
         <div className="ob-head-texto">
           <span className="ob-eyebrow"><i className="ob-live" />Sala de Situação · {online ? 'ao vivo' : 'sem internet · últimos dados guardados'}</span>
-          <h1 className="ob-h1">{dataLonga(agora)}</h1>
+          <h1 className="ob-h1"><em>{diaSemana}</em>{restoData.length > 0 && `, ${restoData.join(', ')}`}</h1>
           <p className="ob-sub">
             {saudacao(agora)}, {primeiroNome}.{' '}
             {k ? (
@@ -102,6 +122,7 @@ export function SalaSituacaoPage() {
                 : <>Há <b>{k.abertas} {k.abertas === 1 ? 'ocorrência aberta' : 'ocorrências abertas'}</b>{k.atrasadas > 0 && <> — <b className="tom-ruim">{k.atrasadas} {k.atrasadas === 1 ? 'passou' : 'passaram'} de 7 dias</b></>}. Hoje chegaram <b>{k.registradasHoje}</b> {k.registradasHoje === 1 ? 'registro' : 'registros'} do campo.</>
             ) : 'Carregando o que está acontecendo nas ruas…'}
           </p>
+        </div>
         </div>
         <div className="ob-head-acoes">
           {dados && (

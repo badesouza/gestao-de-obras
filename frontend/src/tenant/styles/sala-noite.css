@@ -1,0 +1,300 @@
+/* ══════════════════════════════════════════════════════════════
+   SALA DE SITUAÇÃO · NOITE (prefixo sala-)
+   Mesmo tom da tela de entrada: azul-noite, vidro, violeta, ciano e
+   verde. O menu e o topo viram uma moldura escura e a Sala é a prancha
+   iluminada dentro dela (borda luminosa, cantos arredondados, malha).
+   Só muda a aparência: dados e ações são os mesmos de obras-ui.css.
+   ══════════════════════════════════════════════════════════════ */
+
+.tn-shell.tema-escuro {
+  --ob-bg: #05081A;
+  --ob-bg-2: #070B1E;
+  --ob-card: #0E1433;
+  --ob-card-2: #131A3F;
+  --ob-line: rgba(140, 150, 255, .14);
+  --ob-line-2: rgba(140, 150, 255, .28);
+  --ob-ink: #F1F3FF;
+  --ob-soft: #C9CCFF;
+  --ob-muted: rgba(214, 221, 255, .66);
+  --ob-faint: rgba(214, 221, 255, .42);
+  --ob-amber: #F5A524;
+  --ob-blue: #8B84FF;
+  --ob-green: #3DD6A6;
+  --ob-rose: #FF7D75;
+  --ob-cyan: #22D3EE;
+  --ob-display: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ob-body: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ob-ease: cubic-bezier(.16, 1, .3, 1);
+  --sala-moldura: #0A0F21;
+  --sala-grad: linear-gradient(100deg, #635BFF 0%, #5A6BFF 45%, #2BB6E0 100%);
+}
+
+/* ── moldura: topo e fundo da área de conteúdo na cor do menu ── */
+.tn-shell.tema-escuro .tn-main { background: var(--sala-moldura); }
+.tn-shell.tema-escuro .tn-content { background: var(--sala-moldura); padding: 4px 14px 14px 6px; }
+.tn-shell.tema-escuro .tn-topbar {
+  background: var(--sala-moldura);
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+.tn-shell.tema-escuro .tn-topbar-search,
+.tn-shell.tema-escuro .tn-topbar-date-pill,
+.tn-shell.tema-escuro .tn-topbar-notif,
+.tn-shell.tema-escuro .tn-topbar-user,
+.tn-shell.tema-escuro .tn-topbar-menu-btn { background: rgba(140, 150, 255, .06); border-color: rgba(140, 150, 255, .16); }
+.tn-shell.tema-escuro .tn-topbar-date-pill:hover,
+.tn-shell.tema-escuro .tn-topbar-notif:hover,
+.tn-shell.tema-escuro .tn-topbar-user:hover { background: rgba(140, 150, 255, .12); }
+
+/* ── a prancha ── */
+.ob-page.sala {
+  position: relative;
+  isolation: isolate;
+  margin: 0;
+  min-height: 100%;
+  padding: 30px 32px 44px;
+  border-radius: 24px;
+  border: 1px solid rgba(139, 132, 255, .24);
+  overflow: hidden;
+  background:
+    radial-gradient(900px 420px at 88% -8%, rgba(99, 91, 255, .22), transparent 65%),
+    radial-gradient(700px 380px at -6% 6%, rgba(16, 198, 212, .10), transparent 65%),
+    radial-gradient(800px 500px at 50% 110%, rgba(25, 184, 138, .07), transparent 70%),
+    var(--ob-bg);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, .05),
+    0 0 0 1px rgba(5, 8, 26, .6),
+    -14px 0 40px -28px rgba(99, 91, 255, .75),
+    0 30px 60px -40px rgba(0, 0, 0, .9);
+  font-family: var(--ob-body);
+}
+/* malha de prancha que esmaece para baixo */
+.ob-page.sala::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(120, 132, 255, .07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 132, 255, .07) 1px, transparent 1px),
+    linear-gradient(rgba(120, 132, 255, .03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 132, 255, .03) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  background-position: -1px -1px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, rgba(0, 0, 0, .55) 420px, rgba(0, 0, 0, .18) 100%);
+  mask-image: linear-gradient(180deg, #000 0, rgba(0, 0, 0, .55) 420px, rgba(0, 0, 0, .18) 100%);
+}
+/* cantoneiras da prancha */
+.ob-page.sala::after {
+  content: ""; position: absolute; inset: 12px; z-index: -1; pointer-events: none; border-radius: 16px;
+  background:
+    linear-gradient(#8B84FF, #8B84FF) left top / 16px 2px no-repeat,
+    linear-gradient(#8B84FF, #8B84FF) left top / 2px 16px no-repeat,
+    linear-gradient(#22D3EE, #22D3EE) right top / 16px 2px no-repeat,
+    linear-gradient(#22D3EE, #22D3EE) right top / 2px 16px no-repeat,
+    linear-gradient(#3DD6A6, #3DD6A6) right bottom / 16px 2px no-repeat,
+    linear-gradient(#3DD6A6, #3DD6A6) right bottom / 2px 16px no-repeat,
+    linear-gradient(#22D3EE, #22D3EE) left bottom / 16px 2px no-repeat,
+    linear-gradient(#22D3EE, #22D3EE) left bottom / 2px 16px no-repeat;
+  opacity: .55;
+}
+
+/* faixa do topo: laser descendo e mira de projeto andando */
+.sala-faixa { position: absolute; left: 0; right: 0; top: 0; height: 300px; z-index: 0; overflow: hidden; pointer-events: none; }
+.sala-laser { position: absolute; inset: 0; animation: sala-laser 8s cubic-bezier(.45, 0, .55, 1) infinite; }
+.sala-laser::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, .5) 30%, rgba(34, 211, 238, .5) 70%, transparent);
+  box-shadow: 0 0 14px rgba(34, 211, 238, .5);
+}
+@keyframes sala-laser { 0% { transform: translateY(0); opacity: 0; } 8%, 70% { opacity: 1; } 80%, 100% { transform: translateY(300px); opacity: 0; } }
+@property --sala-e { syntax: '<integer>'; inherits: true; initial-value: 742; }
+@property --sala-n { syntax: '<integer>'; inherits: true; initial-value: 918; }
+.sala-cadlayer { position: absolute; inset: 0; animation: sala-survey 28s cubic-bezier(.65, 0, .35, 1) infinite; }
+.sala-cad { position: absolute; left: 0; top: 0; }
+.sala-cad span { position: absolute; display: block; }
+.sala-cad .h { left: -90px; top: 0; width: 180px; height: 1px; background: linear-gradient(90deg, transparent, rgba(139, 132, 255, .7) 30%, rgba(139, 132, 255, .7) 44%, transparent 44%, transparent 56%, rgba(139, 132, 255, .7) 56%, rgba(139, 132, 255, .7) 70%, transparent); }
+.sala-cad .v { top: -90px; left: 0; width: 1px; height: 180px; background: linear-gradient(180deg, transparent, rgba(139, 132, 255, .7) 30%, rgba(139, 132, 255, .7) 44%, transparent 44%, transparent 56%, rgba(139, 132, 255, .7) 56%, rgba(139, 132, 255, .7) 70%, transparent); }
+.sala-cad .bx { left: -8px; top: -8px; width: 17px; height: 17px; border: 1.5px solid #8B84FF; border-radius: 4px; background: rgba(99, 91, 255, .14); box-shadow: 0 0 16px rgba(99, 91, 255, .7); }
+.sala-cad .ping { left: -8px; top: -8px; width: 17px; height: 17px; border: 1.5px solid #22D3EE; border-radius: 4px; opacity: 0; animation: sala-ping 5.6s ease-out infinite; }
+.sala-cad .tg {
+  left: 18px; top: 14px; white-space: nowrap; font-family: var(--ob-mono); font-size: 9.5px; font-weight: 600;
+  color: #C9CCFF; background: rgba(10, 16, 36, .82); border: 1px solid rgba(139, 132, 255, .3); padding: 3px 7px; border-radius: 6px;
+  font-variant-numeric: tabular-nums; counter-reset: e var(--sala-e) n var(--sala-n);
+}
+.sala-cad .tg::before { content: "E 357." counter(e) " · N 8.614." counter(n); }
+@keyframes sala-survey {
+  0%, 5%   { transform: translate(62%, 9%); --sala-e: 742; --sala-n: 918; }
+  25%, 30% { transform: translate(86%, 16%); --sala-e: 815; --sala-n: 603; }
+  50%, 55% { transform: translate(72%, 5%); --sala-e: 466; --sala-n: 271; }
+  75%, 80% { transform: translate(54%, 17%); --sala-e: 289; --sala-n: 807; }
+  100%     { transform: translate(62%, 9%); --sala-e: 742; --sala-n: 918; }
+}
+@keyframes sala-ping { 0%, 72% { opacity: 0; transform: scale(1); } 76% { opacity: 1; } 100% { opacity: 0; transform: scale(3); } }
+
+/* ── cabeçalho ── */
+.ob-page.sala > * { position: relative; z-index: 1; }
+.ob-page.sala > .sala-faixa { position: absolute; z-index: 0; }
+.ob-page.sala .ob-head { z-index: 20; }
+.sala-titulo { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.ob-page.sala .ob-eyebrow { color: var(--ob-cyan); }
+.ob-page.sala .ob-h1 { font-family: var(--ob-display); font-weight: 800; font-size: clamp(34px, 3.4vw, 50px); line-height: 1; letter-spacing: -.035em; }
+.ob-page.sala .ob-h1 em {
+  font-style: normal;
+  background-image: linear-gradient(100deg, #A9A4FF 0%, #6F8BFF 35%, #22D3EE 65%, #3DD6A6 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: sala-tinta 7s ease-in-out infinite;
+}
+@keyframes sala-tinta { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.ob-page.sala .ob-sub { color: var(--ob-muted); }
+
+/* selo em camadas sobre prancha, com o radar da Sala */
+.sala-selo {
+  position: relative; flex: none; width: 72px; height: 72px; margin: 6px; border-radius: 18px;
+  background-color: #0D1330;
+  background-image: linear-gradient(rgba(140, 150, 255, .13) 1px, transparent 1px), linear-gradient(90deg, rgba(140, 150, 255, .13) 1px, transparent 1px);
+  background-size: 9px 9px; background-position: -1px -1px;
+  border: 1px solid var(--ob-line-2);
+  box-shadow: inset 0 0 0 3px rgba(10, 14, 32, .9), 0 18px 34px -18px rgba(99, 91, 255, .9);
+}
+.sala-selo::after { content: ""; position: absolute; left: 7px; right: 7px; top: 8px; height: 1px; z-index: 3; background: linear-gradient(90deg, transparent, #22D3EE, transparent); box-shadow: 0 0 8px #22D3EE; opacity: 0; animation: sala-scan 5.5s cubic-bezier(.16, 1, .3, 1) 1.2s infinite; }
+@keyframes sala-scan { 0% { top: 8px; opacity: 0; } 12% { opacity: .95; } 48% { top: calc(100% - 10px); opacity: .95; } 58%, 100% { top: calc(100% - 10px); opacity: 0; } }
+.sala-selo .cm { position: absolute; width: 11px; height: 11px; border: 0 solid #8B84FF; animation: sala-foco 3.6s cubic-bezier(.16, 1, .3, 1) infinite; }
+.sala-selo .tl { left: -6px; top: -6px; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; --fx: -2px; --fy: -2px; }
+.sala-selo .tr { right: -6px; top: -6px; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; border-color: #22D3EE; --fx: 2px; --fy: -2px; }
+.sala-selo .br { right: -6px; bottom: -6px; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; border-color: #3DD6A6; --fx: 2px; --fy: 2px; }
+.sala-selo .bl { left: -6px; bottom: -6px; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; border-color: #22D3EE; --fx: -2px; --fy: 2px; }
+.sala-titulo:hover .sala-selo .cm { animation-duration: 1.2s; }
+@keyframes sala-foco { 0%, 100% { transform: translate(var(--fx), var(--fy)); opacity: .55; } 50% { transform: none; opacity: 1; } }
+.sala-sic {
+  position: absolute; z-index: 2; left: 50%; top: 50%; width: 46px; height: 46px; margin: -26px 0 0 -23px; border-radius: 13px;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(145deg, #635BFF, #7278FF 60%, #10C6D4);
+  box-shadow: 0 12px 20px -8px rgba(99, 91, 255, .75), inset 0 1px rgba(255, 255, 255, .38);
+  animation: sala-flutua 4.2s ease-in-out 1s infinite;
+  overflow: hidden;
+}
+.sala-sic svg { width: 24px; height: 24px; }
+.sala-sic .varre { transform-origin: 12px 12px; animation: sala-gira 3.2s linear infinite; }
+@keyframes sala-gira { to { transform: rotate(360deg); } }
+.sala-gsh { position: absolute; z-index: 1; left: 50%; bottom: 8px; width: 32px; height: 6px; margin-left: -16px; border-radius: 50%; background: rgba(0, 0, 0, .55); animation: sala-sombra 4.2s ease-in-out 1s infinite; }
+@keyframes sala-flutua { 50% { transform: translateY(-4px); } }
+@keyframes sala-sombra { 50% { transform: scale(.82); opacity: .6; } }
+
+/* ── botão principal e pílula ── */
+.ob-page.sala .ob-btn {
+  color: #fff; background: var(--sala-grad); background-size: 160% 100%;
+  box-shadow: 0 16px 30px -14px rgba(99, 91, 255, .95), inset 0 1px rgba(255, 255, 255, .3);
+  font-weight: 800;
+}
+.ob-page.sala .ob-btn:hover { background-position: 100% 50%; box-shadow: 0 22px 40px -16px rgba(79, 123, 255, 1), 0 0 0 4px rgba(99, 91, 255, .16); }
+.ob-page.sala .ob-btn::after { transform: translateX(-120%); animation: sala-brilho 4.5s ease-in-out 1.6s infinite; }
+@keyframes sala-brilho { 0%, 60% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+.ob-page.sala .ob-btn:focus-visible, .ob-page.sala .ob-btn-ghost:focus-visible, .ob-page.sala .ob-menu-item:focus-visible { outline-color: #8B84FF; }
+.ob-page.sala .ob-pill { background: rgba(14, 20, 51, .72); border-color: var(--ob-line); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.ob-page.sala .ob-avatares span { background: #2A2F6B; border-color: #0E1433; }
+.ob-page.sala .ob-avatares span:nth-child(2) { background: #1E4A6B; }
+.ob-page.sala .ob-avatares span:nth-child(3) { background: #1B5A4C; }
+.ob-page.sala .ob-menu { background: rgba(14, 20, 51, .96); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.ob-page.sala .ob-menu-item:hover { background: rgba(140, 150, 255, .1); }
+.ob-page.sala .ob-btn-ghost:hover { background: rgba(140, 150, 255, .1); border-color: rgba(139, 132, 255, .5); }
+
+/* ── indicadores em vidro ── */
+.ob-page.sala .ob-kpi {
+  background: linear-gradient(180deg, rgba(22, 28, 60, .78), rgba(12, 17, 40, .66));
+  border-color: var(--ob-line-2);
+  box-shadow: 0 22px 40px -30px rgba(0, 0, 0, .95), inset 0 1px rgba(255, 255, 255, .05);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.ob-page.sala .ob-kpi::after { height: 3px; transform: scaleX(.35); box-shadow: 0 0 12px var(--kpi-cor); }
+.ob-page.sala .ob-kpi:hover { box-shadow: 0 30px 50px -28px color-mix(in srgb, var(--kpi-cor) 70%, #000), inset 0 1px rgba(255, 255, 255, .08); }
+.ob-page.sala .ob-kpi-rotulo { font-family: var(--ob-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ob-faint); }
+.ob-page.sala .ob-kpi-valor { font-weight: 800; font-size: 60px; letter-spacing: -.04em; text-shadow: 0 0 30px color-mix(in srgb, var(--kpi-cor) 45%, transparent); }
+.ob-page.sala .ob-medidor-trilho, .ob-page.sala .ob-anel-trilho { background: rgba(140, 150, 255, .14); stroke: rgba(140, 150, 255, .16); }
+
+.ob-page.sala .tom-ok { color: #7EE8C4; }
+.ob-page.sala .tom-alerta { color: #FFD27A; }
+.ob-page.sala .tom-ruim { color: #FFB0A9; }
+
+/* ── cartões em vidro com cantoneiras no hover ── */
+.ob-page.sala .ob-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(20, 26, 56, .76), rgba(11, 15, 36, .72));
+  border-color: var(--ob-line-2);
+  box-shadow: 0 30px 60px -40px rgba(0, 0, 0, .95), inset 0 1px rgba(255, 255, 255, .05);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.ob-page.sala .ob-card::before, .ob-page.sala .ob-card::after {
+  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; opacity: 0;
+  transition: opacity .3s, transform .45s cubic-bezier(.16, 1, .3, 1);
+}
+.ob-page.sala .ob-card::before { z-index: 5; left: 7px; top: 7px; border-left: 2px solid #8B84FF; border-top: 2px solid #8B84FF; border-top-left-radius: 6px; transform: translate(4px, 4px); }
+.ob-page.sala .ob-card::after { z-index: 5; right: 7px; bottom: 7px; border-right: 2px solid #3DD6A6; border-bottom: 2px solid #3DD6A6; border-bottom-right-radius: 6px; transform: translate(-4px, -4px); }
+.ob-page.sala .ob-card:hover::before, .ob-page.sala .ob-card:hover::after { opacity: 1; transform: none; }
+.ob-page.sala .ob-card:hover { border-color: rgba(139, 132, 255, .42); }
+.ob-page.sala .ob-card-titulo { font-weight: 800; font-size: 21px; letter-spacing: -.02em; }
+.ob-page.sala .ob-card-head { padding: 18px 20px 14px; }
+
+/* badges no tom novo */
+.ob-page.sala .ob-badge.is-aberta { background: rgba(139, 132, 255, .14); color: #C9C6FF; border-color: rgba(139, 132, 255, .32); }
+.ob-page.sala .ob-badge.is-execucao { background: rgba(245, 165, 36, .12); color: #FFD27A; border-color: rgba(245, 165, 36, .3); }
+.ob-page.sala .ob-badge.is-concluida { background: rgba(61, 214, 166, .12); color: #7EE8C4; border-color: rgba(61, 214, 166, .3); }
+.ob-page.sala .ob-tag { background: rgba(140, 150, 255, .08); }
+.ob-page.sala .ob-tag.tom-ok { background: rgba(61, 214, 166, .1); }
+.ob-page.sala .ob-tag.tom-alerta { background: rgba(245, 165, 36, .1); }
+
+/* mapa e lateral do mapa */
+.ob-page.sala .ob-mapa .sv-mapa-controls { background: rgba(14, 20, 51, .9); }
+.ob-page.sala .ob-mapa .sv-mapa-pill.is-active { background: var(--sala-grad); color: #fff; border-color: transparent; }
+.ob-page.sala .ob-mapa .sv-mapa-select option { background: #0E1433; }
+.ob-page.sala .ob-mapa .sv-mapa-sidebar { background: rgba(11, 16, 42, .95); }
+
+/* feed, alertas, serviços e equipes */
+.ob-page.sala .ob-feed-item:hover, .ob-page.sala .ob-servico:hover { background: rgba(140, 150, 255, .08); }
+.ob-page.sala .ob-thumb { background: color-mix(in srgb, var(--serv-cor) 14%, #0E1433); }
+.ob-page.sala .ob-alerta, .ob-page.sala .ob-equipe { background: rgba(5, 8, 26, .55); }
+.ob-page.sala .ob-alerta.tom-ruim { border-color: rgba(255, 125, 117, .34); background: linear-gradient(120deg, rgba(255, 125, 117, .1), rgba(5, 8, 26, .55) 60%); }
+.ob-page.sala .ob-alerta.tom-alerta { border-color: rgba(245, 165, 36, .3); background: linear-gradient(120deg, rgba(245, 165, 36, .09), rgba(5, 8, 26, .55) 60%); }
+.ob-page.sala .ob-alerta.is-ok .ob-alerta-num { color: #7EE8C4; }
+.ob-page.sala .ob-alerta-num, .ob-page.sala .ob-equipe-num b { font-weight: 800; letter-spacing: -.03em; }
+.ob-page.sala .ob-alerta-texto a:hover { color: #A9A4FF; }
+.ob-page.sala .ob-barra { background: rgba(140, 150, 255, .12); }
+.ob-page.sala .ob-equipe-letra { background: linear-gradient(145deg, #635BFF, #4F7BFF 60%, #10C6D4); color: #fff; font-weight: 800; box-shadow: 0 10px 18px -8px rgba(99, 91, 255, .8); }
+.ob-page.sala .ob-skeleton { background: linear-gradient(90deg, rgba(140, 150, 255, .05) 25%, rgba(140, 150, 255, .12) 50%, rgba(140, 150, 255, .05) 75%); background-size: 200% 100%; }
+/* vazio vira um quadro tracejado de prancha */
+.ob-page.sala .ob-vazio {
+  margin: 4px 10px 10px; padding: 18px 16px 18px 52px; border-radius: 14px; position: relative;
+  border: 1px dashed rgba(140, 150, 255, .28); background: rgba(5, 8, 26, .4);
+}
+.ob-page.sala .ob-vazio::before {
+  content: ""; position: absolute; left: 16px; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 7px;
+  background: linear-gradient(145deg, #635BFF, #10C6D4); opacity: .85;
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 4px, #000 5px); mask: radial-gradient(circle at 50% 50%, transparent 4px, #000 5px);
+  animation: sala-pulso-v 2.4s ease-in-out infinite;
+}
+@keyframes sala-pulso-v { 50% { transform: scale(.86); opacity: .55; } }
+
+/* ── telas menores: a prancha ocupa tudo ── */
+@media (max-width: 768px) {
+  .tn-shell.tema-escuro .tn-content { padding: 0; }
+  .ob-page.sala { border-radius: 0; border: 0; padding: 22px 16px 96px; box-shadow: none; }
+  .ob-page.sala::after { display: none; }
+  .sala-selo, .sala-cadlayer { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sala-laser, .sala-cadlayer, .sala-cad .ping, .sala-selo::after, .sala-selo .cm, .sala-sic, .sala-sic .varre, .sala-gsh,
+  .ob-page.sala .ob-h1 em, .ob-page.sala .ob-btn::after, .ob-page.sala .ob-vazio::before { animation: none !important; }
+  .sala-cadlayer { display: none; }
+}
+
+/* aviso de mapa vazio legível sobre a foto de satélite */
+.ob-page.sala .sv-mapa-empty {
+  left: 50%; top: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%);
+  width: max-content; max-width: calc(100% - 40px); padding: 12px 18px; border-radius: 14px;
+  flex-direction: row; gap: 10px; text-align: left;
+  color: var(--ob-ink); background: rgba(9, 13, 34, .82); border: 1px solid var(--ob-line-2);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, .9);
+}
+.ob-page.sala .sv-mapa-empty svg { color: #8B84FF; flex: none; }
+.ob-page.sala .sv-mapa-empty svg { opacity: 1; }
+.ob-page.sala .sv-mapa-empty span { color: var(--ob-ink); }
