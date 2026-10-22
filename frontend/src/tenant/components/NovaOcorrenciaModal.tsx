@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useId, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import '../styles/sisobras.css';
+import '../styles/os-legado.css';
 import L from 'leaflet';
 import { tenantApi, cadastrosAuxiliaresApi, mapaApi, centrosDeCustoApi, type CentroCustoDetail, type CentroDeCusto, type RegistroDiarioRow, type BairroCoord } from '../../lib/api-client';
 import { type ServicoConfig, type CampoConfig } from '../pages/servico-config';
@@ -775,36 +777,30 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
 
   return createPortal(
     <>
-      <div className="sv-modal-backdrop" onClick={onClose}>
-        <div className="sv-modal" onClick={e => e.stopPropagation()}>
+      {/* janela no padrão SisObras (clicar fora não fecha, para não perder o que foi digitado) */}
+      <div className="so so-scrim fixo" role="presentation">
+        <section className="so-dialog so-janela" role="dialog" aria-modal="true" aria-label={isEdit ? 'Editar ocorrência' : 'Nova ocorrência'} style={{ width: 760 }}>
 
-          <div className="sv-modal-bar" style={{ background: config.cor }} />
-
-          <div className="sv-modal-head">
-            <div className="sv-modal-head-left">
-              <div className="sv-modal-eyebrow" style={{ color: config.cor }}>
-                <span style={{
-                  display: 'inline-flex', width: 22, height: 22, alignItems: 'center', justifyContent: 'center',
-                  background: `color-mix(in srgb, ${config.cor} 12%, transparent)`, borderRadius: 6,
-                }}>
-                  {config.icon}
-                </span>
-                {config.nome}
-              </div>
-              <h3 className="sv-modal-title">{isEdit ? 'Editar ocorrência' : 'Nova ocorrência'}</h3>
-              <p className="sv-modal-subtitle">
-                {isEdit ? 'Altere os campos e salve.' : 'Preencha os dados do serviço executado.'}
-              </p>
+          <div className="so-dlg-h">
+            <div className="so-selo sm" aria-hidden="true">
+              <span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" />
+              <span className="so-gsh" />
+              <span className="so-sic" style={{ background: `linear-gradient(135deg, ${config.cor}, color-mix(in srgb, ${config.cor} 70%, #17213C))`, color: '#fff' }}>{config.icon}</span>
             </div>
-            <button type="button" className="sv-modal-close" onClick={onClose}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="so-eyebrow" style={{ color: config.cor }}>{config.nome}</div>
+              <h2 style={{ marginTop: 3 }}>{isEdit ? 'Editar ocorrência' : 'Nova ocorrência'}</h2>
+              <p>{isEdit ? 'Altere os campos e salve. As etapas da OS não mudam aqui.' : 'Preencha os dados do serviço executado.'}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+              <button type="button" className="so-x" aria-label="Fechar" onClick={onClose}>
+                <svg className="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
           </div>
 
           <form className="sv-modal-form" onSubmit={handleSubmit}>
-            <div className="sv-modal-body">
+            <div className="so-dlg-b"><div className="sv-modal-body">
 
               <label className="sv-modal-field">
                 <span className="sv-modal-label">Data <em className="sv-modal-req">*</em></span>
@@ -1025,20 +1021,16 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
               )}
 
               {error && (
-                <div className="tn-alert" style={{ marginTop: 4 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="12"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                  {error}
+                <div className="so-note amber" style={{ gridColumn: '1 / -1' }}>
+                  <svg className="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                  <span>{error}</span>
                 </div>
               )}
-            </div>
+            </div></div>
 
-            <div className="sv-modal-footer">
-              <button type="button" className="tn-btn-secondary" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="tn-btn-blue" disabled={saving} style={{ height: 40, fontSize: 13 }}>
+            <div className="so-dlg-f">
+              <button type="button" className="so-btn so-ghost" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="so-btn so-primary" disabled={saving}>
                 {saving ? (
                   <>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sv-spin">
@@ -1071,7 +1063,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
               onFechar={() => setCameraAberta(false)}
             />
           )}
-        </div>
+        </section>
       </div>
 
     </>,

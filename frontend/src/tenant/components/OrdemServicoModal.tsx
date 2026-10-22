@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import '../styles/sisobras.css';
+import '../styles/os-legado.css';
 import L from 'leaflet';
 import { useTenant } from '../TenantContext';
 import { tenantApi, mapaApi } from '../../lib/api-client';
@@ -228,25 +230,28 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
   const temVistoria = Boolean(dataVistoria || fiscal || qualidade);
 
   return createPortal(
-    <div className="os-backdrop" onClick={onClose}>
-      <div className="os-modal" onClick={e => e.stopPropagation()}>
+    <div className="so os-backdrop so-os-imprimir" role="presentation">
+      <div className="os-modal" role="dialog" aria-modal="true" aria-label={`Ordem de Serviço ${numeroOS}`}>
 
-        {/* Toolbar */}
-        <div className="os-toolbar">
-          <span className="os-toolbar-title">Ordem de Serviço — {numeroOS}</span>
-          <div className="os-toolbar-actions">
-            <button type="button" className="os-btn-print" onClick={() => window.print()}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 6 2 18 2 18 9"/>
-                <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
-                <rect x="6" y="14" width="12" height="8"/>
-              </svg>
+        {/* Cabeçalho da janela (não sai na impressão) */}
+        <div className="os-toolbar so-dlg-h">
+          <div className="so-selo sm" aria-hidden="true">
+            <span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" />
+            <span className="so-gsh" />
+            <span className="so-sic"><svg className="i" viewBox="0 0 24 24"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg></span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="so-eyebrow" style={{ color: config.cor }}>{config.nome} · para imprimir</div>
+            <h2 style={{ marginTop: 3 }}>Ordem de Serviço <span className="mono">{numeroOS}</span></h2>
+            <p>A folha abaixo sai no papel com o brasão, as etapas, as fotos e os espaços para assinatura.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+            <button type="button" className="so-btn so-primary sm os-shine" onClick={() => window.print()}>
+              <svg className="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
               Imprimir
             </button>
-            <button type="button" className="os-btn-close" onClick={onClose}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
+            <button type="button" className="so-x" aria-label="Fechar" onClick={onClose}>
+              <svg className="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
           </div>
         </div>
