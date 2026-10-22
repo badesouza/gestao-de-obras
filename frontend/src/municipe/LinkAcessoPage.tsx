@@ -1,22 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowRight, Check, Clock3, Eye, EyeOff, KeyRound, LockKeyhole, LogIn, Mail, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { linkAcessoApi, setTenantToken } from '../lib/api-client';
 import type { LinkPublico } from '../lib/api-client';
-import { Aviso, Ic, Selo, msgErro } from '../tenant/components/sisobras/so';
-import { SimboloSisObras } from '../components/marca/SimboloSisObras';
+import { msgErro } from '../tenant/components/sisobras/so';
+import { LoginCabecalho, LoginRodape, LoginSelo } from '../components/login/LoginVitrine';
+import { LoginCidade } from '../components/login/LoginCidade';
+import { AberturaSisObras } from '../components/marca/SimboloSisObras';
+import { tempoAbertura } from '../components/marca/abertura';
 
-function Cabeca({ link }: { link: LinkPublico | null }) {
-  const e = link?.entidade;
-  return (
-    <header className="so-ph-head">
-      {e?.brasaoUrl
-        ? <div className="so-selo" role="img" aria-label="Brasão do município"><span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" /><img src={e.brasaoUrl} alt="" style={{ position: 'absolute', inset: 12, width: 'calc(100% - 24px)', height: 'calc(100% - 24px)', objectFit: 'contain', zIndex: 2 }} /></div>
-        : <Selo icone="shield" rotulo="Brasão do município" />}
-      <div className="so-ph-org">Prefeitura Municipal de {e?.municipio ?? '…'}</div>
-      <div className="so-ph-app"><span className="so-ph-marca"><SimboloSisObras tamanho={30} animacao="montar" />SisObras</span></div>
-    </header>
-  );
+/** "VINICIUS LARCHER" → "Vinicius" */
+function primeiroNome(nome?: string) {
+  const p = (nome ?? '').trim().split(/\s+/)[0] ?? '';
+  return p ? p[0].toLocaleUpperCase('pt-BR') + p.slice(1).toLocaleLowerCase('pt-BR') : '';
 }
+
+/** força da senha de 0 a 4 (só para orientar; o mínimo continua 6 caracteres) */
+function forca(s: string) {
+  if (!s) return 0;
+  let f = s.length >= 6 ? 1 : 0;
+  if (s.length >= 10) f++;
+  if (/[a-z]/i.test(s) && /\d/.test(s)) f++;
+  if (/[^a-z0-9]/i.test(s) || (/[a-z]/.test(s) && /[A-Z]/.test(s))) f++;
+  return Math.min(4, f);
+}
+const FORCA = ['', 'fraca', 'razoável', 'boa', 'forte'];
 
 /** Página pública do link: criar a senha (ou aviso de link vencido) */
 export function LinkAcessoPage() {
@@ -27,8 +35,10 @@ export function LinkAcessoPage() {
   const [senha, setSenha] = useState('');
   const [repete, setRepete] = useState('');
   const [ver, setVer] = useState(false);
+  const [caps, setCaps] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
+  const [entrando, setEntrando] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -37,6 +47,8 @@ export function LinkAcessoPage() {
 
   const min6 = senha.length >= 6;
   const iguais = senha.length > 0 && senha === repete;
+  const nivel = forca(senha);
+  const checaCaps = (e: React.KeyboardEvent<HTMLInputElement>) => setCaps(e.getModifierState?.('CapsLock') ?? false);
 
   async function criar() {
     if (!token || !min6 || !iguais) return;
@@ -44,7 +56,8 @@ export function LinkAcessoPage() {
     try {
       const r = await linkAcessoApi.criarSenha(token, senha);
       setTenantToken(r.entityId, r.token);
-      navigate(`/t/${r.entityId}`, { replace: true });
+      setEntrando(link?.nome ?? '');
+      window.setTimeout(() => navigate(`/t/${r.entityId}`, { replace: true }), tempoAbertura());
     } catch (e) {
       const status = (e as { status?: number }).status;
       if (status === 410) setLink(l => (l ? { ...l, valido: false } : l));
@@ -52,60 +65,114 @@ export function LinkAcessoPage() {
     } finally { setEnviando(false); }
   }
 
-  const tela = (conteudo: React.ReactNode) => (
-    <div className="so" style={{ minHeight: '100dvh', display: 'flex', justifyContent: 'center', background: 'var(--bg)' }}>
-      <div className="so-phone" style={{ width: 'min(100%, 440px)', minHeight: '100dvh' }}>
-        <Cabeca link={link} />
+  const ent = link?.entidade ?? null;
+  const selo = (icone: React.ReactNode, tom?: 'coral' | 'ambar') => <LoginSelo brasao={tom ? null : ent?.brasaoUrl} tom={tom}>{icone}</LoginSelo>;
+  const cena = (conteudo: React.ReactNode) => (
+    <>
+      {entrando !== null && <AberturaSisObras nome={entrando} />}
+      <LoginCidade entityId={ent?.id} orgao={ent?.nome || undefined}>
         {conteudo}
-      </div>
-    </div>
+        <LoginRodape />
+      </LoginCidade>
+    </>
   );
 
-  if (!link && !erroCarga) return tela(<div className="so-ph-body"><p className="lead">Abrindo…</p></div>);
+  /* ── Abrindo ── */
+  if (!link && !erroCarga) {
+    return cena(
+      <LoginCabecalho selo={selo(<KeyRound />)} eyebrow="Primeiro acesso" titulo={<span style={{ opacity: 0.3 }}>Abrindo…</span>} />,
+    );
+  }
 
+  /* ── Link vencido ou já usado ── */
   if (erroCarga || !link?.valido) {
-    return tela(
-      <div className="so-ph-body" style={{ alignItems: 'center', textAlign: 'center', paddingTop: 34 }}>
-        <div className="so-ph-alert" aria-hidden="true"><b><Ic n="relogio" /></b></div>
-        <span className="so-badge amber"><span className="dot live" />link vencido</span>
-        <div>
-          <h1>Este link não vale mais</h1>
-          <p className="lead">Ele venceu ou já foi usado. Peça um novo link para quem cadastrou você no sistema.</p>
-        </div>
-        <Aviso tom="plain" className="so-note-esq">Já criou sua senha antes? Então é só entrar normalmente com seu e-mail e senha.</Aviso>
-        <a href={link?.entidade ? `/t/${link.entidade.id}/login` : '/'} className="so-btn so-primary lg block" style={{ marginTop: 'auto' }}>Ir para o login<Ic n="seta" className="arrow" /></a>
+    return cena(
+      <div className="lg-estado">
+        {selo(<Clock3 />, 'ambar')}
+        <h2>Este link não vale mais</h2>
+        <p>Ele venceu ou já foi usado.<br />Peça um novo link para quem cadastrou você no sistema.</p>
+        <p className="lg-ac-dica">Já criou sua senha antes? Então é só entrar com seu e-mail e senha.</p>
+        <a href={ent ? `/t/${ent.id}/login` : '/'} className="lg-btn lg-ac-link">Ir para o login<LogIn /></a>
       </div>,
     );
   }
 
-  const primeiro = (link.nome ?? '').split(' ')[0];
   const ate = link.expiraEm ? new Date(link.expiraEm) : null;
-  return tela(
-    <form className="so-ph-body" onSubmit={e => { e.preventDefault(); void criar(); }}>
-      <div>
-        <h1>Olá, {primeiro}!</h1>
-        <p className="lead">Crie sua senha. Depois disso você já entra no sistema.</p>
-      </div>
-      <div className="so-login">
-        <span className="so-cic"><Ic n="mail" /></span>
-        <div style={{ minWidth: 0 }}><small>Seu login</small><b style={{ overflowWrap: 'anywhere' }}>{link.email}</b></div>
-      </div>
-      <label className="so-field"><span className="so-lbl">Nova senha</span>
-        <span className="so-ctrl lg"><input type={ver ? 'text' : 'password'} autoComplete="new-password" value={senha} onChange={e => setSenha(e.target.value)} aria-label="Nova senha" />
-          <button type="button" className="eye" aria-label={ver ? 'Esconder a senha' : 'Mostrar a senha'} onClick={() => setVer(v => !v)}><Ic n="eye" /></button></span>
-      </label>
-      <label className="so-field"><span className="so-lbl">Repita a senha</span>
-        <span className="so-ctrl lg"><input type={ver ? 'text' : 'password'} autoComplete="new-password" value={repete} onChange={e => setRepete(e.target.value)} aria-label="Repita a senha" /></span>
-      </label>
-      <div className="so-checks">
-        <div style={{ color: min6 ? 'var(--mint)' : 'var(--muted)' }}><span style={min6 ? undefined : { background: 'var(--surface-3)', color: 'var(--faint)' }}><Ic n="check" /></span>Pelo menos 6 caracteres</div>
-        <div style={{ color: iguais ? 'var(--mint)' : 'var(--muted)' }}><span style={iguais ? undefined : { background: 'var(--surface-3)', color: 'var(--faint)' }}><Ic n="check" /></span>As duas senhas são iguais</div>
-      </div>
-      {erro && <p className="so-erro">{erro}</p>}
-      <button type="submit" className="so-btn so-primary lg block" disabled={!min6 || !iguais || enviando} style={{ marginTop: 4 }}>
-        {enviando ? 'Entrando…' : 'Criar senha e entrar'}<Ic n="seta" className="arrow" />
-      </button>
-      {ate && <p className="so-ph-foot">Este link vale até <b>{ate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {ate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</b> e só pode ser usado uma vez.</p>}
-    </form>,
+  return cena(
+    <>
+      <LoginCabecalho
+        selo={selo(<KeyRound />)}
+        eyebrow="Primeiro acesso"
+        titulo={`Olá, ${primeiroNome(link.nome)}!`}
+        sub="Crie sua senha. Depois disso você já entra no sistema."
+      />
+      <div className="lg-sep" />
+
+      <form className="lg-form" onSubmit={e => { e.preventDefault(); void criar(); }}>
+        <div className="lg-ac-conta">
+          <span className="ic"><Mail /></span>
+          <span className="tx"><small>Seu login</small><b>{link.email}</b></span>
+          <span className="ok" title="Confirmado pelo cadastro"><ShieldCheck /></span>
+        </div>
+        {/* o navegador guarda a senha junto com o e-mail certo */}
+        <input type="email" autoComplete="username" value={link.email ?? ''} readOnly hidden />
+
+        <div className="lg-campo">
+          <label htmlFor="ac-senha">Nova senha</label>
+          <div className="lg-ctrl">
+            <LockKeyhole aria-hidden="true" />
+            <input
+              id="ac-senha" type={ver ? 'text' : 'password'} autoComplete="new-password" autoFocus
+              value={senha} onChange={e => setSenha(e.target.value)}
+              onKeyUp={checaCaps} onKeyDown={checaCaps} onBlur={() => setCaps(false)}
+              placeholder="Pelo menos 6 caracteres"
+            />
+            <button type="button" className="lg-olho" onClick={() => setVer(v => !v)} aria-label={ver ? 'Esconder a senha' : 'Mostrar a senha'} title={ver ? 'Esconder a senha' : 'Mostrar a senha'}>
+              {ver ? <EyeOff /> : <Eye />}
+            </button>
+          </div>
+          <div className={`lg-ac-forca n${nivel}`} aria-live="polite">
+            <span className="barras" aria-hidden="true"><i /><i /><i /><i /></span>
+            <span className="rot">{senha ? <>Senha <b>{FORCA[nivel] || 'curta demais'}</b></> : 'Letras e números deixam a senha forte'}</span>
+          </div>
+          {caps && <span className="lg-caps"><TriangleAlert />Caps Lock ligado</span>}
+        </div>
+
+        <div className="lg-campo">
+          <label htmlFor="ac-repete">Repita a senha</label>
+          <div className="lg-ctrl">
+            <LockKeyhole aria-hidden="true" />
+            <input
+              id="ac-repete" type={ver ? 'text' : 'password'} autoComplete="new-password"
+              value={repete} onChange={e => setRepete(e.target.value)}
+              onKeyUp={checaCaps} onKeyDown={checaCaps} onBlur={() => setCaps(false)}
+              placeholder="Digite de novo"
+            />
+          </div>
+        </div>
+
+        <ul className="lg-ac-regras">
+          <li className={min6 ? 'ok' : ''}><span><Check /></span>Pelo menos 6 caracteres</li>
+          <li className={iguais ? 'ok' : ''}><span><Check /></span>As duas senhas são iguais</li>
+        </ul>
+
+        {erro && (
+          <div className="lg-erro" role="alert" key={erro}>
+            <TriangleAlert /><span>{erro}</span>
+          </div>
+        )}
+
+        <button type="submit" className={`lg-btn${!min6 || !iguais ? ' lg-ac-espera' : ''}`} disabled={!min6 || !iguais || enviando}>
+          {enviando ? <><span className="lg-spin" />Criando sua senha…</> : <>Criar senha e entrar<ArrowRight /></>}
+        </button>
+
+        {ate && (
+          <p className="lg-ac-validade">
+            <Clock3 />
+            <span>Este link vale até <b>{ate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {ate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</b> e só pode ser usado uma vez.</span>
+          </p>
+        )}
+      </form>
+    </>,
   );
 }
