@@ -202,7 +202,19 @@ export const publicApi = {
     apiRequest<{ id: string; name: string; status: string; coatOfArmsUrl: string | null }>(
       `/api/public/v1/tenants/${id}`,
     ),
+  /** tela de entrada: só totais do dia e últimas OS (sem endereço nem pessoa) */
+  entrada: (id: string) => apiRequest<EntradaPublica>(`/api/public/v1/tenants/${id}/entrada`),
 };
+
+export interface EntradaPublica {
+  /** falso enquanto houver poucas OS no mês: a tela não mostra os números */
+  mostrarNumeros: boolean;
+  kpis: { abertasHoje: number; finalizadasHoje: number; noPrazoPct: number | null; equipesEmCampo: number; equipesTotal: number; tempoMedioDias: number | null };
+  /** um valor por dia (14 dias), do mais antigo para hoje */
+  series: { abertas: number[]; finalizadas: number[]; noPrazo: (number | null)[]; equipes: number[]; tempo: (number | null)[] };
+  servicos: { nome: string; cor: string | null; hoje: number }[];
+  ultimas: { numero: string; servico: string; cor: string | null; etapa: string; origem: string; criadoEm: string }[];
+}
 
 /* ── Central do Munícipe ── */
 export interface CentralPublica {

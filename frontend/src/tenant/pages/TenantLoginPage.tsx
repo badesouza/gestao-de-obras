@@ -8,8 +8,9 @@ import {
   tenantApi,
 } from '../../lib/api-client';
 import {
-  LoginCabecalho, LoginFormulario, LoginRodape, LoginSaudacao, LoginSelo, LoginVitrine,
+  LoginCabecalho, LoginFormulario, LoginRodape, LoginSelo, LoginVitrine,
 } from '../../components/login/LoginVitrine';
+import { LoginCidade } from '../../components/login/LoginCidade';
 import { AberturaSisObras } from '../../components/marca/SimboloSisObras';
 import { tempoAbertura } from '../../components/marca/abertura';
 
@@ -89,8 +90,7 @@ export function TenantLoginPage() {
   return (
     <>
     {entrando !== null && <AberturaSisObras nome={entrando} />}
-    <LoginVitrine orgao={entityName || undefined}>
-      <LoginSaudacao />
+    <LoginCidade entityId={entityId} orgao={entityName || undefined}>
       <LoginCabecalho
         selo={<LoginSelo brasao={coatOfArmsUrl}><Landmark /></LoginSelo>}
         eyebrow="Acesso da entidade"
@@ -109,7 +109,7 @@ export function TenantLoginPage() {
         onSubmit={handleSubmit}
       />
       <LoginRodape />
-    </LoginVitrine>
+    </LoginCidade>
     </>
   );
 }
