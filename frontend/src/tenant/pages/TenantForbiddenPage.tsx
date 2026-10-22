@@ -13,7 +13,7 @@ export function TenantForbiddenPage() {
           Você não tem permissão para acessar este recurso.
         </p>
         {entityId ? (
-          <Link to={`/t/${entityId}/dashboard`} className="mt-4 inline-block underline">
+          <Link to={`/t/${entityId}`} className="mt-4 inline-block underline">
             Voltar ao dashboard
           </Link>
         ) : null}

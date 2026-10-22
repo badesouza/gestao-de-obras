@@ -375,6 +375,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const query = monthQuerySchema.parse(request.query);
         const result = await getProducaoDiaria(
           fastify.prisma,
@@ -396,6 +397,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const query = itemSearchQuerySchema.parse(request.query);
         const result = await searchItensForCentro(
           fastify.prisma,
@@ -417,6 +419,7 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
+        await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const query = monthQuerySchema.parse(request.query);
         const entityId = request.user.entityId!;
 

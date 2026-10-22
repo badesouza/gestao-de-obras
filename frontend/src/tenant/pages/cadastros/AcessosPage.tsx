@@ -67,7 +67,7 @@ export function AcessosPage() {
   }
 
   const u = dados.usuario;
-  const sub = [u.email, u.equipe ? `Equipe ${u.equipe}` : null, `atende ${u.atende ? u.atende.join(', ') : 'todos os serviços'}`].filter(Boolean).join(' · ');
+  const sub = [u.email, u.equipe ? `Equipe ${u.equipe}` : null, u.atende === null ? 'vê todos os serviços' : u.atende.length ? `atende ${u.atende.join(', ')}` : 'nenhum serviço'].filter(Boolean).join(' · ');
 
   return (
     <Pagina>

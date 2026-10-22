@@ -43,8 +43,8 @@ const ROLES = [
   },
   {
     code: TENANT_ROLE_ENGINEER,
-    name: 'Engenheiro/Fiscal',
-    description: 'Módulos operacionais e fiscais',
+    name: 'Engenheiro(a) civil',
+    description: 'Orça, confere a baixa, cuida dos itens e aditivos do contrato',
     permissions: [
       PERMISSION_DASHBOARD_VIEW,
       PERMISSION_LICITACOES_VIEW,

@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { handleAppError } from '../../../shared/errors.js';
-import { requireTenantAuth } from '../../../plugins/auth-tenant.js';
-import { obterConfig } from '../ordens/ordens.service.js';
+import { carregarAtor, requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { filtroEscopoOS, obterConfig } from '../ordens/ordens.service.js';
 
 /* ── Sala de Situação ─────────────────────────────────────────────
    Agrega todas as ocorrências da entidade em números para o secretário:
    abertas, atrasadas, concluídas na semana, tempo até concluir, fotos,
-   o que está chegando do campo, alertas, por serviço e por equipe.    */
+   o que está chegando do campo, alertas, por serviço e por equipe.
+   Cada pessoa só vê as OS dos serviços que atende.                    */
 
 const PROPS = ['Status', 'Bairro / Localidade', 'Logradouro / Referência', 'Equipe / Turma', 'Tipo de Serviço'];
 const DIAS_ATRASO = 7;
@@ -38,9 +39,11 @@ function distanciaM(aLat: number, aLng: number, bLat: number, bLng: number): num
 export async function registerPainelRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
 
-  fastify.get('/painel', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/painel', { preHandler: [tenantAuth, requireAcesso(fastify.prisma, 'painel.sala')] }, async (req, reply) => {
     try {
       const entityId = req.user.entityId!;
+      const ator = await carregarAtor(fastify.prisma, req.user.sub);
+      const escopo = await filtroEscopoOS(fastify.prisma, ator!);
       const agora = new Date();
       const hoje0 = inicioDia(agora);
       const dia = 86_400_000;
@@ -51,7 +54,7 @@ export async function registerPainelRoutes(fastify: FastifyInstance) {
 
       const [registros, bairros, equipesCadastro, pedidosNovos, cfgObras, pedidosFluxo] = await Promise.all([
         fastify.prisma.registroDiario.findMany({
-          where: { entityId, createdAt: { gte: janela0 } },
+          where: { entityId, ...escopo, createdAt: { gte: janela0 } },
           select: {
             id: true, data: true, createdAt: true, updatedAt: true, lat: true, lng: true,
             etapa: true, executadoEm: true, finalizadoEm: true,

@@ -40,7 +40,7 @@ const ORIGENS = ['Ouvidoria','Vistoria Própria','Munícipe','Vereador','Secreta
 const STATUS_PADRAO = ['Em Andamento','Concluído','Pendente','Cancelado'];
 const EQUIPES = ['Equipe A','Equipe B','Equipe C','Equipe D','Outra'];
 
-const ROTAS_VARRICAO = [
+export const ROTAS_VARRICAO = [
   'São João / Nova Itaberaba',
   'R. L. Fernandes Serra / Av. Rui Barbosa',
   'Rua da Palmeira e Rodoviária',

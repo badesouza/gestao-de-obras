@@ -1,6 +1,6 @@
-import { SERVICOS_CONFIG, SLUG_POR_CENTRO_ID } from '../servico-config';
+import { ROTAS_VARRICAO, SERVICOS_CONFIG, SLUG_POR_CENTRO_ID } from '../servico-config';
 import { CATEGORIAS_CIDADAO } from '../../components/obras/categorias';
-import type { CampoServico, MomentoCampo, TipoServico } from '../../../lib/api-client';
+import type { CampoServico, CamposComuns, ItemFrotaSimples, MomentoCampo, TipoServico } from '../../../lib/api-client';
 
 /**
  * Enquanto a ficha de um serviço nunca foi salva, a tela parte do que hoje
@@ -16,10 +16,8 @@ const COMUNS = new Set([
 ]);
 const NA_ABERTURA = /defeito|ocorr|situa|porte|esp[eé]cie|pra[cç]a|rota|distrito|refer|motivo|descarte/i;
 
-export const CAMPOS_FIXOS = [
-  'Bairro e endereço (com GPS)', 'Origem do pedido', 'Subtipo do serviço', 'Equipe e quem trabalhou',
-  'Veículo ou equipamento usado', 'Fotos do antes e do depois, com carimbo', 'Etapa da OS', 'Observações',
-];
+/** Campos de equipamento/veículo que hoje estão escritos dentro de cada serviço */
+const CAMPOS_EQUIP = ['Equipamento Utilizado', 'Veículo', 'Veículo / Equipamento'];
 
 export const CORES = [
   ['Azul aço', '#5b8db8'], ['Vermelho', '#dc2626'], ['Laranja', '#f97316'], ['Verde', '#16a34a'], ['Verde claro', '#22c55e'],
@@ -31,15 +29,28 @@ export function padroesDoServico(servicoId: string) {
   const cfg = slug ? SERVICOS_CONFIG[slug] : undefined;
   const cat = slug ? CATEGORIAS_CIDADAO.find(c => c.servicoSlug === slug) : undefined;
   const subtipos = cfg?.campos.find(c => c.nome === 'Tipo de Serviço')?.opcoes?.filter(o => o !== 'Outro') ?? [];
-  const campos: CampoServico[] = (cfg?.campos ?? []).filter(c => !COMUNS.has(c.nome)).map(c => ({
+  const proprios = (cfg?.campos ?? []).filter(c => !COMUNS.has(c.nome));
+  /* números soltos (área, extensão, volume, horas) viram uma ação só: "Medição", uma atividade por medida */
+  const numeros = proprios.filter(c => c.tipo === 'numero');
+  const medicao: CampoServico[] = numeros.length ? [{
+    nome: 'Medição', detalhe: null, tipo: 'NUMERO' as const, opcoes: numeros.map(c => (c.label || c.nome).replace(/\s+Tapa/, '')),
+    momento: 'BAIXA', obrigatorio: numeros.some(c => c.obrigatorio),
+  }] : [];
+  const campos: CampoServico[] = [...medicao, ...proprios.filter(c => c.tipo !== 'numero').map((c): CampoServico => ({
     nome: c.label || c.nome,
     detalhe: c.placeholder && !/^0[.,]0/.test(c.placeholder) ? c.placeholder : null,
     tipo: c.tipo === 'select' ? 'LISTA' : c.tipo === 'numero' ? 'NUMERO' : c.tipo === 'boolean' ? 'SIM_NAO' : 'TEXTO',
     opcoes: c.tipo === 'select' ? c.opcoes ?? [] : [],
     momento: (NA_ABERTURA.test(c.nome) ? 'ABERTURA' : 'BAIXA') as MomentoCampo,
     obrigatorio: !!c.obrigatorio,
-  }));
+  }))];
   const tipo: TipoServico = slug === 'construcao-civil' || slug === 'serralheria' ? 'CONSTRUCAO' : 'MANUTENCAO';
+  const tem = (nome: string) => !!cfg?.campos.some(c => c.nome === nome);
+  const nomesEquip = (cfg?.campos ?? []).filter(c => CAMPOS_EQUIP.includes(c.nome)).flatMap(c => c.opcoes ?? []).filter(o => o !== 'Outro');
+  const local: CamposComuns['local'] = slug === 'varricao' ? { tipo: 'ROTA', lista: [...ROTAS_VARRICAO] }
+    : slug === 'pracas-jardins' ? { tipo: 'LOCAL', lista: [] }
+      : slug === 'oficina' ? { tipo: 'VEICULO', lista: [] }
+        : { tipo: 'ENDERECO', lista: [] };
   return {
     slug: slug ?? null,
     cor: cfg?.cor ?? '#5b8db8',
@@ -48,5 +59,24 @@ export function padroesDoServico(servicoId: string) {
     tipoServico: tipo,
     municipePode: !!cat,
     nomeMunicipe: cat ? `${cat.nome} (${cat.dica.toLowerCase()})` : null,
+    /** campos comuns como estão hoje (equipamentos: casados pelo nome com o cadastro) */
+    camposComuns: (frota: ItemFrotaSimples[]): CamposComuns => ({
+      local,
+      origem: { usa: !cfg || tem('Origem da Demanda'), obrigatorio: false },
+      equipe: { usa: !cfg || tem('Equipe / Turma'), obrigatorio: false },
+      veiculo: { usa: nomesEquip.length > 0, obrigatorio: false },
+      fotos: { usa: true, obrigatorio: false },
+      observacoes: { usa: !cfg || tem('Observações'), obrigatorio: false },
+      equipamentos: frota.filter(f => nomesEquip.some(n => n.toLowerCase() === f.nome.toLowerCase() || n.toLowerCase() === (f.subtipo ?? '').toLowerCase())).map(f => f.id),
+    }),
+  };
+}
+
+/** Campos comuns de um serviço novo: tudo ligado, acontece num endereço */
+export function camposComunsNovos(): CamposComuns {
+  return {
+    local: { tipo: 'ENDERECO', lista: [] },
+    origem: { usa: true, obrigatorio: false }, equipe: { usa: true, obrigatorio: false }, veiculo: { usa: false, obrigatorio: false },
+    fotos: { usa: true, obrigatorio: false }, observacoes: { usa: true, obrigatorio: false }, equipamentos: [],
   };
 }

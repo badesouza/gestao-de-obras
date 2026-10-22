@@ -11,9 +11,9 @@ const pessoaSchema = z.object({
   nome: z.string().trim().min(2, 'Informe o nome completo').max(200),
   email: z.string().trim().email('E-mail inválido').max(200),
   celular: z.string().max(30).nullable().optional(),
-  modelo: z.enum(['ADMIN', 'COORDENADOR', 'FISCAL', 'COMPRAS', 'CONSULTA']),
-  equipeId: z.string().uuid().nullable().optional(),
-  lider: z.boolean().optional(),
+  modelo: z.enum(['ADMIN', 'SECRETARIO', 'COORDENADOR', 'ENGINEER', 'FISCAL', 'COMPRAS', 'CONSULTA']),
+  equipeIds: z.array(z.string().uuid()).max(50).optional(),
+  liderEquipeId: z.string().uuid().nullable().optional(),
   servicoIds: z.array(z.string().uuid()).max(100).nullable().optional(),
 });
 

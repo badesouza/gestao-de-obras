@@ -17,6 +17,7 @@ const ICONES = {
   userPlus: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></>,
   truck: <><path d="M1 4h14v12H1z" /><path d="M15 8h4l4 4v4h-8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></>,
   pie: <><path d="M21.2 15.9A10 10 0 1 1 8 2.8" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></>,
+  engrenagem: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3M12 18.5v3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M2.5 12h3M18.5 12h3M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" /></>,
   wrench: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />,
   hardhat: <><path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v2z" /><path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5" /><path d="M4 15v-3a6 6 0 0 1 6-6" /><path d="M14 6a6 6 0 0 1 6 6v3" /></>,
   key: <><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>,
@@ -169,20 +170,21 @@ export function Cabecalho({ selo, eyebrow, titulo, antesTitulo, extras, sub, dir
   );
 }
 
-/* ═══════════════════════ Régua dos 6 passos ═══════════════════════ */
+/* ═══════════════════════ Régua dos 7 passos ═══════════════════════ */
 
 export interface Passo {
   n: number; chave: ChavePasso; nome: string; curto: string; icone: NomeIcone; rota: string; texto: string; botao?: string;
 }
 
-/** Os 6 passos do cadastro. As rotas dos passos 3 a 6 apontam para as telas atuais até as novas entrarem. */
+/** Os 7 passos do cadastro (Veículos e Equipamentos são cadastros separados e opcionais) */
 export const PASSOS: Passo[] = [
   { n: 1, chave: 'orgao', nome: 'Órgão', curto: 'Órgão', icone: 'orgao', rota: 'cadastros/orgao', texto: 'Quem usa o sistema. O nome e o brasão aparecem no carimbo das fotos e nos PDFs.' },
   { n: 2, chave: 'lugares', nome: 'Lugares', curto: 'Lugares', icone: 'pin', rota: 'cadastros/lugares', texto: 'Macrozonas e bairros onde o trabalho acontece.' },
   { n: 3, chave: 'pessoas', nome: 'Pessoas', curto: 'Pessoas', icone: 'users', rota: 'cadastros/pessoas', texto: 'Quem entra no sistema e as equipes que vão a campo.' },
-  { n: 4, chave: 'veiculos', nome: 'Veículos e equipamentos', curto: 'Veículos', icone: 'truck', rota: 'cadastros/veiculos', texto: 'Opcional. Só se quiser saber qual veículo ou máquina foi usado em cada OS.' },
-  { n: 5, chave: 'centros', nome: 'Centros de custo', curto: 'Centros de custo', icone: 'pie', rota: 'cadastros/centros-de-custo', texto: 'Para onde vai o gasto. Ex.: Iluminação Pública, Limpeza Urbana.' },
-  { n: 6, chave: 'servicos', nome: 'Serviços', curto: 'Serviços', icone: 'wrench', rota: 'cadastros/servicos', texto: 'O que a secretaria faz. Cada serviço tem seu centro de custo, quem atende e o que o fiscal preenche.' },
+  { n: 4, chave: 'veiculos', nome: 'Veículos', curto: 'Veículos', icone: 'truck', rota: 'cadastros/veiculos', texto: 'Caminhões, caminhonetes e máquinas da frota, cada um ligado aos serviços que atende.' },
+  { n: 5, chave: 'equipamentos', nome: 'Equipamentos', curto: 'Equipamentos', icone: 'engrenagem', rota: 'cadastros/equipamentos', texto: 'Roçadeiras, motosserras, compactadores… cada um ligado aos serviços que o usam.' },
+  { n: 6, chave: 'centros', nome: 'Centros de custo', curto: 'Centros de custo', icone: 'pie', rota: 'cadastros/centros-de-custo', texto: 'Para onde vai o gasto. Ex.: Iluminação Pública, Limpeza Urbana.' },
+  { n: 7, chave: 'servicos', nome: 'Serviços', curto: 'Serviços', icone: 'wrench', rota: 'cadastros/servicos', texto: 'O que a secretaria faz. Cada serviço tem seu centro de custo, quem atende e o que o fiscal preenche.' },
 ];
 
 export const TEXTO_SITUACAO: Record<SituacaoPasso, string> = { ok: 'Pronto', warn: 'Ajustar', opt: 'Opcional' };
@@ -206,13 +208,13 @@ export function rotaTenant(entityId: string, rota: string) {
 export function ReguaPassos({ resumo, atual }: { resumo: ResumoCadastros | null; atual?: number }) {
   const { entityId } = useTenant();
   return (
-    <ol className="so-regua" aria-label="Passos do cadastro">
+    <ol className="so-regua c7" aria-label="Passos do cadastro">
       {PASSOS.map(p => {
         const sit = resumo?.passos.find(x => x.n === p.n)?.situacao ?? 'opt';
         const cur = p.n === atual;
         return (
           <li key={p.n} className={`so-sg ${sit}${cur ? ' cur' : ''}`}>
-            <Link to={cur ? '#' : rotaTenant(entityId, p.rota)} aria-current={cur ? 'step' : undefined}>
+            <Link to={cur ? '#' : rotaTenant(entityId, p.rota)} aria-current={cur ? 'step' : undefined} title={p.nome}>
               <span className="sg-ic"><Ic n={p.icone} /></span>
               <span className="sg-tx"><b>{p.curto}</b><small><span>{String(p.n).padStart(2, '0')}</span>{cur ? 'Você está aqui' : TEXTO_SITUACAO[sit]}</small></span>
             </Link>
@@ -223,7 +225,7 @@ export function ReguaPassos({ resumo, atual }: { resumo: ResumoCadastros | null;
   );
 }
 
-/** Cabeçalho padrão de uma tela de passo: selo, título, placar "N de 6" e a régua */
+/** Cabeçalho padrão de uma tela de passo: selo, título, placar "N de 7" e a régua */
 export function CabecalhoPasso({ passo, titulo, sub, extras, resumo, rotuloPlacar = 'passo do cadastro' }: {
   passo: number; titulo?: string; sub: ReactNode; extras?: ReactNode; resumo: ResumoCadastros | null; rotuloPlacar?: string;
 }) {
@@ -237,7 +239,7 @@ export function CabecalhoPasso({ passo, titulo, sub, extras, resumo, rotuloPlaca
       titulo={titulo ?? p.nome}
       extras={extras}
       sub={sub}
-      direita={<Placar n={passo} de="de 6" rotulo={rotuloPlacar} />}
+      direita={<Placar n={passo} de={`de ${PASSOS.length}`} rotulo={rotuloPlacar} />}
     >
       <ReguaPassos resumo={resumo} atual={passo} />
     </Cabecalho>
@@ -305,7 +307,13 @@ export function Janela({ icone, tom, eyebrow, titulo, sub, ajuda, largura = 560,
   const fechar = useRef(onFechar);
   fechar.current = onFechar;
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar.current(); };
+    /* Esc fecha só a janela de cima (a confirmação de exclusão não leva junto a janela de trás) */
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const abertas = document.querySelectorAll('.so-scrim.fixo');
+      if (abertas.length && abertas[abertas.length - 1] !== ref.current?.parentElement) return;
+      fechar.current();
+    };
     window.addEventListener('keydown', esc);
     const foco = ref.current?.querySelector<HTMLElement>('.so-dlg-b input:not([type=checkbox]):not([type=radio]):not([disabled]), .so-dlg-b select, .so-dlg-b textarea');
     setTimeout(() => foco?.focus(), 40);

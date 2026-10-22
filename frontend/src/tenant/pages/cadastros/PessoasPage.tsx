@@ -17,18 +17,18 @@ const SITUACAO: Record<SituacaoPessoa, { texto: string; tom: string; link: strin
   LINK_VENCIDO: { texto: 'Link vencido', tom: 'amber', link: 'Gerar novo link' },
   INATIVO: { texto: 'Inativo', tom: '', link: '' },
 };
-const TOM_PERFIL: Record<string, string> = { ADMIN: 'ink', COORDENADOR: 'brand', FISCAL: 'amber', COMPRAS: 'cyan', CONSULTA: '' };
+const TOM_PERFIL: Record<string, string> = { ADMIN: 'ink', SECRETARIO: 'ink', COORDENADOR: 'brand', ENGINEER: 'mint', FISCAL: 'amber', COMPRAS: 'cyan', CONSULTA: '' };
 
 interface Form {
   nome: string; email: string; celular: string; modelo: ModeloAcesso;
-  equipeId: string; lider: boolean; todos: boolean; servicoIds: string[];
+  equipeIds: string[]; liderEquipeId: string; servicoIds: string[];
 }
-const VAZIO: Form = { nome: '', email: '', celular: '', modelo: 'FISCAL', equipeId: '', lider: false, todos: true, servicoIds: [] };
+const VAZIO: Form = { nome: '', email: '', celular: '', modelo: 'FISCAL', equipeIds: [], liderEquipeId: '', servicoIds: [] };
 
 function paraForm(p: Pessoa): Form {
   return {
     nome: p.nome, email: p.email, celular: p.celular ? formatPhone(p.celular) : '', modelo: p.perfil.code as ModeloAcesso,
-    equipeId: p.equipe?.id ?? '', lider: p.lider, todos: !p.atende, servicoIds: p.atende?.map(s => s.id) ?? [],
+    equipeIds: p.equipes.map(e => e.id), liderEquipeId: p.liderDe ?? '', servicoIds: p.atende?.map(s => s.id) ?? [],
   };
 }
 
@@ -70,6 +70,10 @@ export function PessoasPage() {
     (!busca.trim() || `${u.nome} ${u.email}`.toLowerCase().includes(busca.trim().toLowerCase())));
   const modelo = dados.modelos.find(m => m.code === form.modelo);
   const pessoaEditada = editando && editando !== 'novo' ? editando : null;
+  /* ver todos os serviços é caixa dos Acessos; o modelo Administrador já vem com ela */
+  const veTodos = pessoaEditada && form.modelo === pessoaEditada.perfil.code ? pessoaEditada.atende === null : form.modelo === 'ADMIN';
+  /* toda pessoa tem 1+ equipes, menos Administrador, Secretário(a) e Coordenador */
+  const precisaEquipe = !modelo?.semEquipe;
 
   function fechar() {
     setEditando(null); setErros({});
@@ -86,13 +90,14 @@ export function PessoasPage() {
     const e: Record<string, boolean> = {};
     if (form.nome.trim().length < 2) e.nome = true;
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) e.email = true;
+    if (precisaEquipe && !form.equipeIds.length) e.equipes = true;
     setErros(e);
+    if (e.equipes && Object.keys(e).length === 1) { showToast('Escolha pelo menos uma equipe', 'warning'); return; }
     if (Object.keys(e).length) { showToast('Confira os campos em vermelho', 'warning'); return; }
-    if (!form.todos && !form.servicoIds.length) { showToast('Marque pelo menos um serviço ou escolha "Todos"', 'warning'); return; }
     setSalvando(true);
     const d = {
       nome: form.nome, email: form.email, celular: form.celular || null, modelo: form.modelo,
-      equipeId: form.equipeId || null, lider: !!form.equipeId && form.lider, servicoIds: form.todos ? null : form.servicoIds,
+      equipeIds: form.equipeIds, liderEquipeId: form.equipeIds.includes(form.liderEquipeId) ? form.liderEquipeId : null, servicoIds: form.servicoIds,
     };
     try {
       if (pessoaEditada) {
@@ -171,7 +176,7 @@ export function PessoasPage() {
                     <tr key={u.id} className={pessoaEditada?.id === u.id ? 'sel' : ''}>
                       <td data-l="Nome"><button type="button" className="so-link-nome" onClick={() => abrir(u)}>{u.nome}</button>{u.id === session.id && <span className="so-badge" style={{ marginLeft: 6 }}>você</span>}<span className="sub">{u.email}</span></td>
                       <td data-l="Perfil"><span className={`so-badge ${TOM_PERFIL[u.perfil.code] ?? ''}`}>{u.adminGeral ? 'Administrador' : u.perfil.nome}</span></td>
-                      <td data-l="Equipe · atende"><span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{u.equipe ? `${u.equipe.nome}${u.lider ? ' · líder' : ''}` : '—'}</span><span className="sub">atende {u.atende ? u.atende.map(s => s.nome).join(', ') : 'todos'}</span></td>
+                      <td data-l="Equipe · atende"><span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{u.equipes.length ? u.equipes.map(q => `${q.nome}${u.liderDe === q.id ? ' (líder)' : ''}`).join(', ') : '—'}</span><span className="sub">{u.atende === null ? 'vê todos os serviços' : u.atende.length ? `atende ${u.atende.map(s => s.nome).join(', ')}` : 'nenhum serviço'}</span></td>
                       <td data-l="Acesso"><span className={`so-badge ${sit.tom}`}><span className="dot" />{sit.texto}</span></td>
                       <td data-l="Link de senha" className="r">{sit.link && <button type="button" className="so-btn so-ghost sm" onClick={() => novoLink(u)}>{sit.link}</button>}</td>
                       <td data-l="" className="acoes"><AcoesLinha nome={u.nome} onEditar={() => abrir(u)} onExcluir={u.id !== session.id ? () => excluir(u) : undefined} /></td>
@@ -213,13 +218,10 @@ export function PessoasPage() {
             <label className="so-field"><span className="so-lbl">Celular (WhatsApp)</span>
               <span className="so-ctrl mono"><input type="tel" placeholder="(75) 90000-0000" value={form.celular} onChange={e => set('celular', formatPhone(e.target.value))} /></span>
             </label>
-            <label className="so-field"><span className="so-lbl">Equipe <span className="opt">opcional</span></span>
-              <span className="so-ctrl"><select value={form.equipeId} onChange={e => set('equipeId', e.target.value)}><option value="">Nenhuma</option>{dados.equipes.map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
+            <label className="so-field"><span className="so-lbl">Líder de <span className="opt">uma das equipes dela</span></span>
+              <span className="so-ctrl"><select value={form.equipeIds.includes(form.liderEquipeId) ? form.liderEquipeId : ''} disabled={!form.equipeIds.length} onChange={e => set('liderEquipeId', e.target.value)}><option value="">Não é líder</option>{dados.equipes.filter(q => form.equipeIds.includes(q.id)).map(q => <option key={q.id} value={q.id}>{q.nome}</option>)}</select><svg className="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg></span>
             </label>
           </div>
-          {form.equipeId && (
-            <label className={`so-ckrow${form.lider ? ' on' : ''}`} style={{ marginTop: -4 }}><input type="checkbox" className="so-ck" checked={form.lider} onChange={e => set('lider', e.target.checked)} /> É o líder desta equipe</label>
-          )}
 
           <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0 }}>
             <legend className="so-lbl" style={{ marginBottom: 6 }}>Modelo de acesso <span className="opt">marca as caixas; você ajusta na aba Acessos</span></legend>
@@ -245,25 +247,41 @@ export function PessoasPage() {
 
 
           <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 8 }}>
-            <legend className="so-lbl" style={{ marginBottom: 6 }}>Serviços que atende</legend>
-            <div className="so-seg">
-              <label className={form.todos ? 'on' : ''}><input type="radio" name="atende" checked={form.todos} onChange={() => set('todos', true)} /> Todos</label>
-              <label className={!form.todos ? 'on' : ''}><input type="radio" name="atende" checked={!form.todos} onChange={() => set('todos', false)} /> Só estes</label>
+            <legend className="so-lbl" style={{ marginBottom: 6 }}>Equipes {precisaEquipe ? <span className="req">*</span> : <span className="opt">opcional para {modelo?.nome}</span>}</legend>
+            <div className="so-tags">
+              {dados.equipes.map(q => {
+                const on = form.equipeIds.includes(q.id);
+                return (
+                  <button key={q.id} type="button" className={`so-tag btn${on ? ' on' : ''}`} aria-pressed={on}
+                    onClick={() => { set('equipeIds', on ? form.equipeIds.filter(x => x !== q.id) : [...form.equipeIds, q.id]); setErros(er => ({ ...er, equipes: false })); }}>
+                    {on && <Ic n="check" />}{q.nome}
+                  </button>
+                );
+              })}
             </div>
-            {!form.todos && (
-              <div className="so-tags">
-                {dados.servicos.map(s => {
-                  const on = form.servicoIds.includes(s.id);
-                  return (
-                    <button key={s.id} type="button" className={`so-tag btn${on ? ' on' : ''}`} aria-pressed={on}
-                      onClick={() => set('servicoIds', on ? form.servicoIds.filter(x => x !== s.id) : [...form.servicoIds, s.id])}>
-                      {on && <Ic n="check" />}{s.nome}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <p className="so-help">{form.todos ? 'Vê e abre OS de todos os serviços.' : 'Só vê e abre OS desses serviços.'}</p>
+            {erros.equipes
+              ? <p className="so-help" style={{ color: 'var(--rose, #e11d48)', fontWeight: 700 }}>Escolha pelo menos uma equipe. Só Administrador, Secretário(a) e Coordenador ficam sem equipe.</p>
+              : <p className="so-help">A pessoa só vê as OS das equipes marcadas, dentro dos serviços que atende.</p>}
+          </fieldset>
+
+          <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0, gap: 8 }}>
+            <legend className="so-lbl" style={{ marginBottom: 6 }}>Serviços que atende</legend>
+            <div className="so-tags">
+              {dados.servicos.map(s => {
+                const on = form.servicoIds.includes(s.id);
+                return (
+                  <button key={s.id} type="button" className={`so-tag btn${on ? ' on' : ''}`} aria-pressed={on}
+                    onClick={() => set('servicoIds', on ? form.servicoIds.filter(x => x !== s.id) : [...form.servicoIds, s.id])}>
+                    {on && <Ic n="check" />}{s.nome}
+                  </button>
+                );
+              })}
+            </div>
+            {veTodos
+              ? <p className="so-help">Tem a caixa <b>Ver todos os serviços</b> nos Acessos: vê e abre OS de todos.</p>
+              : form.servicoIds.length
+                ? <p className="so-help">Só vê e abre OS dos serviços marcados. Para ver todos, marque a caixa <b>Ver todos os serviços</b> nos Acessos.</p>
+                : <p className="so-help" style={{ color: 'var(--amber)', fontWeight: 700 }}>Nenhum serviço marcado: a pessoa não vê OS de serviço nenhum.</p>}
           </fieldset>
 
           {!pessoaEditada && (
@@ -271,7 +289,7 @@ export function PessoasPage() {
           )}
         </Janela>
       )}
-      <BarraAcoes esquerda={<><b>{dados.usuarios.length}</b> usuários<Sep /><b>{dados.equipes.length}</b> equipes<Sep />passo 3 de 6</>}>
+      <BarraAcoes esquerda={<><b>{dados.usuarios.length}</b> usuários<Sep /><b>{dados.equipes.length}</b> equipes<Sep />passo 3 de 7</>}>
         <Link to={rotaTenant(entityId, 'cadastros/lugares')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Lugares</Link>
         <Link to={rotaTenant(entityId, 'cadastros/equipes')} className="so-btn so-primary">Continuar: Equipes<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>

@@ -11,7 +11,7 @@ const SELO_SITUACAO = {
   opt: { tom: undefined, texto: 'Opcional', vivo: false },
 };
 
-/** Tela 1 · Início dos Cadastros — monte a base do sistema em 6 passos */
+/** Tela 1 · Início dos Cadastros — monte a base do sistema em 7 passos */
 export function CadastrosInicioPage() {
   const { entityId } = useTenant();
   const { resumo } = useResumoCadastros();
@@ -27,7 +27,7 @@ export function CadastrosInicioPage() {
         selo={<Selo />}
         eyebrow="Gestão de Obras · Cadastros"
         titulo="Monte a base do sistema"
-        sub="Seis passos, nesta ordem. Tudo o que é cadastrado aqui aparece depois nas ordens de serviço, nas compras e no painel."
+        sub="Sete passos, nesta ordem. Tudo o que é cadastrado aqui aparece depois nas ordens de serviço, nas compras e no painel."
         direita={<Placar n={resumo.prontos} de={`de ${resumo.total}`} rotulo="passos prontos" />}
       >
         <ReguaPassos resumo={resumo} />

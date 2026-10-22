@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/index.js';
 import { pode, type QuemAge } from '../../shared/acessos.js';
-import { servicosDoUsuario } from '../tenant/ordens/ordens.service.js';
+import { filtroEscopoOS } from '../tenant/ordens/ordens.service.js';
 
 /* ── Central de Solicitações · pedidos internos ────────────────────
    OS abertas no escritório ou em campo (fiscal / coordenador) que
@@ -9,12 +9,8 @@ import { servicosDoUsuario } from '../tenant/ordens/ordens.service.js';
 
 const CAMPOS = ['Bairro / Localidade', 'Logradouro / Referência', 'Observações', 'Tipo de Serviço'] as const;
 
-/** Só os serviços que a pessoa atende (nenhum vínculo ou administrador = todos) */
-async function filtroServicos(prisma: PrismaClient, ator: QuemAge & { id: string }): Promise<Prisma.RegistroDiarioWhereInput> {
-  if (ator.admin) return {};
-  const lista = await servicosDoUsuario(prisma, ator.id);
-  return lista.length ? { centroCustoId: { in: lista } } : {};
-}
+/** Só os serviços que a pessoa atende (administrador ou caixa "Ver todos os serviços" = todos) */
+const filtroServicos = filtroEscopoOS;
 
 /** Passou (ou está passando) pela Central: aguardando, aprovada pelo responsável ou recusada */
 const PELA_CENTRAL: Prisma.RegistroDiarioWhereInput = {

@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { handleAppError } from '../../../shared/errors.js';
-import { requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { carregarAtor, requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { assertAcessoServico, filtroEscopoOS } from '../ordens/ordens.service.js';
 import { registrarEnderecoDescoberto } from '../enderecos/endereco-descoberto.service.js';
 
 const geocodeQuerySchema = z.object({
@@ -181,6 +182,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
         },
       });
       if (!registro) return reply.status(404).send({ error: 'Registro não encontrado' });
+      await assertAcessoServico(fastify.prisma, req.user.sub, registro.centroCustoId);
 
       const updated = await fastify.prisma.registroDiario.update({
         where: { id },
@@ -217,10 +219,12 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── GET /mapa/pins?year=&month=&centroCustoId= ───────────────── */
-  fastify.get('/mapa/pins', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/mapa/pins', { preHandler: [tenantAuth, requireAcesso(fastify.prisma, 'painel.mapa')] }, async (req, reply) => {
     try {
       const query = mapaQuerySchema.parse(req.query);
       const entityId = req.user.entityId!;
+      const ator = await carregarAtor(fastify.prisma, req.user.sub);
+      const escopo = await filtroEscopoOS(fastify.prisma, ator!);
 
       const now = new Date();
       const year  = query.year  ?? now.getFullYear();
@@ -235,7 +239,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
           lat: { not: null },
           lng: { not: null },
           data: { gte: startDate, lte: endDate },
-          ...(query.centroCustoId ? { centroCustoId: query.centroCustoId } : {}),
+          AND: [escopo, query.centroCustoId ? { centroCustoId: query.centroCustoId } : {}],
         },
         select: {
           id: true,
@@ -290,9 +294,10 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       const entityId = req.user.entityId!;
 
       const registro = await fastify.prisma.registroDiario.findFirst({
-        where: { id, entityId }, select: { id: true },
+        where: { id, entityId }, select: { id: true, centroCustoId: true },
       });
       if (!registro) return reply.status(404).send({ error: 'Registro não encontrado' });
+      await assertAcessoServico(fastify.prisma, req.user.sub, registro.centroCustoId);
 
       const data = await req.file();
       if (!data) return reply.status(400).send({ error: 'Nenhum arquivo enviado' });
@@ -316,6 +321,9 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const entityId = req.user.entityId!;
+      const registro = await fastify.prisma.registroDiario.findFirst({ where: { id, entityId }, select: { centroCustoId: true } });
+      if (!registro) return reply.status(404).send({ error: 'Registro não encontrado' });
+      await assertAcessoServico(fastify.prisma, req.user.sub, registro.centroCustoId);
       const midias = await fastify.prisma.registroMidia.findMany({
         where: { registroDiarioId: id, entityId },
         select: { id: true, tipo: true, nomeArquivo: true, mimeType: true, tamanhoBytes: true, createdAt: true },
@@ -332,9 +340,10 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       const entityId = req.user.entityId!;
       const midia = await fastify.prisma.registroMidia.findFirst({
         where: { id: midiaId, entityId },
-        select: { dados: true, mimeType: true, nomeArquivo: true },
+        select: { dados: true, mimeType: true, nomeArquivo: true, registroDiario: { select: { centroCustoId: true } } },
       });
       if (!midia) return reply.status(404).send({ error: 'Mídia não encontrada' });
+      await assertAcessoServico(fastify.prisma, req.user.sub, midia.registroDiario.centroCustoId);
       return reply
         .header('Content-Type', midia.mimeType)
         .header('Content-Disposition', `inline; filename="${midia.nomeArquivo}"`)
@@ -349,9 +358,10 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       const { midiaId } = req.params as { midiaId: string };
       const entityId = req.user.entityId!;
       const midia = await fastify.prisma.registroMidia.findFirst({
-        where: { id: midiaId, entityId }, select: { id: true },
+        where: { id: midiaId, entityId }, select: { id: true, registroDiario: { select: { centroCustoId: true } } },
       });
       if (!midia) return reply.status(404).send({ error: 'Mídia não encontrada' });
+      await assertAcessoServico(fastify.prisma, req.user.sub, midia.registroDiario.centroCustoId);
       await fastify.prisma.registroMidia.delete({ where: { id: midiaId } });
       return reply.status(204).send();
     } catch (e) { return handleAppError(reply, e); }

@@ -3,7 +3,7 @@ import type { PrismaClient, Prisma } from '../../../../generated/prisma/index.js
 import { AppError } from '../../../shared/errors.js';
 import { hashPassword } from '../../platform/auth/auth.service.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
-import { CATALOGO_ACESSOS, MODELOS, ORDEM_MODELOS, TODAS_CHAVES, limparChaves } from '../../../shared/acessos.js';
+import { CATALOGO_ACESSOS, MODELOS, MODELOS_SEM_EQUIPE, ORDEM_MODELOS, TODAS_CHAVES, limparChaves, veTodosServicos } from '../../../shared/acessos.js';
 
 /**
  * Módulo 1 · Passo 3 — Pessoas: usuários (com link para criar a senha),
@@ -42,7 +42,7 @@ export async function listarPessoas(prisma: PrismaClient, entityId: string) {
       select: {
         id: true, name: true, email: true, celular: true, status: true, senhaDefinida: true, adminGeral: true, acessos: true,
         role: { select: { code: true, name: true } },
-        equipe: { select: { id: true, nome: true } },
+        equipes: { select: { equipe: { select: { id: true, nome: true } } }, orderBy: { equipe: { nome: 'asc' } } },
         equipesLideradas: { select: { cadastroId: true } },
         servicos: { select: { centroCusto: { select: { id: true, nome: true } } } },
         linksAcesso: { orderBy: { createdAt: 'desc' }, take: 1, select: { expiraEm: true, usadoEm: true } },
@@ -60,9 +60,11 @@ export async function listarPessoas(prisma: PrismaClient, entityId: string) {
     email: u.email,
     celular: u.celular,
     perfil: { code: u.role.code, nome: MODELOS[u.role.code]?.nome ?? u.role.name },
-    equipe: u.equipe,
-    lider: !!u.equipe && u.equipesLideradas.some(e => e.cadastroId === u.equipe!.id),
-    atende: u.servicos.length ? u.servicos.map(s => s.centroCusto) : null,
+    equipes: u.equipes.map(e => e.equipe),
+    /* equipe que a pessoa lidera (uma só), entre as dela */
+    liderDe: u.equipesLideradas.map(e => e.cadastroId).find(id => u.equipes.some(x => x.equipe.id === id)) ?? null,
+    /* null = vê todos (caixa "Ver todos os serviços"); lista vazia = nenhum */
+    atende: veTodosServicos(u) ? null : u.servicos.map(s => s.centroCusto),
     situacao: situacaoDo(u),
     adminGeral: u.adminGeral,
     marcados: u.adminGeral ? total : u.acessos.length,
@@ -75,7 +77,7 @@ export async function listarPessoas(prisma: PrismaClient, entityId: string) {
     filtros: ORDEM_MODELOS.map(code => ({ code, nome: MODELOS[code].nome, qtd: contagem(code) })).filter(f => f.qtd > 0),
     modelos: ORDEM_MODELOS.map(code => ({
       code, nome: MODELOS[code].nome, descricao: MODELOS[code].descricao,
-      marcados: MODELOS[code].chaves.length, existe: roles.some(r => r.code === code),
+      marcados: MODELOS[code].chaves.length, existe: roles.some(r => r.code === code), semEquipe: MODELOS_SEM_EQUIPE.includes(code),
     })),
     equipes,
     servicos,
@@ -88,15 +90,20 @@ export interface DadosPessoa {
   email: string;
   celular?: string | null;
   modelo: string;
-  equipeId?: string | null;
-  lider?: boolean;
-  servicoIds?: string[] | null; // null/vazio = atende todos
+  equipeIds?: string[];
+  liderEquipeId?: string | null;
+  servicoIds?: string[] | null; // vazio = nenhum (ver todos é a caixa "Ver todos os serviços")
 }
 
-async function validarEquipe(prisma: PrismaClient, entityId: string, equipeId: string | null | undefined) {
-  if (!equipeId) return;
-  const e = await prisma.cadastroAuxiliar.findFirst({ where: { id: equipeId, entityId, tipo: 'EQUIPE' } });
-  if (!e) throw new AppError(400, 'VALIDATION_ERROR', 'Equipe não encontrada');
+/** Toda pessoa liga a 1+ equipes, menos Administrador, Secretário(a) e Coordenador */
+async function validarEquipes(prisma: PrismaClient, entityId: string, d: DadosPessoa) {
+  const ids = Array.from(new Set(d.equipeIds ?? []));
+  if (!ids.length && !MODELOS_SEM_EQUIPE.includes(d.modelo)) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Escolha pelo menos uma equipe');
+  }
+  const achadas = await prisma.cadastroAuxiliar.count({ where: { id: { in: ids }, entityId, tipo: 'EQUIPE', ativo: true } });
+  if (achadas !== ids.length) throw new AppError(400, 'VALIDATION_ERROR', 'Equipe não encontrada');
+  if (d.liderEquipeId && !ids.includes(d.liderEquipeId)) throw new AppError(400, 'VALIDATION_ERROR', 'A pessoa só lidera uma equipe da qual faz parte');
 }
 
 async function definirServicos(tx: Prisma.TransactionClient, entityId: string, userId: string, servicoIds: string[] | null | undefined) {
@@ -108,19 +115,24 @@ async function definirServicos(tx: Prisma.TransactionClient, entityId: string, u
   await tx.usuarioServico.createMany({ data: ids.map(centroCustoId => ({ userId, centroCustoId, entityId })) });
 }
 
-/** Liga a pessoa à equipe e, se for o caso, faz dela a líder */
-async function definirEquipe(tx: Prisma.TransactionClient, entityId: string, userId: string, equipeId: string | null | undefined, lider: boolean) {
+/** Liga a pessoa às equipes dela e, se for o caso, faz dela a líder de uma */
+async function definirEquipes(tx: Prisma.TransactionClient, entityId: string, userId: string, equipeIds: string[] | undefined, liderEquipeId: string | null | undefined) {
+  const ids = Array.from(new Set(equipeIds ?? []));
+  await tx.usuarioEquipe.deleteMany({ where: { userId } });
+  if (ids.length) await tx.usuarioEquipe.createMany({ data: ids.map(equipeId => ({ userId, equipeId, entityId })) });
+  const liderDe = liderEquipeId && ids.includes(liderEquipeId) ? liderEquipeId : null;
   // deixa de liderar equipes que não são mais a dela (ou todas, se não for mais líder)
   await tx.equipe.updateMany({
-    where: { entityId, liderUserId: userId, ...(lider && equipeId ? { NOT: { cadastroId: equipeId } } : {}) },
+    where: { entityId, liderUserId: userId, ...(liderDe ? { NOT: { cadastroId: liderDe } } : {}) },
     data: { liderUserId: null },
   });
-  await tx.tenantUser.update({ where: { id: userId }, data: { equipeId: equipeId ?? null, isLiderEquipe: !!(lider && equipeId) } });
-  if (lider && equipeId) {
+  // equipeId fica como a principal: a que lidera ou a primeira
+  await tx.tenantUser.update({ where: { id: userId }, data: { equipeId: liderDe ?? ids[0] ?? null, isLiderEquipe: !!liderDe } });
+  if (liderDe) {
     await tx.equipe.upsert({
-      where: { cadastroId: equipeId },
+      where: { cadastroId: liderDe },
       update: { liderUserId: userId },
-      create: { entityId, cadastroId: equipeId, liderUserId: userId },
+      create: { entityId, cadastroId: liderDe, liderUserId: userId },
     });
   }
 }
@@ -136,7 +148,7 @@ async function novoLink(prisma: PrismaClient | Prisma.TransactionClient, entityI
 
 export async function criarPessoa(prisma: PrismaClient, entityId: string, atorId: string, d: DadosPessoa) {
   const role = await roleDoModelo(prisma, d.modelo);
-  await validarEquipe(prisma, entityId, d.equipeId);
+  await validarEquipes(prisma, entityId, d);
   const email = d.email.trim().toLowerCase();
   const existe = await prisma.tenantUser.findUnique({ where: { entityId_email: { entityId, email } } });
   if (existe) throw new AppError(409, 'EMAIL_DUPLICATE', 'Já existe alguém com este e-mail');
@@ -151,7 +163,7 @@ export async function criarPessoa(prisma: PrismaClient, entityId: string, atorId
         passwordHash, senhaDefinida: false, acessos: modelo.admin ? TODAS_CHAVES : modelo.chaves, adminGeral: modelo.admin,
       },
     });
-    await definirEquipe(tx, entityId, user.id, d.equipeId, !!d.lider);
+    await definirEquipes(tx, entityId, user.id, d.equipeIds, d.liderEquipeId);
     await definirServicos(tx, entityId, user.id, d.servicoIds);
     const link = await novoLink(tx, entityId, user.id, atorId);
     return { user, link };
@@ -163,7 +175,7 @@ export async function criarPessoa(prisma: PrismaClient, entityId: string, atorId
 export async function atualizarPessoa(prisma: PrismaClient, entityId: string, atorId: string, id: string, d: DadosPessoa) {
   const atual = await prisma.tenantUser.findFirst({ where: { id, entityId }, include: { role: true } });
   if (!atual) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
-  await validarEquipe(prisma, entityId, d.equipeId);
+  await validarEquipes(prisma, entityId, d);
   const email = d.email.trim().toLowerCase();
   if (email !== atual.email) {
     const outro = await prisma.tenantUser.findUnique({ where: { entityId_email: { entityId, email } } });
@@ -182,7 +194,7 @@ export async function atualizarPessoa(prisma: PrismaClient, entityId: string, at
         ...(trocouModelo ? { acessos: MODELOS[d.modelo].admin ? TODAS_CHAVES : MODELOS[d.modelo].chaves, adminGeral: MODELOS[d.modelo].admin } : {}),
       },
     });
-    await definirEquipe(tx, entityId, id, d.equipeId, !!d.lider);
+    await definirEquipes(tx, entityId, id, d.equipeIds, d.liderEquipeId);
     await definirServicos(tx, entityId, id, d.servicoIds);
   });
   await writeTenantAudit(prisma, { entityId, userId: atorId, action: 'USER_UPDATED', resource: 'user', newValue: { id, nome: d.nome, email, modelo: d.modelo } });
@@ -219,7 +231,7 @@ export async function obterAcessos(prisma: PrismaClient, entityId: string, id: s
     where: { id, entityId },
     select: {
       id: true, name: true, email: true, adminGeral: true, acessos: true,
-      role: { select: { code: true } }, equipe: { select: { nome: true } },
+      role: { select: { code: true } }, equipes: { select: { equipe: { select: { nome: true } } } },
       servicos: { select: { centroCusto: { select: { nome: true } } } },
     },
   });
@@ -227,7 +239,7 @@ export async function obterAcessos(prisma: PrismaClient, entityId: string, id: s
   return {
     usuario: {
       id: u.id, nome: u.name, email: u.email, perfil: { code: u.role.code, nome: MODELOS[u.role.code]?.nome ?? u.role.code },
-      equipe: u.equipe?.nome ?? null, atende: u.servicos.length ? u.servicos.map(s => s.centroCusto.nome) : null,
+      equipe: u.equipes.map(e => e.equipe.nome).sort().join(', ') || null, atende: veTodosServicos(u) ? null : u.servicos.map(s => s.centroCusto.nome),
     },
     adminGeral: u.adminGeral,
     acessos: u.acessos,
@@ -300,6 +312,7 @@ export async function listarEquipes(prisma: PrismaClient, entityId: string) {
             operadores: { where: { ativo: true }, orderBy: { nome: 'asc' }, select: { id: true, nome: true, cargo: true } },
           },
         },
+        usuariosEquipe: { where: { user: { status: 'ACTIVE' } }, select: { user: { select: { id: true, name: true } } }, orderBy: { user: { name: 'asc' } } },
       },
     }),
     prisma.tenantUser.findMany({
@@ -315,6 +328,8 @@ export async function listarEquipes(prisma: PrismaClient, entityId: string) {
       lider: c.equipe?.lider ? { id: c.equipe.lider.id, nome: c.equipe.lider.name } : null,
       veiculo: c.equipe?.veiculo ?? null,
       membros: (c.equipe?.operadores ?? []).map(o => ({ id: o.id, nome: o.nome, funcao: o.cargo })),
+      /* quem tem senha e faz parte da equipe (marcado no cadastro da pessoa) */
+      pessoas: c.usuariosEquipe.map(x => ({ id: x.user.id, nome: x.user.name })),
     })),
     lideres: usuarios.map(u => ({ id: u.id, nome: u.name, perfil: MODELOS[u.role.code]?.nome ?? u.role.code })),
     veiculos,
@@ -364,6 +379,11 @@ export async function salvarEquipe(prisma: PrismaClient, entityId: string, id: s
       // uma pessoa lidera uma equipe só: sai da liderança das outras
       await tx.equipe.updateMany({ where: { entityId, liderUserId: d.liderUserId, NOT: { cadastroId: id } }, data: { liderUserId: null } });
       await tx.tenantUser.update({ where: { id: d.liderUserId }, data: { isLiderEquipe: true, equipeId: id } });
+      await tx.usuarioEquipe.upsert({
+        where: { userId_equipeId: { userId: d.liderUserId, equipeId: id } },
+        update: {},
+        create: { userId: d.liderUserId, equipeId: id, entityId },
+      });
     }
   });
   return { id };
@@ -375,6 +395,7 @@ export async function removerEquipe(prisma: PrismaClient, entityId: string, id: 
   // fica inativa: OS antigas citam a equipe pelo nome
   await prisma.cadastroAuxiliar.update({ where: { id }, data: { ativo: false } });
   await prisma.tenantUser.updateMany({ where: { entityId, equipeId: id }, data: { equipeId: null } });
+  await prisma.usuarioEquipe.deleteMany({ where: { entityId, equipeId: id } });
 }
 
 export async function adicionarMembro(prisma: PrismaClient, entityId: string, equipeId: string, d: { nome: string; funcao: string }) {

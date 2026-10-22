@@ -60,7 +60,7 @@ function iniciais(nome: string) {
   const p = nome.trim().split(/\s+/);
   return ((p[0]?.[0] ?? '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
 }
-const atendeTxt = (p: PessoaFluxo) => p.atende ? `só ${p.atende}` : 'todos os serviços';
+const atendeTxt = (p: PessoaFluxo) => p.atende === null ? 'todos os serviços' : p.atende ? `só ${p.atende}` : 'nenhum serviço';
 
 function membrosDe(pessoas: PessoaFluxo[]): Membros {
   const m = {} as Membros;
@@ -291,7 +291,7 @@ export function FluxoAprovacoesPage() {
           <div className="right"><Ajuda texto="Ajuda: Prazo" /></div>
         </header>
         <div className="so-cbody" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '12px 24px' }}>
-          <p style={{ flex: '1 1 300px', margin: 0, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>Depois desse prazo a OS aparece como atrasada no painel. Cada serviço pode ter o seu prazo (passo 6).</p>
+          <p style={{ flex: '1 1 300px', margin: 0, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5 }}>Depois desse prazo a OS aparece como atrasada no painel. Cada serviço pode ter o seu prazo (passo 7).</p>
           <label className="so-ctrl num"><input type="number" min={1} max={90} value={cfg.metaDias} disabled={!podeEditar} aria-label="Prazo em dias" onChange={e => setCfg({ ...cfg, metaDias: Number(e.target.value) })} /><span className="suf">dias</span></label>
         </div>
       </section>

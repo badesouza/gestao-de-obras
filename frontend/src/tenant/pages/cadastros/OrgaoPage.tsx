@@ -178,7 +178,7 @@ export function OrgaoPage() {
         </div>
       </Cartao>
 
-      <BarraAcoes esquerda={<><b>{form.nome || 'Sem nome'}</b><Sep />{municipioUf}<Sep />passo 1 de 6</>}>
+      <BarraAcoes esquerda={<><b>{form.nome || 'Sem nome'}</b><Sep />{municipioUf}<Sep />passo 1 de 7</>}>
         <Link to={rotaTenant(entityId, 'cadastros')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar aos Cadastros</Link>
         <button type="button" className="so-btn so-ghost" disabled={salvando} onClick={() => salvar()}>Salvar</button>
         <button type="button" className="so-btn so-primary" disabled={salvando} onClick={() => salvar('cadastros/lugares')}>Salvar e ir para Lugares<Ic n="seta" className="arrow" /></button>

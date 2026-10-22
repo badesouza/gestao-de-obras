@@ -1,6 +1,6 @@
 import type { PrismaClient } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
-import { pode } from '../../../shared/acessos.js';
+import { pode, veTodosServicos } from '../../../shared/acessos.js';
 import { ORIGENS_OS, obterConfig, type OrigemOS } from '../ordens/ordens.service.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 
@@ -40,7 +40,7 @@ export async function obterFluxo(prisma: PrismaClient, entityId: string) {
     id: u.id,
     nome: u.name,
     perfil: u.role.name,
-    atende: u.servicos.length ? u.servicos.map(s => s.centroCusto.nome).sort().join(', ') : null,
+    atende: veTodosServicos(u) ? null : u.servicos.map(s => s.centroCusto.nome).sort().join(', '),
     acessos: u.acessos.filter(c => CHAVES_DOS_PASSOS.has(c)),
   }));
   return {

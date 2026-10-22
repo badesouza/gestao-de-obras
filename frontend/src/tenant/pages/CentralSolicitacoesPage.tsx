@@ -58,7 +58,7 @@ const PRAZO_H = 24;
 const MOTIVOS_MUNICIPE = ['Fora da área atendida pela Prefeitura', 'Pedido repetido — já existe uma OS para este local', 'Não é responsabilidade da Secretaria de Obras', 'Foto não mostra o problema'];
 const MOTIVOS_INTERNO = ['OS repetida — já existe uma para este local', 'Falta informação — refazer com foto e endereço', 'Não é deste serviço', 'Não é prioridade agora'];
 
-const PAPEL: Record<string, string> = { ADMIN: 'Administrador', COORDENADOR: 'Coordenador', FISCAL: 'Fiscal', ENGINEER: 'Engenheiro', OPERATOR: 'Operador' };
+const PAPEL: Record<string, string> = { ADMIN: 'Administrador', SECRETARIO: 'Secretário(a)', COORDENADOR: 'Coordenador', FISCAL: 'Fiscal', ENGINEER: 'Engenheiro(a)', OPERATOR: 'Operador' };
 
 const ORIGEM: Record<OrigemSolicitacao, { rotulo: string; tom: 'cyan' | 'brand' | 'mint'; d: string; dica: string }> = {
   MUNICIPE: { rotulo: 'Munícipe', tom: 'cyan', d: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75', dica: 'pelo link ou QR Code' },

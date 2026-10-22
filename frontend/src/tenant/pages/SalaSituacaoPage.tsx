@@ -73,6 +73,7 @@ export function SalaSituacaoPage() {
   }, [entityId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const primeiroNome = session.name.split(' ')[0];
+  const verMapa = !!(session.adminGeral || session.acessos?.includes('painel.mapa'));
 
   if (erro && !dados) {
     return <div className="ob-page"><div className="ob-erro">{erro}</div></div>;
@@ -140,7 +141,8 @@ export function SalaSituacaoPage() {
       </section>
 
       {/* Mapa + feed */}
-      <div className="ob-grid-mapa">
+      <div className="ob-grid-mapa" style={verMapa ? undefined : { gridTemplateColumns: '1fr' }}>
+        {verMapa && (
         <section className="ob-card ob-reveal" style={{ '--i': 5 } as React.CSSProperties} aria-label="Mapa da cidade">
           <div className="ob-card-head">
             <div>
@@ -156,6 +158,7 @@ export function SalaSituacaoPage() {
             <MapaServicos height={520} showFilters />
           </div>
         </section>
+        )}
 
         <section className="ob-card ob-reveal" style={{ '--i': 6 } as React.CSSProperties} aria-label="Chegando do campo">
           <div className="ob-card-head">

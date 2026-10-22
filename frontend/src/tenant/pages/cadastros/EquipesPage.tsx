@@ -116,7 +116,7 @@ export function EquipesPage() {
                   <span className={`so-cic ${e.lider ? 'mint' : 'amber'}`}><Ic n="hardhat" /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)' }}>{e.nome}</h3>
-                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{e.membros.length} membros</span>
+                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--muted)' }}>{e.pessoas.length} com senha · {e.membros.length} membros</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -125,6 +125,7 @@ export function EquipesPage() {
                     ? <span className="so-person plain" style={{ alignSelf: 'flex-start' }}><span className="av">{iniciais(e.lider.nome)}</span><b>{e.lider.nome}</b></span>
                     : <div className="so-warnline"><Ic n="alerta" />Sem líder — escolha um</div>}
                 </div>
+                {e.pessoas.length > 0 && <p style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.45 }}><b>Com senha:</b> {e.pessoas.map(p => p.nome).join(', ')}</p>}
                 <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{e.membros.length ? e.membros.map(m => m.funcao ? `${m.nome} (${m.funcao.toLowerCase()})` : m.nome).join(', ') : 'Nenhum membro ainda.'}</p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 'auto' }}>
                   <span className="so-tag"><Ic n="truck" style={{ width: 13, height: 13 }} />{e.veiculo?.nome ?? 'Sem veículo'}</span>
@@ -190,9 +191,9 @@ export function EquipesPage() {
           </label>
         </Janela>
       )}
-      <BarraAcoes esquerda={<><b>{dados.equipes.length}</b> equipes{semLider > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semLider} sem líder</span></>}<Sep />passo 3 de 6</>}>
+      <BarraAcoes esquerda={<><b>{dados.equipes.length}</b> equipes{semLider > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semLider} sem líder</span></>}<Sep />passo 3 de 7</>}>
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Usuários</Link>
-        <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-primary">Continuar: Veículos e equipamentos<Ic n="seta" className="arrow" /></Link>
+        <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-primary">Continuar: Veículos<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
       {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />

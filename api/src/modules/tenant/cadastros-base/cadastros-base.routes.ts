@@ -8,8 +8,10 @@ import {
   atualizarBairro, colarBairros, criarBairro, criarMacrozona, definirBrasao, listarLugares,
   obterOrgao, removerBairro, removerMacrozona, renomearMacrozona, resumoCadastros, salvarOrgao,
 } from './cadastros-base.service.js';
-import { atualizarFrota, criarFrota, listarFrota, removerFrota, servicosSemCentro } from './frota.service.js';
-import { MOMENTOS, TIPOS_CAMPO, criarServico, excluirServico, listarServicos, obterFicha, salvarFicha } from './servicos-ficha.service.js';
+import {
+  atualizarFrota, criarFrota, criarTipoFrota, listarFrota, listarTiposFrota, removerFrota, removerTipoFrota, renomearTipoFrota, servicosSemCentro,
+} from './frota.service.js';
+import { LOCAIS, MOMENTOS, TIPOS_CAMPO, baseFicha, criarServico, excluirServico, listarServicos, obterFicha, salvarFicha, salvarOrigens } from './servicos-ficha.service.js';
 import { PASSOS_FLUXO, obterFluxo, salvarFluxo } from './fluxo.service.js';
 import { ORIGENS_OS } from '../ordens/ordens.service.js';
 
@@ -136,9 +138,36 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     tipo: tipoFrota,
     nome: z.string().trim().min(1, 'Informe como a equipe chama').max(150),
     subtipo: z.string().max(80).nullable().optional(),
+    tipoFrotaId: z.string().uuid().nullable().optional(),
     placa: z.string().max(20).nullable().optional(),
     patrimonio: z.string().max(40).nullable().optional(),
     equipeId: z.string().uuid().nullable().optional(),
+    servicoIds: z.array(z.string().min(1)).default([]),
+    /** cadastrado de dentro da janela de um serviço novo: o vínculo é gravado quando o serviço for salvo */
+    vincularDepois: z.boolean().optional(),
+  });
+
+  /* tipos (Veículos, Máquinas, Equipamentos, Móveis…), criados e ajustados de dentro da janela */
+  const nomeTipo = z.object({ nome: z.string().trim().min(2, 'Informe o nome do tipo').max(80) });
+  fastify.get('/cadastros/frota-tipos', { preHandler: podeVer }, async (req, reply) => {
+    try { return reply.send({ tipos: await listarTiposFrota(fastify.prisma, req.user.entityId!) }); }
+    catch (e) { return handleAppError(reply, e); }
+  });
+  fastify.post('/cadastros/frota-tipos', { preHandler: podeFrota }, async (req, reply) => {
+    try { return reply.code(201).send(await criarTipoFrota(fastify.prisma, req.user.entityId!, nomeTipo.parse(req.body).nome)); }
+    catch (e) { return handleAppError(reply, e); }
+  });
+  fastify.put('/cadastros/frota-tipos/:id', { preHandler: podeFrota }, async (req, reply) => {
+    try {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      return reply.send(await renomearTipoFrota(fastify.prisma, req.user.entityId!, id, nomeTipo.parse(req.body).nome));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+  fastify.delete('/cadastros/frota-tipos/:id', { preHandler: podeFrota }, async (req, reply) => {
+    try {
+      const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+      return reply.send(await removerTipoFrota(fastify.prisma, req.user.entityId!, id));
+    } catch (e) { return handleAppError(reply, e); }
   });
 
   fastify.get('/cadastros/frota', { preHandler: podeVer }, async (req, reply) => {
@@ -174,6 +203,7 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
 
   /* ── Serviços e ficha do serviço ── */
   const tipoServico = z.enum(['MANUTENCAO', 'CONSTRUCAO']);
+  const usoSchema = z.object({ usa: z.boolean(), obrigatorio: z.boolean() });
   const fichaSchema = z.object({
     nome: z.string().trim().min(2, 'Informe o nome do serviço').max(200),
     ativo: z.boolean(),
@@ -184,12 +214,16 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     municipePode: z.boolean(),
     nomeMunicipe: z.string().max(200).nullable(),
     centroDeCustoId: z.string().uuid().nullable(),
-    licitacaoIds: z.array(z.string().uuid()).max(100),
+    camposComuns: z.object({
+      local: z.object({ tipo: z.enum(LOCAIS), lista: z.array(z.string().max(160)).max(200) }),
+      origem: usoSchema, equipe: usoSchema, veiculo: usoSchema, fotos: usoSchema, observacoes: usoSchema,
+      equipamentos: z.array(z.string().uuid()).max(200),
+    }),
     campos: z.array(z.object({
       nome: z.string().max(120),
       detalhe: z.string().max(300).nullable().optional(),
       tipo: z.enum(TIPOS_CAMPO),
-      opcoes: z.array(z.string().max(120)).max(80).optional(),
+      opcoes: z.array(z.string().max(120)).max(120).optional(),
       momento: z.enum(MOMENTOS),
       obrigatorio: z.boolean(),
     })).max(40),
@@ -207,6 +241,11 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
+  fastify.get('/cadastros/servicos-base', { preHandler: podeVer }, async (req, reply) => {
+    try { return reply.send(await baseFicha(fastify.prisma, req.user.entityId!)); }
+    catch (e) { return handleAppError(reply, e); }
+  });
+
   fastify.get('/cadastros/servicos/:id', { preHandler: podeVer }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
@@ -218,6 +257,13 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await salvarFicha(fastify.prisma, req.user.entityId!, req.user.sub, id, fichaSchema.parse(req.body)));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.put('/cadastros/origens', { preHandler: podeServicos }, async (req, reply) => {
+    try {
+      const d = z.object({ origens: z.array(z.string().max(80)).max(40) }).parse(req.body);
+      return reply.send(await salvarOrigens(fastify.prisma, req.user.entityId!, req.user.sub, d.origens));
     } catch (e) { return handleAppError(reply, e); }
   });
 

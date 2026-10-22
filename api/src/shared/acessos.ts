@@ -25,6 +25,11 @@ export const CATALOGO_ACESSOS: MenuAcesso[] = [
       { chave: 'os.minhas', nome: 'Minhas OS (celular)' },
       { chave: 'os.central', nome: 'Central de Solicitações' },
     ] },
+    /* Sem esta caixa a pessoa só vê os serviços marcados no cadastro dela
+       (nenhum marcado = não vê OS de serviço nenhum) */
+    { nome: 'Quais serviços vê', itens: [
+      { chave: 'servicos.todos', nome: 'Ver todos os serviços' },
+    ] },
     { nome: 'Passos', fluxo: true, itens: [
       { chave: 'os.abrir', nome: 'Abrir OS / ocorrência', etapa: 'Registrada' },
       { chave: 'os.triar', nome: 'Triar pedido do munícipe', etapa: 'vira OS ou recusa' },
@@ -81,10 +86,20 @@ export function limparChaves(chaves: string[]): string[] {
 /** Modelos de acesso (o antigo "perfil"): só pré-marcam as caixas */
 export const MODELOS: Record<string, { nome: string; descricao: string; admin: boolean; chaves: string[] }> = {
   ADMIN: { nome: 'Administrador', descricao: 'Tudo marcado.', admin: true, chaves: TODAS_CHAVES },
+  SECRETARIO: {
+    nome: 'Secretário(a)', descricao: 'Acompanha tudo e aprova: OS e pedido. Não mexe em cadastro nem em senha.', admin: false,
+    chaves: ['servicos.todos', 'painel.sala', 'painel.mapa', 'painel.relatorios', 'os.lista', 'os.central', 'os.aprovar',
+      'compras.orcamentos', 'compras.pedidos', 'compras.saldos', 'compras.aprovar', 'contratos.ver'],
+  },
   COORDENADOR: {
     nome: 'Coordenador', descricao: 'Aprova OS, confere baixa, aprova pedido.', admin: false,
     chaves: ['painel.sala', 'painel.mapa', 'painel.relatorios', 'os.lista', 'os.minhas', 'os.central', 'os.abrir', 'os.triar', 'os.aprovar', 'os.conferir', 'os.reabrir', 'os.cancelar',
       'compras.orcamentos', 'compras.pedidos', 'compras.saldos', 'compras.aprovar', 'contratos.ver'],
+  },
+  ENGINEER: {
+    nome: 'Engenheiro(a) civil', descricao: 'Orça, confere a baixa, cuida dos itens e aditivos do contrato.', admin: false,
+    chaves: ['painel.sala', 'painel.mapa', 'painel.relatorios', 'os.lista', 'os.minhas', 'os.central', 'os.abrir', 'os.baixa', 'os.conferir',
+      'compras.orcamentos', 'compras.pedidos', 'compras.saldos', 'compras.orcar', 'compras.lancar', 'contratos.ver', 'contratos.aditivo', 'contratos.importar'],
   },
   FISCAL: {
     nome: 'Fiscal', descricao: 'Abre OS, dá baixa com foto, faz orçamento.', admin: false,
@@ -100,7 +115,10 @@ export const MODELOS: Record<string, { nome: string; descricao: string; admin: b
   },
 };
 
-export const ORDEM_MODELOS = ['ADMIN', 'COORDENADOR', 'FISCAL', 'COMPRAS', 'CONSULTA'] as const;
+/** Modelos que não precisam de equipe; todo o resto liga a 1+ equipes */
+export const MODELOS_SEM_EQUIPE = ['ADMIN', 'SECRETARIO', 'COORDENADOR'];
+
+export const ORDEM_MODELOS = ['ADMIN', 'SECRETARIO', 'COORDENADOR', 'ENGINEER', 'FISCAL', 'COMPRAS', 'CONSULTA'] as const;
 
 /** Que caixas liberam cada permissão antiga (as rotas antigas continuam valendo) */
 const PERMISSAO_POR_CAIXA: Record<string, string[]> = {
@@ -128,6 +146,11 @@ export function permissoesDasCaixas(chaves: string[], admin: boolean): string[] 
 export interface QuemAge { admin: boolean; acessos: string[] }
 export function pode(u: QuemAge, chave: string) {
   return u.admin || u.acessos.includes(chave);
+}
+
+/** Vê todos os serviços (administrador geral ou caixa marcada); senão, só os do cadastro dela */
+export function veTodosServicos(u: { adminGeral: boolean; acessos: string[] }) {
+  return pode({ admin: u.adminGeral, acessos: u.acessos }, 'servicos.todos');
 }
 
 /** Poderes no fluxo da OS e das compras (antes vinham do perfil na tela Regras) */

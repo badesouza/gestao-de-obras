@@ -1,7 +1,6 @@
 import type { PrismaClient } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
-import { pode } from '../../../shared/acessos.js';
-import { saldosDasLicitacoes } from '../compras/compras-fluxo.service.js';
+import { pode, veTodosServicos } from '../../../shared/acessos.js';
 import { obterConfig } from '../ordens/ordens.service.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 
@@ -12,10 +11,26 @@ import { writeTenantAudit } from '../audit/audit.service.js';
  * operação; a tela mostra esses padrões como ponto de partida.
  */
 
-export const TIPOS_CAMPO = ['TEXTO', 'LISTA', 'NUMERO', 'SIM_NAO'] as const;
+/** Como se preenche uma ação: LISTA = escolhe uma atividade · VARIAS = escolhe várias ·
+    NUMERO = cada atividade é uma medida (ex.: "Área (m²)") · TEXTO = texto livre · SIM_NAO */
+export const TIPOS_CAMPO = ['TEXTO', 'LISTA', 'VARIAS', 'NUMERO', 'SIM_NAO'] as const;
 export const MOMENTOS = ['ABERTURA', 'BAIXA'] as const;
+export const LOCAIS = ['ENDERECO', 'ROTA', 'LOCAL', 'VEICULO'] as const;
+const COM_ATIVIDADES = new Set(['LISTA', 'VARIAS', 'NUMERO']);
 
-/** Quem atende o serviço: usuários ativos que abrem OS ou dão baixa e atendem este serviço (ou todos) */
+/** Campos que vêm em toda OS, ajustados para cada serviço */
+export interface CamposComuns {
+  local: { tipo: typeof LOCAIS[number]; lista: string[] };
+  origem: { usa: boolean; obrigatorio: boolean };
+  equipe: { usa: boolean; obrigatorio: boolean };
+  veiculo: { usa: boolean; obrigatorio: boolean };
+  fotos: { usa: boolean; obrigatorio: boolean };
+  observacoes: { usa: boolean; obrigatorio: boolean };
+  /** Veículos e equipamentos (cadastro do passo 4) que este serviço pode usar */
+  equipamentos: string[];
+}
+
+/** Quem atende o serviço: usuários ativos que abrem OS ou dão baixa e atendem este serviço (ou têm a caixa "Ver todos os serviços") */
 async function quemAtende(prisma: PrismaClient, entityId: string) {
   return prisma.tenantUser.findMany({
     where: { entityId, status: 'ACTIVE' },
@@ -30,7 +45,7 @@ async function quemAtende(prisma: PrismaClient, entityId: string) {
 function atende(u: Awaited<ReturnType<typeof quemAtende>>[number], servicoId: string) {
   const faz = pode({ admin: false, acessos: u.acessos }, 'os.abrir') || pode({ admin: false, acessos: u.acessos }, 'os.baixa');
   if (!faz) return false;
-  return !u.servicos.length || u.servicos.some(s => s.centroCustoId === servicoId);
+  return veTodosServicos(u) || u.servicos.some(s => s.centroCustoId === servicoId);
 }
 
 export async function listarServicos(prisma: PrismaClient, entityId: string) {
@@ -41,7 +56,7 @@ export async function listarServicos(prisma: PrismaClient, entityId: string) {
       select: {
         id: true, nome: true, status: true, tipoServico: true, cor: true, subtipos: true, municipePode: true, fichaSalvaEm: true,
         centroDeCustoPadrao: { select: { codigo: true, nome: true } },
-        _count: { select: { licitacoes: true, camposFicha: true } },
+        _count: { select: { camposFicha: true } },
       },
     }),
     quemAtende(prisma, entityId),
@@ -50,10 +65,24 @@ export async function listarServicos(prisma: PrismaClient, entityId: string) {
     servicos: servicos.map(s => ({
       id: s.id, nome: s.nome, ativo: s.status === 'ACTIVE', tipoServico: s.tipoServico, cor: s.cor,
       subtipos: s.subtipos.length, fichaSalva: !!s.fichaSalvaEm, municipePode: s.municipePode,
-      centro: s.centroDeCustoPadrao, contratos: s._count.licitacoes, campos: s._count.camposFicha,
+      centro: s.centroDeCustoPadrao, campos: s._count.camposFicha,
       pessoas: usuarios.filter(u => atende(u, s.id)).length,
     })),
   };
+}
+
+/** O que a janela do serviço precisa para escolher: centros de custo, veículos/equipamentos e origens */
+export async function baseFicha(prisma: PrismaClient, entityId: string) {
+  const [centros, cfg, frota] = await Promise.all([
+    prisma.centroDeCusto.findMany({ where: { entityId, ativo: true }, orderBy: { codigo: 'asc' }, select: { id: true, codigo: true, nome: true, paiId: true } }),
+    obterConfig(prisma, entityId),
+    prisma.cadastroAuxiliar.findMany({
+      where: { entityId, tipo: { in: ['VEICULO', 'EQUIPAMENTO'] }, ativo: true },
+      orderBy: [{ tipo: 'asc' }, { nome: 'asc' }],
+      select: { id: true, tipo: true, nome: true, subtipo: true, placa: true, patrimonio: true },
+    }),
+  ]);
+  return { centros, frota, origens: cfg.origensDemanda, metaDiasGeral: cfg.metaDias };
 }
 
 export async function obterFicha(prisma: PrismaClient, entityId: string, id: string) {
@@ -61,48 +90,38 @@ export async function obterFicha(prisma: PrismaClient, entityId: string, id: str
     where: { id, entityId },
     select: {
       id: true, nome: true, status: true, tipoServico: true, cor: true, prazoDias: true, subtipos: true,
-      municipePode: true, nomeMunicipe: true, fichaSalvaEm: true, centroDeCustoPadraoId: true,
-      licitacoes: { select: { licitacaoId: true } },
+      municipePode: true, nomeMunicipe: true, fichaSalvaEm: true, centroDeCustoPadraoId: true, camposComuns: true,
+      frota: { where: { cadastro: { ativo: true } }, select: { cadastroId: true } },
       camposFicha: { orderBy: { ordem: 'asc' }, select: { id: true, nome: true, detalhe: true, tipo: true, opcoes: true, momento: true, obrigatorio: true } },
     },
   });
   if (!s) throw new AppError(404, 'NOT_FOUND', 'Serviço não encontrado');
-  const [centros, saldos, usuarios, cfg] = await Promise.all([
-    prisma.centroDeCusto.findMany({ where: { entityId, ativo: true }, orderBy: { codigo: 'asc' }, select: { id: true, codigo: true, nome: true } }),
-    saldosDasLicitacoes(prisma, entityId),
-    quemAtende(prisma, entityId),
-    obterConfig(prisma, entityId),
-  ]);
-  const ligadas = new Set(s.licitacoes.map(l => l.licitacaoId));
-  const licitacoes = saldos.map(l => {
-    const contratado = Number(l.valores.contratado);
-    const disponivel = Number(l.valores.disponivel);
-    const contratos = new Map<string, { numero: string; fornecedor: string | null; vigenciaAte: string; situacao: string }>();
-    l.itens.forEach(i => { if (i.contrato) contratos.set(i.contrato.id, { numero: i.contrato.numero, fornecedor: i.contrato.fornecedor, vigenciaAte: i.contrato.vigenciaAte, situacao: i.contrato.situacao }); });
-    return {
-      id: l.id, identificacao: l.identificacao, objeto: l.objeto, fornecedor: l.fornecedor,
-      saldoPct: contratado > 0 ? Math.max(0, Math.round((disponivel / contratado) * 100)) : null,
-      contratos: [...contratos.values()],
-      ligada: ligadas.has(l.id),
-    };
-  });
+  const [{ centros, frota, origens, metaDiasGeral }, usuarios] = await Promise.all([baseFicha(prisma, entityId), quemAtende(prisma, entityId)]);
   const atendem = usuarios.filter(u => atende(u, s.id)).map(u => ({
     nome: u.name, perfil: u.role.name, equipe: u.equipe?.nome ?? null, lider: u.equipesLideradas.length > 0,
-    exclusivo: u.servicos.length > 0,
+    exclusivo: !veTodosServicos(u),
   }));
   const aprovam = usuarios.filter(u => !u.adminGeral && (pode({ admin: false, acessos: u.acessos }, 'os.aprovar') || pode({ admin: false, acessos: u.acessos }, 'os.conferir'))
-    && (!u.servicos.length || u.servicos.some(x => x.centroCustoId === s.id))).map(u => u.name);
+    && (veTodosServicos(u) || u.servicos.some(x => x.centroCustoId === s.id))).map(u => u.name);
+  /* veículos e equipamentos: vale o vínculo (servico_frota), que também é marcado no cadastro de cada um */
+  const frotaVinculada = s.frota.map(f => f.cadastroId);
+  const salvos = (s.camposComuns ?? null) as CamposComuns | null;
+  const camposComuns: CamposComuns | null = salvos && {
+    ...salvos, equipamentos: frotaVinculada,
+    veiculo: { usa: frotaVinculada.length > 0, obrigatorio: frotaVinculada.length > 0 && !!salvos.veiculo?.obrigatorio },
+  };
   return {
     id: s.id, nome: s.nome, ativo: s.status === 'ACTIVE', tipoServico: s.tipoServico, cor: s.cor, prazoDias: s.prazoDias,
     subtipos: s.subtipos, municipePode: s.municipePode, nomeMunicipe: s.nomeMunicipe, fichaSalvaEm: s.fichaSalvaEm,
-    centroDeCustoId: s.centroDeCustoPadraoId, campos: s.camposFicha,
-    centros, licitacoes, atendem, aprovam, metaDiasGeral: cfg.metaDias,
+    centroDeCustoId: s.centroDeCustoPadraoId, campos: s.camposFicha, camposComuns, frotaVinculada,
+    centros, frota, origens, atendem, aprovam, metaDiasGeral,
   };
 }
 
 export interface DadosFicha {
   nome: string; ativo: boolean; tipoServico: 'MANUTENCAO' | 'CONSTRUCAO'; cor: string | null; prazoDias: number | null;
-  subtipos: string[]; municipePode: boolean; nomeMunicipe: string | null; centroDeCustoId: string | null; licitacaoIds: string[];
+  subtipos: string[]; municipePode: boolean; nomeMunicipe: string | null; centroDeCustoId: string | null;
+  camposComuns: CamposComuns;
   campos: { nome: string; detalhe?: string | null; tipo: typeof TIPOS_CAMPO[number]; opcoes?: string[]; momento: typeof MOMENTOS[number]; obrigatorio: boolean }[];
 }
 
@@ -118,17 +137,23 @@ export async function salvarFicha(prisma: PrismaClient, entityId: string, userId
     const c = await prisma.centroDeCusto.findFirst({ where: { id: d.centroDeCustoId, entityId, ativo: true } });
     if (!c) throw new AppError(400, 'VALIDATION_ERROR', 'Centro de custo não encontrado');
   }
-  const licitacaoIds = [...new Set(d.licitacaoIds)];
-  if (licitacaoIds.length) {
-    const n = await prisma.licitacao.count({ where: { entityId, id: { in: licitacaoIds } } });
-    if (n !== licitacaoIds.length) throw new AppError(400, 'VALIDATION_ERROR', 'Licitação não encontrada');
+  const equipamentos = [...new Set(d.camposComuns.equipamentos)];
+  if (equipamentos.length) {
+    const n = await prisma.cadastroAuxiliar.count({ where: { entityId, id: { in: equipamentos }, tipo: { in: ['VEICULO', 'EQUIPAMENTO'] } } });
+    if (n !== equipamentos.length) throw new AppError(400, 'VALIDATION_ERROR', 'Há veículo ou equipamento que não está no cadastro');
   }
+  const local = d.camposComuns.local;
+  const lista = [...new Set(local.lista.map(x => x.trim()).filter(Boolean))];
+  if ((local.tipo === 'ROTA' || local.tipo === 'LOCAL') && !lista.length) {
+    throw new AppError(400, 'VALIDATION_ERROR', local.tipo === 'ROTA' ? 'Cadastre ao menos uma rota' : 'Cadastre ao menos um local');
+  }
+  const camposComuns: CamposComuns = { ...d.camposComuns, local: { tipo: local.tipo, lista: local.tipo === 'ROTA' || local.tipo === 'LOCAL' ? lista : [] }, equipamentos };
   const subtipos = [...new Set(d.subtipos.map(x => x.trim()).filter(Boolean))];
   const nomesCampo = d.campos.map(c => c.nome.trim().toLowerCase());
-  if (nomesCampo.some(n => !n)) throw new AppError(400, 'VALIDATION_ERROR', 'Todo campo precisa de nome');
-  if (new Set(nomesCampo).size !== nomesCampo.length) throw new AppError(400, 'VALIDATION_ERROR', 'Há campos com o mesmo nome');
+  if (nomesCampo.some(n => !n)) throw new AppError(400, 'VALIDATION_ERROR', 'Toda ação precisa de nome');
+  if (new Set(nomesCampo).size !== nomesCampo.length) throw new AppError(400, 'VALIDATION_ERROR', 'Há ações com o mesmo nome');
   for (const c of d.campos) {
-    if (c.tipo === 'LISTA' && !(c.opcoes ?? []).filter(o => o.trim()).length) throw new AppError(400, 'VALIDATION_ERROR', `O campo "${c.nome}" é uma lista: informe as opções`);
+    if ((c.tipo === 'LISTA' || c.tipo === 'VARIAS') && !(c.opcoes ?? []).filter(o => o.trim()).length) throw new AppError(400, 'VALIDATION_ERROR', `A ação "${c.nome}" precisa de ao menos uma atividade`);
   }
 
   await prisma.$transaction(async tx => {
@@ -137,22 +162,22 @@ export async function salvarFicha(prisma: PrismaClient, entityId: string, userId
       data: {
         nome, status: d.ativo ? 'ACTIVE' : 'INACTIVE', tipoServico: d.tipoServico, cor: d.cor, prazoDias: d.prazoDias,
         subtipos, municipePode: d.municipePode, nomeMunicipe: d.nomeMunicipe?.trim() || null,
-        centroDeCustoPadraoId: d.centroDeCustoId, fichaSalvaEm: new Date(),
+        centroDeCustoPadraoId: d.centroDeCustoId, fichaSalvaEm: new Date(), camposComuns: camposComuns as object,
       },
     });
-    await tx.centroCustoLicitacao.deleteMany({ where: { centroCustoId: id } });
-    if (licitacaoIds.length) await tx.centroCustoLicitacao.createMany({ data: licitacaoIds.map(licitacaoId => ({ centroCustoId: id, licitacaoId, entityId })) });
+    await tx.servicoFrota.deleteMany({ where: { servicoId: id, NOT: { cadastroId: { in: equipamentos } } } });
+    if (equipamentos.length) await tx.servicoFrota.createMany({ data: equipamentos.map(cadastroId => ({ servicoId: id, cadastroId, entityId })), skipDuplicates: true });
     await tx.servicoCampo.deleteMany({ where: { servicoId: id } });
     if (d.campos.length) {
       await tx.servicoCampo.createMany({
         data: d.campos.map((c, ordem) => ({
           entityId, servicoId: id, nome: c.nome.trim(), detalhe: c.detalhe?.trim() || null, tipo: c.tipo,
-          opcoes: c.tipo === 'LISTA' ? (c.opcoes ?? []).map(o => o.trim()).filter(Boolean) : [], momento: c.momento, obrigatorio: c.obrigatorio, ordem,
+          opcoes: COM_ATIVIDADES.has(c.tipo) ? [...new Set((c.opcoes ?? []).map(o => o.trim()).filter(Boolean))] : [], momento: c.momento, obrigatorio: c.obrigatorio, ordem,
         })),
       });
     }
   });
-  await writeTenantAudit(prisma, { entityId, userId, action: 'SERVICO_FICHA_SALVA', resource: 'servico', newValue: { id, nome, ativo: d.ativo, campos: d.campos.length, licitacoes: licitacaoIds.length } });
+  await writeTenantAudit(prisma, { entityId, userId, action: 'SERVICO_FICHA_SALVA', resource: 'servico', newValue: { id, nome, ativo: d.ativo, acoes: d.campos.length, local: camposComuns.local.tipo, equipamentos: equipamentos.length } });
   return obterFicha(prisma, entityId, id);
 }
 
@@ -193,4 +218,14 @@ export async function excluirServico(prisma: PrismaClient, entityId: string, use
     if ((e as { code?: string }).code !== 'P2003') throw e;
     return desativar();
   }
+}
+
+/** Origens da demanda: uma lista só, vale para todos os serviços */
+export async function salvarOrigens(prisma: PrismaClient, entityId: string, userId: string, origens: string[]) {
+  const lista = [...new Set(origens.map(o => o.trim()).filter(Boolean))];
+  if (!lista.length) throw new AppError(400, 'VALIDATION_ERROR', 'Deixe ao menos uma origem na lista');
+  await obterConfig(prisma, entityId);
+  await prisma.configuracaoObras.update({ where: { entityId }, data: { origensDemanda: lista } });
+  await writeTenantAudit(prisma, { entityId, userId, action: 'ORIGENS_DEMANDA_SALVAS', resource: 'configuracao_obras', newValue: { origens: lista } });
+  return { origens: lista };
 }

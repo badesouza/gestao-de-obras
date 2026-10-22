@@ -152,16 +152,32 @@ export async function aplicarAcao(
   return { etapa: novo.etapa };
 }
 
-/* ── vínculo usuário × serviço (nenhum vínculo = atende todos) ── */
+/* ── vínculo usuário × serviço ──
+   Administrador geral ou caixa "Ver todos os serviços" = todos.
+   Fora isso, só os serviços marcados no cadastro (nenhum marcado = nenhum). */
 
 export async function servicosDoUsuario(prisma: PrismaClient, userId: string): Promise<string[]> {
   const v = await prisma.usuarioServico.findMany({ where: { userId }, select: { centroCustoId: true } });
   return v.map(x => x.centroCustoId);
 }
 
+/** Serviços que a pessoa enxerga: null = todos */
+export async function escopoServicos(prisma: PrismaClient, ator: QuemAge & { id: string }): Promise<string[] | null> {
+  if (pode(ator, 'servicos.todos')) return null;
+  return servicosDoUsuario(prisma, ator.id);
+}
+
+/** Filtro de OS pelo alcance da pessoa (lista vazia não acha nada) */
+export async function filtroEscopoOS(prisma: PrismaClient, ator: QuemAge & { id: string }): Promise<Prisma.RegistroDiarioWhereInput> {
+  const escopo = await escopoServicos(prisma, ator);
+  return escopo ? { centroCustoId: { in: escopo } } : {};
+}
+
 export async function assertAcessoServico(prisma: PrismaClient, userId: string, centroId: string) {
-  const lista = await servicosDoUsuario(prisma, userId);
-  if (lista.length > 0 && !lista.includes(centroId)) {
+  const u = await prisma.tenantUser.findUnique({ where: { id: userId }, select: { adminGeral: true, acessos: true } });
+  if (!u) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
+  const escopo = await escopoServicos(prisma, { id: userId, admin: u.adminGeral, acessos: u.acessos });
+  if (escopo && !escopo.includes(centroId)) {
     throw new AppError(403, 'FORBIDDEN', 'Você não está vinculado a este serviço');
   }
 }

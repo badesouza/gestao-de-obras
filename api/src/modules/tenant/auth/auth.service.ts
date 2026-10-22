@@ -1,4 +1,4 @@
-import { obterConfig, servicosDoUsuario } from '../ordens/ordens.service.js';
+import { escopoServicos, obterConfig } from '../ordens/ordens.service.js';
 import { poderesFluxo } from '../../../shared/acessos.js';
 import bcrypt from 'bcryptjs';
 import type { PrismaClient, Prisma } from '../../../../generated/prisma/index.js';
@@ -119,7 +119,7 @@ export async function getTenantUserProfile(
   }
 
   const permissions = await getTenantUserPermissions(prisma, user.id);
-  const [cfg, servicos] = await Promise.all([obterConfig(prisma, entityId), servicosDoUsuario(prisma, user.id)]);
+  const [cfg, servicos] = await Promise.all([obterConfig(prisma, entityId), escopoServicos(prisma, { id: user.id, admin: user.adminGeral, acessos: user.acessos })]);
 
   return {
     id: user.id,
@@ -132,7 +132,7 @@ export async function getTenantUserProfile(
       name: user.role.name,
     },
     permissions,
-    servicosPermitidos: servicos.length ? servicos : null,
+    servicosPermitidos: servicos, // null = todos; lista vazia = nenhum
     acessos: user.acessos,
     adminGeral: user.adminGeral,
     obras: {

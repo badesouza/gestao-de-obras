@@ -111,6 +111,7 @@ model Entity {
   solicitacoesMunicipe          SolicitacaoMunicipe[]
   configuracaoObras             ConfiguracaoObras?
   usuarioServicos               UsuarioServico[]
+  usuarioEquipes                UsuarioEquipe[]
   centrosDeCusto                CentroDeCusto[]
   orcamentos                    Orcamento[]
   contratos                     Contrato[]
@@ -139,19 +140,26 @@ model CadastroAuxiliar {
   lat         Float?
   lng         Float?
   macrozonaId String?              @map("macrozona_id")
-  /** veículos e equipamentos: tipo (caminhão basculante, patrol…), placa e patrimônio */
+  /**
+   * veículos e equipamentos: tipo (caminhão basculante, patrol…), placa e patrimônio
+   */
   subtipo     String?              @db.VarChar(80)
   placa       String?              @db.VarChar(20)
   patrimonio  String?              @db.VarChar(40)
+  /** veículos e equipamentos: tipo do cadastro de tipos (Veículos, Máquinas, Equipamentos, Móveis…) */
+  tipoFrotaId String?              @map("tipo_frota_id")
   createdAt   DateTime             @default(now()) @map("created_at")
   updatedAt   DateTime             @updatedAt @map("updated_at")
 
-  entity    Entity             @relation(fields: [entityId], references: [id])
-  equipe    Equipe?
-  macrozona CadastroAuxiliar?  @relation("BairroMacrozona", fields: [macrozonaId], references: [id])
-  bairros   CadastroAuxiliar[] @relation("BairroMacrozona")
-  usuarios  TenantUser[]       @relation("UsuarioEquipe")
-  equipesComVeiculo Equipe[]   @relation("EquipeVeiculo")
+  entity            Entity             @relation(fields: [entityId], references: [id])
+  equipe            Equipe?
+  macrozona         CadastroAuxiliar?  @relation("BairroMacrozona", fields: [macrozonaId], references: [id])
+  bairros           CadastroAuxiliar[] @relation("BairroMacrozona")
+  usuarios          TenantUser[]       @relation("UsuarioEquipe")
+  usuariosEquipe    UsuarioEquipe[]    @relation("EquipeUsuarios")
+  equipesComVeiculo Equipe[]           @relation("EquipeVeiculo")
+  servicosFrota     ServicoFrota[]
+  tipoFrota         TipoFrota?   @relation(fields: [tipoFrotaId], references: [id], onDelete: SetNull)
 
   @@unique([entityId, tipo, nome])
   @@index([entityId, tipo, ativo])
@@ -237,12 +245,16 @@ model TenantUser {
   passwordHash  String           @map("password_hash")
   status        TenantUserStatus @default(ACTIVE)
   isLiderEquipe Boolean          @default(false) @map("is_lider_equipe")
-  /** caixas marcadas na tela Acessos (o perfil é só o modelo que pré-marca) */
+  /**
+   * caixas marcadas na tela Acessos (o perfil é só o modelo que pré-marca)
+   */
   acessos       String[]         @default([])
   adminGeral    Boolean          @default(false) @map("admin_geral")
   celular       String?          @db.VarChar(20)
   equipeId      String?          @map("equipe_id")
-  /** false enquanto a pessoa não criou a senha pelo link */
+  /**
+   * false enquanto a pessoa não criou a senha pelo link
+   */
   senhaDefinida Boolean          @default(true) @map("senha_definida")
   lastLoginAt   DateTime?        @map("last_login_at")
   createdAt     DateTime         @default(now()) @map("created_at")
@@ -269,6 +281,10 @@ model TenantUser {
   osFinalizadas                   RegistroDiario[]          @relation("OSFinalizadaPor")
   osRecusadas                     RegistroDiario[]          @relation("OSRecusadaPor")
   servicos                        UsuarioServico[]
+  /**
+   * equipes da pessoa (uma ou mais); equipeId acima fica como a principal
+   */
+  equipes                         UsuarioEquipe[]
   pedidosRevisados                PedidoCompra[]            @relation("PedidoRevisadoPor")
   pedidosAprovados                PedidoCompra[]            @relation("PedidoAprovadoPor")
   orcamentosCriados               Orcamento[]               @relation("OrcamentoCriadoPor")
@@ -292,10 +308,10 @@ model Equipe {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  entity     Entity           @relation(fields: [entityId], references: [id])
-  cadastro   CadastroAuxiliar @relation(fields: [cadastroId], references: [id], onDelete: Cascade)
+  entity     Entity            @relation(fields: [entityId], references: [id])
+  cadastro   CadastroAuxiliar  @relation(fields: [cadastroId], references: [id], onDelete: Cascade)
   veiculo    CadastroAuxiliar? @relation("EquipeVeiculo", fields: [veiculoId], references: [id], onDelete: SetNull)
-  lider      TenantUser?      @relation(fields: [liderUserId], references: [id])
+  lider      TenantUser?       @relation(fields: [liderUserId], references: [id])
   operadores Operador[]
 
   @@index([entityId])
@@ -443,17 +459,22 @@ model CentroCusto {
   propriedadeConfigs    CentroCustoPropriedadeConfig[]
   registrosDiarios      RegistroDiario[]
   usuarios              UsuarioServico[]
+  frota                 ServicoFrota[]
   centroDeCustoPadraoId String?                        @map("centro_de_custo_padrao_id")
   centroDeCustoPadrao   CentroDeCusto?                 @relation("ServicoCentroPadrao", fields: [centroDeCustoPadraoId], references: [id], onDelete: SetNull)
-  /** ── Ficha do serviço (passo 6). Enquanto fichaSalvaEm for nulo, valem os padrões do código ── */
-  tipoServico  String?       @map("tipo_servico") @db.VarChar(20)
-  cor          String?       @db.VarChar(9)
-  prazoDias    Int?          @map("prazo_dias")
-  subtipos     String[]      @default([])
-  municipePode Boolean?      @map("municipe_pode")
-  nomeMunicipe String?       @map("nome_municipe") @db.VarChar(200)
-  fichaSalvaEm DateTime?     @map("ficha_salva_em")
-  camposFicha  ServicoCampo[]
+  /**
+   * ── Ficha do serviço (passo 6). Enquanto fichaSalvaEm for nulo, valem os padrões do código ──
+   */
+  tipoServico           String?                        @map("tipo_servico") @db.VarChar(20)
+  cor                   String?                        @db.VarChar(9)
+  prazoDias             Int?                           @map("prazo_dias")
+  subtipos              String[]                       @default([])
+  municipePode          Boolean?                       @map("municipe_pode")
+  nomeMunicipe          String?                        @map("nome_municipe") @db.VarChar(200)
+  fichaSalvaEm          DateTime?                      @map("ficha_salva_em")
+  /// Campos comuns de toda OS ajustados para este serviço: onde acontece, origem, equipe, veículo, fotos, observações
+  camposComuns          Json?                          @map("campos_comuns")
+  camposFicha           ServicoCampo[]
 
   @@unique([entityId, nome])
   @@index([entityId, status])
@@ -550,11 +571,11 @@ model RegistroDiario {
   centroDeCusto   CentroDeCusto? @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
 
   /// Central de Solicitações: de onde veio e, se o responsável recusou, por quê
-  origem          OrigemOS       @default(ESCRITORIO)
-  recusadoEm      DateTime?      @map("recusado_em")
-  recusadoPorId   String?        @map("recusado_por_id")
-  motivoRecusa    String?        @map("motivo_recusa")
-  recusadoPor     TenantUser?    @relation("OSRecusadaPor", fields: [recusadoPorId], references: [id])
+  origem        OrigemOS    @default(ESCRITORIO)
+  recusadoEm    DateTime?   @map("recusado_em")
+  recusadoPorId String?     @map("recusado_por_id")
+  motivoRecusa  String?     @map("motivo_recusa")
+  recusadoPor   TenantUser? @relation("OSRecusadaPor", fields: [recusadoPorId], references: [id])
 
   @@unique([entityId, numeroOS])
   @@index([entityId, etapa])
@@ -880,25 +901,27 @@ enum EtapaOS {
  * ── Regras da secretaria (configuráveis por entidade) ──
  */
 model ConfiguracaoObras {
-  entityId             String   @id @map("entity_id")
+  entityId                    String   @id @map("entity_id")
   /// Sempre ligado: toda OS passa pelo crivo do responsável na Central de Solicitações
-  exigeAprovacaoOS     Boolean  @default(true) @map("exige_aprovacao_os")
-  aprovadores          String[] @default(["ADMIN", "COORDENADOR"])
-  exigeConferencia     Boolean  @default(true) @map("exige_conferencia")
-  conferentes          String[] @default(["ADMIN", "COORDENADOR"])
-  metaDias             Int      @default(5) @map("meta_dias")
-  exigeAprovacaoCompra Boolean  @default(true) @map("exige_aprovacao_compra")
-  revisoresCompra      String[] @default(["ADMIN", "COORDENADOR"]) @map("revisores_compra")
-  aprovadoresCompra    String[] @default(["ADMIN"]) @map("aprovadores_compra")
+  exigeAprovacaoOS            Boolean  @default(true) @map("exige_aprovacao_os")
+  aprovadores                 String[] @default(["ADMIN", "COORDENADOR"])
+  exigeConferencia            Boolean  @default(true) @map("exige_conferencia")
+  conferentes                 String[] @default(["ADMIN", "COORDENADOR"])
+  metaDias                    Int      @default(5) @map("meta_dias")
+  exigeAprovacaoCompra        Boolean  @default(true) @map("exige_aprovacao_compra")
+  revisoresCompra             String[] @default(["ADMIN", "COORDENADOR"]) @map("revisores_compra")
+  aprovadoresCompra           String[] @default(["ADMIN"]) @map("aprovadores_compra")
   /// Fluxo e aprovações: revisão do pedido separada da aprovação
-  exigeRevisaoCompra   Boolean  @default(true) @map("exige_revisao_compra")
+  exigeRevisaoCompra          Boolean  @default(true) @map("exige_revisao_compra")
   /// De onde vem a OS que precisa de aprovação: ESCRITORIO, MUNICIPE, CAMPO
-  aprovacaoOrigens     String[] @default(["ESCRITORIO", "MUNICIPE", "CAMPO"]) @map("aprovacao_origens")
+  aprovacaoOrigens            String[] @default(["ESCRITORIO", "MUNICIPE", "CAMPO"]) @map("aprovacao_origens")
   /// Quem deu a baixa não pode conferir a própria baixa
-  conferenciaPropriaBloqueada Boolean @default(true) @map("conferencia_propria_bloqueada")
+  conferenciaPropriaBloqueada Boolean  @default(true) @map("conferencia_propria_bloqueada")
   /// O pedido só pode nascer de um orçamento
-  pedidoSoDeOrcamento  Boolean  @default(false) @map("pedido_so_de_orcamento")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  pedidoSoDeOrcamento         Boolean  @default(false) @map("pedido_so_de_orcamento")
+  /// Origens da demanda (Ouvidoria, Munícipe, Vereador…): uma lista só, vale para todos os serviços
+  origensDemanda              String[] @default(["Ouvidoria", "Vistoria Própria", "Munícipe", "Vereador", "Secretaria", "Outros"]) @map("origens_demanda")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
 
   entity Entity @relation(fields: [entityId], references: [id])
 
@@ -906,7 +929,27 @@ model ConfiguracaoObras {
 }
 
 /**
- * ── Serviços que cada usuário atende (nenhum = todos) ──
+ * ── Equipes de cada usuário (uma ou mais) ──
+ * Obrigatória para todos, menos Administrador, Secretário(a) e Coordenador.
+ */
+model UsuarioEquipe {
+  userId    String   @map("user_id")
+  equipeId  String   @map("equipe_id")
+  entityId  String   @map("entity_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   TenantUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  equipe CadastroAuxiliar @relation("EquipeUsuarios", fields: [equipeId], references: [id], onDelete: Cascade)
+  entity Entity           @relation(fields: [entityId], references: [id])
+
+  @@id([userId, equipeId])
+  @@index([entityId])
+  @@index([equipeId])
+  @@map("usuario_equipes")
+}
+
+/**
+ * ── Serviços que cada usuário atende (nenhum = nenhum; ver todos é a caixa "Ver todos os serviços") ──
  */
 model UsuarioServico {
   userId        String   @map("user_id")
@@ -921,6 +964,43 @@ model UsuarioServico {
   @@id([userId, centroCustoId])
   @@index([entityId])
   @@map("usuario_servicos")
+}
+
+/**
+ * ── Tipos de veículo/equipamento (Veículos, Máquinas, Equipamentos, Móveis…), cadastrados pelo próprio órgão ──
+ */
+model TipoFrota {
+  id        String   @id @default(uuid())
+  entityId  String   @map("entity_id")
+  nome      String   @db.VarChar(80)
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  itens CadastroAuxiliar[]
+
+  @@unique([entityId, nome])
+  @@index([entityId])
+  @@map("tipos_frota")
+}
+
+/**
+ * ── Veículos e equipamentos que cada serviço usa (todo veículo/equipamento tem ao menos um) ──
+ * Marcado tanto no cadastro do veículo/equipamento quanto na ficha do serviço: é o mesmo vínculo.
+ */
+model ServicoFrota {
+  servicoId  String   @map("servico_id")
+  cadastroId String   @map("cadastro_id")
+  entityId   String   @map("entity_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  servico  CentroCusto      @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  cadastro CadastroAuxiliar @relation(fields: [cadastroId], references: [id], onDelete: Cascade)
+
+  @@id([servicoId, cadastroId])
+  @@index([cadastroId])
+  @@index([entityId])
+  @@map("servico_frota")
 }
 
 /**

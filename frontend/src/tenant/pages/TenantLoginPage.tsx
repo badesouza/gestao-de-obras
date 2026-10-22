@@ -603,7 +603,7 @@ export function TenantLoginPage() {
     try {
       const result = await tenantApi.login(entityId, email, password);
       setTenantToken(entityId, result.token);
-      navigate(`/t/${entityId}/dashboard`);
+      navigate(`/t/${entityId}`);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

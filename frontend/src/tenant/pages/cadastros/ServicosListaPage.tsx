@@ -1,24 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { servicosFichaApi } from '../../../lib/api-client';
 import type { ServicoResumo, TipoServico } from '../../../lib/api-client';
 import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
-import { AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros } from '../../components/sisobras/so';
+import { AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros } from '../../components/sisobras/so';
+import { ServicoJanela } from './ServicoJanela';
 import { padroesDoServico } from './servico-padroes';
 
 type Filtro = 'todos' | 'MANUTENCAO' | 'CONSTRUCAO' | 'sem-centro' | 'inativos';
 
-/** Tela 9 · Passo 6 — Serviços (lista) */
+/** Passo 7 — Serviços: a lista; cadastrar e editar abrem a janela em passos */
 export function ServicosListaPage() {
   const { entityId } = useTenant();
-  const navigate = useNavigate();
   const { resumo, recarregar } = useResumoCadastros();
   const { toasts, showToast, closeToast } = useToast();
   const [servicos, setServicos] = useState<ServicoResumo[] | null>(null);
   const [filtro, setFiltro] = useState<Filtro>('todos');
-  const [novo, setNovo] = useState<{ nome: string; tipo: TipoServico } | null>(null);
+  const [params, setParams] = useSearchParams();
+  /* janela do serviço: id = editar; null = novo. ?abrir=<id> vem dos endereços antigos */
+  const [janela, setJanela] = useState<{ id: string | null } | null>(() => (params.get('abrir') ? { id: params.get('abrir') } : null));
   const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async () => {
@@ -49,13 +51,9 @@ export function ServicosListaPage() {
           : s.ativo && s.tipoServico === filtro);
   const qtdTipo = (t: TipoServico) => ativos.filter(s => s.tipoServico === t).length;
 
-  async function criar() {
-    if (!novo || novo.nome.trim().length < 2) { showToast('Informe o nome do serviço', 'warning'); return; }
-    try {
-      const r = await servicosFichaApi.criar(entityId, novo.nome, novo.tipo);
-      recarregar();
-      navigate(rotaTenant(entityId, `cadastros/servicos/${r.id}`));
-    } catch (e) { showToast(msgErro(e), 'error'); }
+  function fecharJanela() {
+    setJanela(null);
+    if (params.get('abrir')) setParams({}, { replace: true });
   }
 
   function excluir(sv: { id: string; nome: string }) {
@@ -74,9 +72,9 @@ export function ServicosListaPage() {
 
   return (
     <Pagina>
-      <CabecalhoPasso passo={6} resumo={resumo} sub="O que a secretaria faz. Cada serviço tem uma ficha: centro de custo, contratos, quem atende e o que o fiscal preenche." />
+      <CabecalhoPasso passo={7} resumo={resumo} sub="O que a secretaria faz. Tudo o que compõe um serviço fica aqui: centro de custo, campos comuns, equipamentos que pode usar e as ações com suas atividades." />
 
-      <Aviso className="so-rise">Hoje todo serviço repete os mesmos campos (bairro, endereço, origem, equipe, status). Agora eles vêm <strong>sozinhos em toda OS</strong>, e cada ficha guarda só o que é <strong>daquele serviço</strong> — por exemplo, "tipo de luminária" na Iluminação.</Aviso>
+      <Aviso className="so-rise">Cada serviço tem <strong>ações</strong> e cada ação tem suas <strong>atividades</strong> — ex.: na Poda, a ação "Porte da árvore" tem Pequeno, Médio e Grande. Clique em <strong>Novo serviço</strong> ou no lápis para abrir a janela em 5 passos.</Aviso>
 
       <Cartao className="so-rise d1" icone="list" titulo="Lista de serviços"
         meta={<><span className="mono">{ativos.length}</span> serviços{semCentro > 0 && <> · <span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro} sem centro de custo</span></>}</>}
@@ -89,20 +87,20 @@ export function ServicosListaPage() {
             {semCentro > 0 && <button type="button" className={`so-chip alert${filtro === 'sem-centro' ? ' on' : ''}`} onClick={() => setFiltro('sem-centro')}>Sem centro de custo <span className="n">{semCentro}</span></button>}
             {vistos.length > ativos.length && <button type="button" className={`so-chip${filtro === 'inativos' ? ' on' : ''}`} onClick={() => setFiltro('inativos')}>Inativos <span className="n">{vistos.length - ativos.length}</span></button>}
           </div>
-          <button type="button" className="so-btn so-primary" onClick={() => setNovo({ nome: '', tipo: 'MANUTENCAO' })}><Ic n="plus" />Novo serviço</button>
+          <button type="button" className="so-btn so-primary" onClick={() => setJanela({ id: null })}><Ic n="plus" />Novo serviço</button>
         </div>
         <div className="so-tw">
           <table className="so-table">
-            <thead><tr><th scope="col">Serviço</th><th scope="col">Centro de custo</th><th scope="col" className="c">Contratos</th><th scope="col" className="c">Quem atende</th><th scope="col" className="c">Munícipe pede?</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
+            <thead><tr><th scope="col">Serviço</th><th scope="col">Centro de custo</th><th scope="col" className="c">Ações</th><th scope="col" className="c">Quem atende</th><th scope="col" className="c">Munícipe pede?</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
             <tbody>
               {visiveis.map(s => (
                 <tr key={s.id}>
-                  <td data-l="Serviço"><div className="nm"><span className="so-dotc" style={{ background: s.cor }} /><span><span className="strong">{s.nome}</span><span className="sub">{s.tipoServico === 'CONSTRUCAO' ? 'Construção' : 'Manutenção'} · {s.subtipos} subtipos{!s.fichaSalva && ' · ficha ainda não salva'}</span></span></div></td>
+                  <td data-l="Serviço"><div className="nm"><span className="so-dotc" style={{ background: s.cor }} /><span><span className="strong">{s.nome}</span><span className="sub">{s.tipoServico === 'CONSTRUCAO' ? 'Construção' : 'Manutenção'} · {s.subtipos} tipos de serviço{!s.fichaSalva && ' · ainda não conferido'}</span></span></div></td>
                   <td data-l="Centro de custo">{s.centro ? <span style={{ fontWeight: 600 }}><span className="mono" style={{ fontSize: 11, color: 'var(--brand-ink)', fontWeight: 700 }}>{s.centro.codigo}</span> {s.centro.nome}</span> : <span className="so-badge amber"><span className="dot live" />Sem centro de custo</span>}</td>
-                  <td data-l="Contratos" className="c mono">{s.contratos}</td>
+                  <td data-l="Ações" className="c mono">{s.campos + 1}</td>
                   <td data-l="Quem atende" className="c mono">{s.pessoas}</td>
                   <td data-l="Munícipe pede?" className="c"><span className={`so-badge ${s.municipePode ? 'mint' : ''}`}>{s.municipePode ? 'Sim' : 'Não'}</span></td>
-                  <td data-l="" className="acoes"><AcoesLinha nome={s.nome} textoEditar="Abrir a ficha de" onEditar={() => navigate(rotaTenant(entityId, `cadastros/servicos/${s.id}`))} onExcluir={s.ativo ? () => excluir(s) : undefined} /></td>
+                  <td data-l="" className="acoes"><AcoesLinha nome={s.nome} onEditar={() => setJanela({ id: s.id })} onExcluir={s.ativo ? () => excluir(s) : undefined} /></td>
                 </tr>
               ))}
               {!visiveis.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Nenhum serviço aqui.</td></tr>}
@@ -111,28 +109,12 @@ export function ServicosListaPage() {
         </div>
       </Cartao>
 
-      {novo && (
-        <Janela icone="wrench" eyebrow="Serviços · novo" titulo="Novo serviço"
-          sub="Dê o nome e o tipo. Em seguida abre a ficha para escolher o centro de custo, os contratos e o que o fiscal preenche."
-          largura={520} onFechar={() => setNovo(null)} ajuda="Ajuda: Serviços"
-          rodape={<>
-            <button type="button" className="so-btn so-ghost" onClick={() => setNovo(null)}>Cancelar</button>
-            <button type="button" className="so-btn so-primary" onClick={criar}>Criar e abrir a ficha<Ic n="seta" className="arrow" /></button>
-          </>}>
-          <label className="so-field"><span className="so-lbl">Nome do serviço <span className="req">*</span></span>
-            <span className="so-ctrl"><input placeholder="Ex.: Drenagem" value={novo.nome} onChange={e => setNovo({ ...novo, nome: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') criar(); }} /></span>
-          </label>
-          <fieldset className="so-field" style={{ border: 0, margin: 0, padding: 0 }}>
-            <legend className="so-lbl" style={{ marginBottom: 6 }}>Tipo</legend>
-            <div className="so-seg">
-              <label className={novo.tipo === 'MANUTENCAO' ? 'on' : ''}><input type="radio" name="tipoNovo" checked={novo.tipo === 'MANUTENCAO'} onChange={() => setNovo({ ...novo, tipo: 'MANUTENCAO' })} /> Manutenção</label>
-              <label className={novo.tipo === 'CONSTRUCAO' ? 'on' : ''}><input type="radio" name="tipoNovo" checked={novo.tipo === 'CONSTRUCAO'} onChange={() => setNovo({ ...novo, tipo: 'CONSTRUCAO' })} /> Construção</label>
-            </div>
-          </fieldset>
-        </Janela>
+      {janela && (
+        <ServicoJanela key={janela.id ?? 'novo'} servicoId={janela.id} showToast={showToast} onFechar={fecharJanela}
+          onSalvo={() => { fecharJanela(); carregar(); recarregar(); }} />
       )}
 
-      <BarraAcoes esquerda={<><b>{ativos.length}</b> serviços{semCentro > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro} sem centro de custo</span></>}<Sep />passo 6 de 6</>}>
+      <BarraAcoes esquerda={<><b>{ativos.length}</b> serviços{semCentro > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro} sem centro de custo</span></>}<Sep />passo 7 de 7</>}>
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Centros de custo</Link>
         <Link to={rotaTenant(entityId, 'cadastros/fluxo')} className="so-btn so-primary">Concluir: Fluxo e aprovações<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>

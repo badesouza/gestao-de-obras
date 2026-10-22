@@ -1511,7 +1511,7 @@ export const entityBootstrapApi = {
 
 /* ── Módulo 1 · Cadastros em 6 passos (padrão SisObras) ── */
 export type SituacaoPasso = 'ok' | 'warn' | 'opt';
-export type ChavePasso = 'orgao' | 'lugares' | 'pessoas' | 'veiculos' | 'centros' | 'servicos';
+export type ChavePasso = 'orgao' | 'lugares' | 'pessoas' | 'veiculos' | 'equipamentos' | 'centros' | 'servicos';
 export interface PassoResumo {
   n: number; chave: ChavePasso; situacao: SituacaoPasso; contagem: string; aviso: string | null; avisoLeve: boolean;
 }
@@ -1549,25 +1549,25 @@ export const cadastrosBaseApi = {
 
 /* ── Passo 3 · Pessoas (usuários, link de senha, acessos por caixa, equipes) ── */
 export type SituacaoPessoa = 'ATIVO' | 'LINK_ENVIADO' | 'LINK_VENCIDO' | 'INATIVO';
-export type ModeloAcesso = 'ADMIN' | 'COORDENADOR' | 'FISCAL' | 'COMPRAS' | 'CONSULTA';
+export type ModeloAcesso = 'ADMIN' | 'SECRETARIO' | 'COORDENADOR' | 'ENGINEER' | 'FISCAL' | 'COMPRAS' | 'CONSULTA';
 export interface Pessoa {
   id: string; nome: string; email: string; celular: string | null;
   perfil: { code: string; nome: string };
-  equipe: { id: string; nome: string } | null; lider: boolean;
+  equipes: { id: string; nome: string }[]; liderDe: string | null;
   atende: { id: string; nome: string }[] | null;
   situacao: SituacaoPessoa; adminGeral: boolean; marcados: number; total: number;
 }
 export interface ListaPessoas {
   usuarios: Pessoa[];
   filtros: { code: string; nome: string; qtd: number }[];
-  modelos: { code: ModeloAcesso; nome: string; descricao: string; marcados: number; existe: boolean }[];
+  modelos: { code: ModeloAcesso; nome: string; descricao: string; marcados: number; existe: boolean; semEquipe: boolean }[];
   equipes: { id: string; nome: string }[];
   servicos: { id: string; nome: string }[];
   totalCaixas: number;
 }
 export interface DadosPessoa {
   nome: string; email: string; celular: string | null; modelo: ModeloAcesso;
-  equipeId: string | null; lider: boolean; servicoIds: string[] | null;
+  equipeIds: string[]; liderEquipeId: string | null; servicoIds: string[] | null;
 }
 export interface LinkGerado { id: string; nome: string; email: string; celular: string | null; link: { token: string; expiraEm: string } }
 export interface ItemAcesso { chave: string; nome: string; etapa?: string }
@@ -1580,6 +1580,8 @@ export interface AcessosPessoa {
 export interface EquipeCampo {
   id: string; nome: string; lider: { id: string; nome: string } | null; veiculo: { id: string; nome: string } | null;
   membros: { id: string; nome: string; funcao: string }[];
+  /** quem tem senha e faz parte da equipe (marcado no cadastro da pessoa) */
+  pessoas: { id: string; nome: string }[];
 }
 export interface ListaEquipes { equipes: EquipeCampo[]; lideres: { id: string; nome: string; perfil: string }[]; veiculos: { id: string; nome: string }[] }
 
@@ -1622,46 +1624,79 @@ export type SituacaoFrota = 'EM_USO' | 'NA_OFICINA' | 'PARADO';
 export interface ItemFrota {
   id: string; nome: string; subtipo: string | null; placa: string | null; patrimonio: string | null;
   equipe: { id: string; nome: string } | null; situacao: SituacaoFrota; usoMes: number; osOficina: string | null;
+  servicos: ServicoDaFrota[];
+  tipo: { id: string; nome: string } | null;
 }
-export interface ListaFrota { itens: ItemFrota[]; contagem: { veiculos: number; equipamentos: number }; equipes: { id: string; nome: string }[]; tipos: string[] }
-export interface DadosFrota { tipo: TipoFrota; nome: string; subtipo: string | null; placa: string | null; patrimonio: string | null; equipeId: string | null }
+export interface ServicoDaFrota { id: string; nome: string; cor: string | null }
+/** Tipo de veículo/equipamento (Veículos, Máquinas, Equipamentos, Móveis…) cadastrado pelo órgão */
+export interface TipoFrotaItem { id: string; nome: string; usos: number }
+export interface ListaFrota { itens: ItemFrota[]; contagem: { veiculos: number; equipamentos: number }; equipes: { id: string; nome: string }[]; servicos: ServicoDaFrota[]; tiposFrota: TipoFrotaItem[] }
+export interface DadosFrota {
+  tipo: TipoFrota; nome: string; subtipo: string | null; placa: string | null; patrimonio: string | null; equipeId: string | null;
+  tipoFrotaId?: string | null;
+  /** serviços que usam (ao menos um) */
+  servicoIds: string[];
+  /** cadastrado de dentro da janela de um serviço novo: o vínculo é gravado quando o serviço for salvo */
+  vincularDepois?: boolean;
+}
 export const frotaApi = {
   listar: (entityId: string, tipo: TipoFrota) => tenantRequest<ListaFrota>(entityId, `/api/tenant/v1/cadastros/frota?tipo=${tipo}`),
   criar: (entityId: string, d: DadosFrota) => tenantRequest<{ id: string }>(entityId, '/api/tenant/v1/cadastros/frota', { method: 'POST', body: JSON.stringify(d) }),
   atualizar: (entityId: string, id: string, d: DadosFrota) => tenantRequest<{ id: string }>(entityId, `/api/tenant/v1/cadastros/frota/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
   remover: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/cadastros/frota/${id}`, { method: 'DELETE' }),
   servicosSemCentro: (entityId: string) => tenantRequest<{ servicosSemCentro: { id: string; nome: string }[] }>(entityId, '/api/tenant/v1/cadastros/centros/pendencias'),
+  tipos: (entityId: string) => tenantRequest<{ tipos: TipoFrotaItem[] }>(entityId, '/api/tenant/v1/cadastros/frota-tipos'),
+  criarTipo: (entityId: string, nome: string) => tenantRequest<TipoFrotaItem>(entityId, '/api/tenant/v1/cadastros/frota-tipos', { method: 'POST', body: JSON.stringify({ nome }) }),
+  renomearTipo: (entityId: string, id: string, nome: string) => tenantRequest<{ id: string; nome: string }>(entityId, `/api/tenant/v1/cadastros/frota-tipos/${id}`, { method: 'PUT', body: JSON.stringify({ nome }) }),
+  removerTipo: (entityId: string, id: string) => tenantRequest<{ removido: boolean }>(entityId, `/api/tenant/v1/cadastros/frota-tipos/${id}`, { method: 'DELETE' }),
 };
 
 /* ── Passo 6 · Serviços e ficha do serviço ── */
 export type TipoServico = 'MANUTENCAO' | 'CONSTRUCAO';
-export type TipoCampo = 'TEXTO' | 'LISTA' | 'NUMERO' | 'SIM_NAO';
+/** Como se preenche uma ação: LISTA = uma atividade · VARIAS = várias · NUMERO = cada atividade é uma medida · TEXTO livre · SIM_NAO */
+export type TipoCampo = 'TEXTO' | 'LISTA' | 'VARIAS' | 'NUMERO' | 'SIM_NAO';
+export type TipoLocal = 'ENDERECO' | 'ROTA' | 'LOCAL' | 'VEICULO';
+export interface UsoCampo { usa: boolean; obrigatorio: boolean }
+/** Campos que vêm em toda OS, ajustados para cada serviço */
+export interface CamposComuns {
+  local: { tipo: TipoLocal; lista: string[] };
+  origem: UsoCampo; equipe: UsoCampo; veiculo: UsoCampo; fotos: UsoCampo; observacoes: UsoCampo;
+  /** Veículos e equipamentos que este serviço pode usar */
+  equipamentos: string[];
+}
+export interface ItemFrotaSimples { id: string; tipo: TipoFrota; nome: string; subtipo: string | null; placa: string | null; patrimonio: string | null }
 export type MomentoCampo = 'ABERTURA' | 'BAIXA';
 export interface ServicoResumo {
   id: string; nome: string; ativo: boolean; tipoServico: TipoServico | null; cor: string | null; subtipos: number; fichaSalva: boolean;
-  municipePode: boolean | null; centro: { codigo: string; nome: string } | null; contratos: number; campos: number; pessoas: number;
+  municipePode: boolean | null; centro: { codigo: string; nome: string } | null; campos: number; pessoas: number;
 }
 export interface CampoServico { id?: string; nome: string; detalhe: string | null; tipo: TipoCampo; opcoes: string[]; momento: MomentoCampo; obrigatorio: boolean }
 export interface FichaServico {
   id: string; nome: string; ativo: boolean; tipoServico: TipoServico | null; cor: string | null; prazoDias: number | null;
   subtipos: string[]; municipePode: boolean | null; nomeMunicipe: string | null; fichaSalvaEm: string | null; centroDeCustoId: string | null;
-  campos: CampoServico[];
-  centros: { id: string; codigo: string; nome: string }[];
-  licitacoes: { id: string; identificacao: string; objeto: string | null; fornecedor: string | null; saldoPct: number | null; ligada: boolean; contratos: { numero: string; fornecedor: string | null; vigenciaAte: string; situacao: string }[] }[];
+  campos: CampoServico[]; camposComuns: CamposComuns | null;
+  /** veículos e equipamentos ligados a este serviço (também marcados no cadastro de cada um) */
+  frotaVinculada: string[];
+  centros: { id: string; codigo: string; nome: string; paiId: string | null }[];
+  frota: ItemFrotaSimples[];
+  origens: string[];
   atendem: { nome: string; perfil: string; equipe: string | null; lider: boolean; exclusivo: boolean }[];
   aprovam: string[];
   metaDiasGeral: number;
 }
 export interface DadosFicha {
   nome: string; ativo: boolean; tipoServico: TipoServico; cor: string | null; prazoDias: number | null; subtipos: string[];
-  municipePode: boolean; nomeMunicipe: string | null; centroDeCustoId: string | null; licitacaoIds: string[]; campos: CampoServico[];
+  municipePode: boolean; nomeMunicipe: string | null; centroDeCustoId: string | null; camposComuns: CamposComuns; campos: CampoServico[];
 }
 export const servicosFichaApi = {
   listar: (entityId: string) => tenantRequest<{ servicos: ServicoResumo[] }>(entityId, '/api/tenant/v1/cadastros/servicos'),
   criar: (entityId: string, nome: string, tipoServico: TipoServico) => tenantRequest<{ id: string }>(entityId, '/api/tenant/v1/cadastros/servicos', { method: 'POST', body: JSON.stringify({ nome, tipoServico }) }),
   obter: (entityId: string, id: string) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`),
+  /** listas para escolher na janela de um serviço novo */
+  base: (entityId: string) => tenantRequest<Pick<FichaServico, 'centros' | 'frota' | 'origens' | 'metaDiasGeral'>>(entityId, '/api/tenant/v1/cadastros/servicos-base'),
   salvar: (entityId: string, id: string, d: DadosFicha) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
   excluir: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`, { method: 'DELETE' }),
+  salvarOrigens: (entityId: string, origens: string[]) => tenantRequest<{ origens: string[] }>(entityId, '/api/tenant/v1/cadastros/origens', { method: 'PUT', body: JSON.stringify({ origens }) }),
 };
 
 /* ── Fluxo e aprovações ── */

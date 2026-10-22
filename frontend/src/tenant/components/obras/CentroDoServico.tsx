@@ -49,7 +49,7 @@ export function CentroDoServico({ entityId, servicoId, slug, nomeServico, podeGe
           acoes={<><button type="button" className="ob-btn-ghost ob-btn-alto" onClick={() => setAberto(false)}>Cancelar</button>
             <button type="button" className="ob-acao is-aprovar" disabled={salvando} onClick={() => void salvar()}>{salvando ? 'Salvando…' : 'Salvar'}</button></>}>
           {ativos.length === 0 ? (
-            <p className="sc-nota">Ainda não há centros de custo. <Link to={`/t/${entityId}/centros-de-custo`}>Cadastre em Centros de custo</Link>.</p>
+            <p className="sc-nota">Ainda não há centros de custo. <Link to={`/t/${entityId}/cadastros/centros-de-custo`}>Cadastre em Cadastros › Centros de custo</Link>.</p>
           ) : (
             <div className="cc-form">
               <label className="cc-campo cc-largo"><span>Centro de custo</span>

@@ -128,13 +128,13 @@ export function CentrosCustoPage() {
 
   return (
     <Pagina>
-      <CabecalhoPasso passo={5} resumo={resumo} sub="Para onde vai o gasto de cada OS e de cada compra. Aqui você só cria os centros — quem escolhe o centro é o serviço, no passo 6." />
+      <CabecalhoPasso passo={6} resumo={resumo} sub="Para onde vai o gasto de cada OS e de cada compra. Aqui você só cria os centros — quem escolhe o centro é o serviço, no passo 7." />
 
       {semCentro.length > 0 && (
         <div className="so-note amber row so-rise" role="status">
           <Ic n="alerta" />
           <span style={{ flex: '1 1 360px' }}><strong>{semCentro.length} {semCentro.length === 1 ? 'serviço ainda sem' : 'serviços ainda sem'} centro de custo:</strong> {listaSem}. O que for lançado neles fica sem destino no relatório de gastos.</span>
-          <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-amberbtn acts">Resolver no passo 6<Ic n="seta" className="arrow" /></Link>
+          <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-amberbtn acts">Resolver no passo 7<Ic n="seta" className="arrow" /></Link>
         </div>
       )}
 
@@ -180,7 +180,7 @@ export function CentrosCustoPage() {
         <Janela key={editando?.id ?? 'novo'} icone={editando ? 'editar' : 'pie'}
           eyebrow="Centros de custo · estrutura"
           titulo={editando ? `Editar ${editando.codigo} · ${editando.nome}` : 'Novo centro de custo'}
-          sub="Para onde vai o gasto. Quem escolhe o centro é o serviço, no passo 6."
+          sub="Para onde vai o gasto. Quem escolhe o centro é o serviço, no passo 7."
           largura={600} onFechar={fechar} ajuda="Ajuda: Centro de custo"
           rodape={<>
             {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}><Ic n="lixeira" />Excluir</button>}
@@ -225,7 +225,7 @@ export function CentrosCustoPage() {
           </div>
         </Janela>
       )}
-      <BarraAcoes esquerda={<><b>{itens.length}</b> centros{semCentro.length > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro.length} {semCentro.length === 1 ? 'serviço' : 'serviços'} sem centro</span></>}<Sep />passo 5 de 6</>}>
+      <BarraAcoes esquerda={<><b>{itens.length}</b> centros{semCentro.length > 0 && <><Sep /><span style={{ color: 'var(--amber)', fontWeight: 800 }}>{semCentro.length} {semCentro.length === 1 ? 'serviço' : 'serviços'} sem centro</span></>}<Sep />passo 6 de 7</>}>
         <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Veículos</Link>
         <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-primary">Continuar: Serviços<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>

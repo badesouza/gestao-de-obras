@@ -2,7 +2,7 @@ import type { PrismaClient } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 
 /**
- * Módulo 1 — Cadastros guiados em 6 passos.
+ * Módulo 1 — Cadastros guiados em 7 passos.
  * Aqui ficam o resumo dos passos (Início dos Cadastros), o Órgão e os Lugares.
  */
 
@@ -10,7 +10,7 @@ export type SituacaoPasso = 'ok' | 'warn' | 'opt';
 
 export interface PassoResumo {
   n: number;
-  chave: 'orgao' | 'lugares' | 'pessoas' | 'veiculos' | 'centros' | 'servicos';
+  chave: 'orgao' | 'lugares' | 'pessoas' | 'veiculos' | 'equipamentos' | 'centros' | 'servicos';
   situacao: SituacaoPasso;
   contagem: string;
   aviso: string | null;
@@ -24,9 +24,9 @@ function plural(n: number, um: string, varios: string) {
   return `${n} ${n === 1 ? um : varios}`;
 }
 
-/** Situação dos 6 passos do cadastro, calculada a partir do que já existe no banco */
+/** Situação dos 7 passos do cadastro, calculada a partir do que já existe no banco */
 export async function resumoCadastros(prisma: PrismaClient, entityId: string) {
-  const [entity, macrozonas, bairros, bairrosSemPonto, usuarios, equipes, veiculos, equipamentos, centros, servicos, servicosSemCentro] =
+  const [entity, macrozonas, bairros, bairrosSemPonto, usuarios, equipes, veiculos, equipamentos, centros, servicos, servicosSemCentro, veiculosSemServico, equipamentosSemServico] =
     await Promise.all([
       prisma.entity.findUnique({ where: { id: entityId }, select: { name: true } }),
       prisma.cadastroAuxiliar.count({ where: { entityId, tipo: 'MACROZONA', ativo: true } }),
@@ -39,6 +39,8 @@ export async function resumoCadastros(prisma: PrismaClient, entityId: string) {
       prisma.centroDeCusto.count({ where: { entityId, ativo: true } }),
       prisma.centroCusto.count({ where: { entityId, status: 'ACTIVE' } }),
       prisma.centroCusto.count({ where: { entityId, status: 'ACTIVE', centroDeCustoPadraoId: null } }),
+      prisma.cadastroAuxiliar.count({ where: { entityId, tipo: 'VEICULO', ativo: true, servicosFrota: { none: { servico: { status: 'ACTIVE' } } } } }),
+      prisma.cadastroAuxiliar.count({ where: { entityId, tipo: 'EQUIPAMENTO', ativo: true, servicosFrota: { none: { servico: { status: 'ACTIVE' } } } } }),
     ]);
 
   const equipesSemLider = equipes.filter(e => !e.equipe?.liderUserId).length;
@@ -66,18 +68,26 @@ export async function resumoCadastros(prisma: PrismaClient, entityId: string) {
     },
     {
       n: 4, chave: 'veiculos',
-      situacao: 'opt',
-      contagem: veiculos + equipamentos === 0 ? 'Nada cadastrado' : `${plural(veiculos, 'veículo', 'veículos')} · ${plural(equipamentos, 'equipamento', 'equipamentos')}`,
-      aviso: null, avisoLeve: false,
+      situacao: veiculos > 0 && veiculosSemServico === 0 ? 'ok' : 'warn',
+      contagem: veiculos === 0 ? 'Nada cadastrado' : plural(veiculos, 'veículo', 'veículos'),
+      aviso: veiculos === 0 ? 'Nenhum veículo' : veiculosSemServico > 0 ? `${plural(veiculosSemServico, 'veículo', 'veículos')} sem serviço` : null,
+      avisoLeve: false,
     },
     {
-      n: 5, chave: 'centros',
+      n: 5, chave: 'equipamentos',
+      situacao: equipamentos > 0 && equipamentosSemServico === 0 ? 'ok' : 'warn',
+      contagem: equipamentos === 0 ? 'Nada cadastrado' : plural(equipamentos, 'equipamento', 'equipamentos'),
+      aviso: equipamentos === 0 ? 'Nenhum equipamento' : equipamentosSemServico > 0 ? `${plural(equipamentosSemServico, 'equipamento', 'equipamentos')} sem serviço` : null,
+      avisoLeve: false,
+    },
+    {
+      n: 6, chave: 'centros',
       situacao: centros > 0 ? 'ok' : 'warn',
       contagem: plural(centros, 'centro de custo', 'centros de custo'),
       aviso: centros === 0 ? 'Nenhum centro de custo' : null, avisoLeve: false,
     },
     {
-      n: 6, chave: 'servicos',
+      n: 7, chave: 'servicos',
       situacao: servicos > 0 && servicosSemCentro === 0 ? 'ok' : 'warn',
       contagem: plural(servicos, 'serviço', 'serviços'),
       aviso: servicosSemCentro > 0 ? `${plural(servicosSemCentro, 'serviço', 'serviços')} sem centro de custo` : servicos === 0 ? 'Nenhum serviço' : null,
@@ -85,7 +95,6 @@ export async function resumoCadastros(prisma: PrismaClient, entityId: string) {
     },
   ];
 
-  /* o passo opcional conta como pronto */
   const prontos = passos.filter(p => p.situacao !== 'warn').length;
   return { prontos, total: passos.length, passos };
 }

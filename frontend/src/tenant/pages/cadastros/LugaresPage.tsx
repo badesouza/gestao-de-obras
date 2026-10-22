@@ -286,7 +286,7 @@ export function LugaresPage() {
           )}
         </Janela>
       )}
-      <BarraAcoes esquerda={<><b>{macros.length}</b> macrozonas<Sep /><b>{bairros.length}</b> bairros{semPonto > 0 && <><Sep />{semPonto} sem ponto no mapa</>}<Sep />passo 2 de 6</>}>
+      <BarraAcoes esquerda={<><b>{macros.length}</b> macrozonas<Sep /><b>{bairros.length}</b> bairros{semPonto > 0 && <><Sep />{semPonto} sem ponto no mapa</>}<Sep />passo 2 de 7</>}>
         <Link to={rotaTenant(entityId, 'cadastros/orgao')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Órgão</Link>
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-primary">Continuar: Pessoas<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
