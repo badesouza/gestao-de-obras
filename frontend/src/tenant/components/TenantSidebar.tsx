@@ -95,6 +95,20 @@ const IcoCone = () => (
     <path className="a" pathLength={1} d="M8.7 10.5h6.6M7.4 15h9.2" />
   </Ico>
 );
+const IcoOsLista = () => (
+  <Ico>
+    <path d="M9 11l3 3L22 4" />
+    <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+    <path className="a" pathLength={1} d="M7 8h5M7 16h8" />
+  </Ico>
+);
+const IcoCelular = () => (
+  <Ico>
+    <rect x="6" y="2.5" width="12" height="19" rx="2.5" />
+    <path className="a" pathLength={1} d="M9.5 7.5h5M9.5 11h5M9.5 14.5h3" />
+    <path d="M11 18.5h2" />
+  </Ico>
+);
 const IcoCalculadora = () => (
   <Ico>
     <rect x="5" y="3" width="14" height="18" rx="2.2" />
@@ -167,6 +181,8 @@ const MODULOS: Modulo[] = [
     { to: 'dashboard', label: 'Sala de Situação', permission: 'dashboard.view', acesso: 'painel.sala', icon: <IcoSala /> },
   ] },
   { chave: 'os', nome: 'Ordens de Serviço', icon: <IcoCapacete />, telas: [
+    { to: 'os',               label: 'Ordens de Serviço',       permission: 'centros_custo.view', acesso: 'os.lista', icon: <IcoOsLista /> },
+    { to: 'minhas-os',        label: 'Minhas OS (celular)',     permission: 'centros_custo.view', acesso: 'os.minhas', icon: <IcoCelular /> },
     { to: 'central-municipe', label: 'Central de Solicitações', permission: 'centros_custo.view', icon: <IcoMegafone /> },
     { to: 'servicos',         label: 'Serviços Urbanos',        permission: 'centros_custo.view', icon: <IcoCone /> },
   ] },

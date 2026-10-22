@@ -44,7 +44,7 @@ function MenuNova({ entityId, permitidos }: { entityId: string; permitidos: stri
           <span className="ob-menu-titulo">Qual serviço?</span>
           {Object.values(SERVICOS_CONFIG).filter(s => !permitidos || permitidos.includes(CENTRO_IDS[s.slug])).map((s, i) => (
             <button key={s.slug} type="button" className="ob-menu-item ob-reveal" style={{ '--i': i, '--serv-cor': s.cor } as React.CSSProperties}
-              onClick={() => navigate(`/t/${entityId}/servicos/${s.slug}?nova=1`)}>
+              onClick={() => navigate(`/t/${entityId}/os?nova=1`)}>
               <span className="ob-menu-icone">{s.icon}</span>
               {s.nome}
             </button>

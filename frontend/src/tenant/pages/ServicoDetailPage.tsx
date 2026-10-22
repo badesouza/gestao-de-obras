@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { tenantApi, mapaApi, ordensApi, type AcaoOS, type CentroCustoDetail, type Etapa, type PropriedadeConfig, type RegistroDiarioRow } from '../../lib/api-client';
 import { useTenant } from '../TenantContext';
 import { ToastContainer } from '../components/Toast';
@@ -63,7 +63,9 @@ export function ServicoDetailPage() {
 
   /* atalhos vindos da Sala de Situação: ?os=<id> abre a OS, ?nova=1 abre o formulário */
   const paramOS = searchParams.get('os');
-  const paramNova = searchParams.get('nova') === '1';
+  const paramNova = false; /* ?nova=1 agora vai para a Nova OS (módulo de OS) */
+  const irNovaOS = useNavigate();
+  useEffect(() => { if (searchParams.get('nova') === '1') irNovaOS(`/t/${entityId}/os?nova=1`, { replace: true }); }, [searchParams, entityId, irNovaOS]);
   const limparParam = (chave: string) => {
     const p = new URLSearchParams(searchParams);
     p.delete(chave);
@@ -262,7 +264,8 @@ export function ServicoDetailPage() {
     { id: 'solicitacoes', rotulo: 'Solicitações', icone: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 002 1.58h8.77a2 2 0 001.95-1.57L21 8H5.12"/></svg> },
   ];
 
-  const novaOcorrencia = () => { setEditRow(null); setModalOpen(true); };
+  /* toda OS nova passa pela Nova OS: segue a ficha do serviço e exige equipe */
+  const novaOcorrencia = () => irNovaOS(`/t/${entityId}/os?nova=1`);
 
   return (
     <div className="ob-page ob-claro" style={{ '--serv-cor': config.cor } as React.CSSProperties}>

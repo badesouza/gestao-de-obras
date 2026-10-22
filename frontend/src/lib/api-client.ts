@@ -251,9 +251,9 @@ export const centralApi = {
   listar: (entityId: string, status?: StatusSolicitacao) =>
     tenantRequest<{ resumo: { novas: number; convertidas: number; recusadas: number }; itens: SolicitacaoMunicipeItem[] }>(
       entityId, `/api/tenant/v1/central-municipe${status ? `?status=${status}` : ''}`),
-  converter: (entityId: string, id: string, centroCustoId: string) =>
+  converter: (entityId: string, id: string, centroCustoId: string, equipeId: string) =>
     tenantRequest<{ registroId: string }>(entityId, `/api/tenant/v1/central-municipe/${id}/converter`, {
-      method: 'POST', body: JSON.stringify({ centroCustoId }),
+      method: 'POST', body: JSON.stringify({ centroCustoId, equipeId }),
     }),
   recusar: (entityId: string, id: string, motivo: string) =>
     tenantRequest<void>(entityId, `/api/tenant/v1/central-municipe/${id}/recusar`, {
@@ -647,7 +647,7 @@ export interface RegistroDiarioRow {
 
 /* ── Ordem de serviço: etapas, regras e vínculos ── */
 export type Etapa = 'AGUARDANDO_APROVACAO' | 'REGISTRADA' | 'EXECUTADA' | 'FINALIZADA' | 'CANCELADA';
-export type AcaoOS = 'aprovar' | 'executar' | 'finalizar' | 'reabrir' | 'cancelar';
+export type AcaoOS = 'aprovar' | 'recusar' | 'executar' | 'finalizar' | 'reabrir' | 'cancelar';
 export type PapelCodigo = 'ADMIN' | 'COORDENADOR' | 'FISCAL' | 'ENGINEER' | 'OPERATOR';
 export interface ConfiguracaoObras {
   exigeAprovacaoOS: boolean; aprovadores: PapelCodigo[];
@@ -1350,10 +1350,10 @@ export const mapaApi = {
       `/api/tenant/v1/mapa/pins?${params}`,
     );
   },
-  uploadMidia: (entityId: string, registroId: string, file: File) => {
+  uploadMidia: (entityId: string, registroId: string, file: File, momento?: 'ABERTURA' | 'BAIXA') => {
     const form = new FormData();
     form.append('file', file);
-    return tenantUpload<{ id: string; tipo: string; nomeArquivo: string; mimeType: string; tamanhoBytes: number; createdAt: string }>(entityId, `/api/tenant/v1/mapa/registros/${registroId}/midias`, form);
+    return tenantUpload<{ id: string; tipo: string; nomeArquivo: string; mimeType: string; tamanhoBytes: number; createdAt: string }>(entityId, `/api/tenant/v1/mapa/registros/${registroId}/midias${momento ? `?momento=${momento}` : ''}`, form);
   },
   listMidias: (entityId: string, registroId: string) =>
     tenantRequest<{ midias: { id: string; tipo: string; nomeArquivo: string; mimeType: string; tamanhoBytes: number; createdAt: string }[] }>(
@@ -1714,4 +1714,76 @@ export const fluxoApi = {
   obter: (entityId: string) => tenantRequest<DadosFluxo>(entityId, '/api/tenant/v1/cadastros/fluxo'),
   salvar: (entityId: string, config: ConfigFluxo, passos: Partial<Record<PassoFluxo, string[]>>) =>
     tenantRequest<DadosFluxo>(entityId, '/api/tenant/v1/cadastros/fluxo', { method: 'PUT', body: JSON.stringify({ config, passos }) }),
+};
+
+/* ── Módulo de Ordens de Serviço ── */
+export type ValorCampoOS = string | number | boolean | string[] | null;
+export interface RespostaCampoOS { id: string | null; nome: string; tipo: string; valor: ValorCampoOS }
+export interface PessoaSigla { nome: string; sigla: string }
+export interface LinhaOS {
+  id: string; numeroOS: string | null; etapa: Etapa; origem: OrigemOS;
+  criadoEm: string; executadoEm: string | null; finalizadoEm: string | null; aprovadoEm: string | null;
+  devolvida: boolean; motivoDevolucao: string | null;
+  servico: { id: string; nome: string; cor: string | null };
+  equipe: { id: string | null; nome: string } | null;
+  abertoPor: string; minha: boolean; executadoPorMim: boolean;
+  bairro: string; logradouro: string; tipo: string; origemDemanda: string;
+  lat: number | null; lng: number | null; fotoId: string | null;
+  prazoDias: number; diasUsados: number; atrasada: boolean; noPrazo: boolean;
+}
+export interface PainelOS {
+  kpis: {
+    abertas: number; abertasHoje: number; atrasadas: number; aprovar: number; conferir: number;
+    feitasSemana: number; feitasSemanaAnt: number; noPrazoPct: number | null; tempoMedioDias: number | null; metaDias: number;
+    serieAbertas: number[]; serieFeitas: number[];
+  };
+  bairros: { nome: string; n: number; atrasadas: number }[];
+  equipes: { id: string; nome: string; abertas: number; noPrazoPct: number | null; pessoas: PessoaSigla[] }[];
+  eventos: { quando: string; texto: string; numeroOS: string | null; id: string; tipo: 'aberta' | 'baixa' | 'finalizada' }[];
+  contagem: Record<string, number>;
+  servicos: { id: string; nome: string; cor: string | null }[];
+  poderes: { podeAprovar: boolean; podeConferir: boolean; podeCancelar: boolean; podeReabrir: boolean; podeAbrir: boolean; podeBaixa: boolean };
+  linhas: LinhaOS[]; total: number;
+}
+export interface FiltrosOS { etapa?: string; servicoId?: string; equipeId?: string; origem?: OrigemOS; atrasadas?: boolean; busca?: string }
+export interface CampoFichaOS { id: string; nome: string; detalhe: string | null; tipo: TipoCampo; opcoes: string[]; momento?: MomentoCampo; obrigatorio: boolean }
+export interface FormOS {
+  servicos: { id: string; nome: string; cor: string | null; prazoDias: number; subtipos: string[]; fichaSalva: boolean; camposComuns: CamposComuns | null; campos: CampoFichaOS[]; abertas: number }[];
+  equipes: { id: string; nome: string; abertas: number; pessoas: PessoaSigla[]; qtdPessoas: number }[];
+  bairros: { nome: string; lat: number | null; lng: number | null }[];
+  origens: string[];
+  podeAbrir: boolean;
+}
+export interface DadosNovaOS {
+  servicoId: string; equipeId: string; tipo: string | null; bairro: string; logradouro: string;
+  lat: number | null; lng: number | null; origemDemanda: string | null; observacoes: string | null; campos: RespostaCampoOS[];
+}
+export interface DetalheOS {
+  id: string; numeroOS: string | null; etapa: Etapa; rotuloEtapa: string; origem: OrigemOS;
+  criadoEm: string; aprovadoEm: string | null; executadoEm: string | null; finalizadoEm: string | null;
+  recusadoEm: string | null; motivoRecusa: string | null; devolvidoEm: string | null; motivoDevolucao: string | null;
+  abertoPor: string; aprovadoPor: string | null; executadoPor: string | null; finalizadoPor: string | null; recusadoPor: string | null;
+  servico: { id: string; nome: string; cor: string | null };
+  equipe: { id: string; nome: string; pessoas: PessoaSigla[] } | null;
+  local: { bairro: string; logradouro: string; lat: number | null; lng: number | null; endereco: string | null };
+  tipo: string; origemDemanda: string; observacoes: string;
+  abertura: RespostaCampoOS[]; baixa: RespostaCampoOS[]; obsBaixa: string | null; trabalharam: string[];
+  camposBaixa: CampoFichaOS[];
+  fotos: { id: string; quando: string; momento: 'ABERTURA' | 'BAIXA' }[];
+  prazo: { prazoDias: number; diasUsados: number; atrasada: boolean; noPrazo: boolean };
+  historico: { quando: string; acao: string; texto: string; quem: string; etapa: Etapa | null; observacao: string | null }[];
+  poderes: { aprovar: boolean; darBaixa: boolean; conferir: boolean; conferirBloqueado: boolean; cancelar: boolean; reabrir: boolean };
+}
+export const osApi = {
+  painel: (entityId: string, f: FiltrosOS = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(f).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) q.set(k, String(v)); });
+    return tenantRequest<PainelOS>(entityId, `/api/tenant/v1/os${q.toString() ? `?${q}` : ''}`);
+  },
+  form: (entityId: string) => tenantRequest<FormOS>(entityId, '/api/tenant/v1/os/form'),
+  abrir: (entityId: string, d: DadosNovaOS) =>
+    tenantRequest<{ id: string; numeroOS: string; etapa: Etapa }>(entityId, '/api/tenant/v1/os', { method: 'POST', body: JSON.stringify(d) }),
+  detalhe: (entityId: string, id: string) => tenantRequest<DetalheOS>(entityId, `/api/tenant/v1/os/${id}`),
+  baixa: (entityId: string, id: string, d: { campos: RespostaCampoOS[]; trabalharam: string[]; observacao: string | null }) =>
+    tenantRequest<{ etapa: Etapa }>(entityId, `/api/tenant/v1/os/${id}/baixa`, { method: 'POST', body: JSON.stringify(d) }),
 };

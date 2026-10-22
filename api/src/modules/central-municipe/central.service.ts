@@ -168,8 +168,11 @@ async function solicitacaoNova(prisma: PrismaClient, entityId: string, id: strin
 }
 
 /** Transforma o pedido em ocorrência do serviço escolhido, com fotos e GPS */
-export async function converterEmOcorrencia(prisma: PrismaClient, entityId: string, userId: string, id: string, centroCustoId: string) {
+export async function converterEmOcorrencia(prisma: PrismaClient, entityId: string, userId: string, id: string, centroCustoId: string, equipeId: string) {
   const s = await solicitacaoNova(prisma, entityId, id);
+  /* toda OS tem equipe */
+  const equipe = await prisma.cadastroAuxiliar.findFirst({ where: { id: equipeId, entityId, tipo: 'EQUIPE', ativo: true }, select: { id: true, nome: true } });
+  if (!equipe) throw new AppError(400, 'VALIDATION_ERROR', 'Escolha a equipe que vai fazer');
 
   const configs = await prisma.centroCustoPropriedadeConfig.findMany({
     where: { centroCustoId, entityId, active: true },
@@ -183,16 +186,15 @@ export async function converterEmOcorrencia(prisma: PrismaClient, entityId: stri
   por('Bairro / Localidade', s.bairro);
   por('Logradouro / Referência', [s.logradouro, s.referencia].filter(Boolean).join(' — '));
   por('Origem da Demanda', 'Munícipe');
+  por('Equipe / Turma', equipe.nome);
   por('Observações', `Pedido do munícipe — protocolo ${s.protocolo}\n${s.descricao}\nSolicitante: ${s.nome} · ${s.telefone}`);
 
   const registro = await createRegistroDiario(prisma, userId, entityId, centroCustoId, { data: hojeBrasilia(), values: valores }, 'MUNICIPE');
 
-  if (s.lat != null && s.lng != null) {
-    await prisma.registroDiario.update({
-      where: { id: registro.id },
-      data: { lat: s.lat, lng: s.lng, enderecoGeocodificado: `${s.logradouro}, ${s.bairro}` },
-    });
-  }
+  await prisma.registroDiario.update({
+    where: { id: registro.id },
+    data: { equipeId: equipe.id, ...(s.lat != null && s.lng != null ? { lat: s.lat, lng: s.lng, enderecoGeocodificado: `${s.logradouro}, ${s.bairro}` } : {}) },
+  });
   for (const [i, f] of s.fotos.entries()) {
     await prisma.registroMidia.create({
       data: {

@@ -142,8 +142,11 @@ export async function registerCentralTenantRoutes(fastify: FastifyInstance) {
   fastify.post('/central-municipe/:id/converter', { preHandler: podeTriar }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
-      const { centroCustoId } = validar(z.object({ centroCustoId: z.string().uuid('Escolha o serviço') }), req.body);
-      return reply.send(await converterEmOcorrencia(fastify.prisma, req.user.entityId!, req.user.sub, id, centroCustoId));
+      const { centroCustoId, equipeId } = validar(z.object({
+        centroCustoId: z.string().uuid('Escolha o serviço'),
+        equipeId: z.string({ message: 'Escolha a equipe que vai fazer' }).uuid('Escolha a equipe que vai fazer'),
+      }), req.body);
+      return reply.send(await converterEmOcorrencia(fastify.prisma, req.user.entityId!, req.user.sub, id, centroCustoId, equipeId));
     } catch (e) { return handleAppError(reply, e); }
   });
 

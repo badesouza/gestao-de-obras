@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { centralApi, type Etapa } from '../../lib/api-client';
+import { cadastrosAuxiliaresApi, centralApi, type Etapa } from '../../lib/api-client';
 import {
   centralSolicitacoesApi, type DadosCentral, type OrigemSolicitacao, type SituacaoSolicitacao,
   type SolicitacaoInterna, type SolicitacaoMunicipe,
@@ -210,6 +210,13 @@ function JanelaAnalise({ entityId, it, poderes, onFechar, onFeito }: {
   const municipe = it.origem === 'MUNICIPE';
   const pode = municipe ? poderes.podeTriar : poderes.podeAprovar;
   const [centroId, setCentroId] = useState(municipe && it.m ? centroDaCategoria(it.m.categoria) ?? '' : '');
+  /* toda OS tem equipe: quem converte o pedido escolhe a equipe */
+  const [equipeId, setEquipeId] = useState('');
+  const [equipes, setEquipes] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    if (!municipe) return;
+    cadastrosAuxiliaresApi.list(entityId, 'EQUIPE').then(r => setEquipes(r.items.filter(e => e.ativo).map(e => ({ id: e.id, nome: e.nome })))).catch(() => {});
+  }, [entityId, municipe]);
   const [recusando, setRecusando] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [ocupado, setOcupado] = useState(false);
@@ -221,8 +228,8 @@ function JanelaAnalise({ entityId, it, poderes, onFechar, onFeito }: {
   const situacaoAgora: SituacaoSolicitacao = criada ? 'OS' : it.situacao;
 
   const linkOS = (registroId: string, centro: string) => {
-    const slug = slugDoCentro(centro);
-    return slug ? `/t/${entityId}/servicos/${slug}?os=${registroId}` : `/t/${entityId}/servicos`;
+    void centro;
+    return `/t/${entityId}/os/${registroId}`;
   };
 
   async function aprovar() {
@@ -230,7 +237,8 @@ function JanelaAnalise({ entityId, it, poderes, onFechar, onFeito }: {
     try {
       if (municipe) {
         if (!centroId) { setErro('Escolha o serviço que vai atender'); return; }
-        const r = await centralApi.converter(entityId, it.m!.id, centroId);
+        if (!equipeId) { setErro('Escolha a equipe que vai fazer'); return; }
+        const r = await centralApi.converter(entityId, it.m!.id, centroId, equipeId);
         setCriada({ registroId: r.registroId, centroId });
         onFeito('', 'OS');
       } else {
@@ -370,6 +378,17 @@ function JanelaAnalise({ entityId, it, poderes, onFechar, onFeito }: {
               <select value={centroId} onChange={e => setCentroId(e.target.value)}>
                 <option value="">Escolha o serviço…</option>
                 {Object.values(SERVICOS_CONFIG).map(s => <option key={s.slug} value={CENTRO_IDS[s.slug]}>{s.nome}</option>)}
+              </select>
+            </span>
+          </label>
+        )}
+        {aguardando && pode && !recusando && municipe && (
+          <label className="so-field cs-encaminhar">
+            <span className="so-lbl">Equipe que vai fazer <span className="req">*</span></span>
+            <span className="so-ctrl">
+              <select value={equipeId} onChange={e => setEquipeId(e.target.value)}>
+                <option value="">Escolha a equipe…</option>
+                {equipes.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
               </select>
             </span>
           </label>

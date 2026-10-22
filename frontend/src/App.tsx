@@ -9,6 +9,10 @@ import { ForbiddenPage } from './platform/pages/ForbiddenPage';
 import { TenantLoginPage } from './tenant/pages/TenantLoginPage';
 import { TenantGuard } from './tenant/TenantGuard';
 import { useTenant } from './tenant/TenantContext';
+import { OSListaPage } from './tenant/pages/os/OSListaPage';
+import { OSFichaPage } from './tenant/pages/os/OSFichaPage';
+import { MinhasOSPage } from './tenant/pages/os/MinhasOSPage';
+import { BaixaOSPage } from './tenant/pages/os/BaixaOSPage';
 import { TenantPermissionGuard } from './tenant/TenantPermissionGuard';
 import { SalaSituacaoPage } from './tenant/pages/SalaSituacaoPage';
 import { TenantForbiddenPage } from './tenant/pages/TenantForbiddenPage';
@@ -95,6 +99,10 @@ function App() {
         <Route path="/t/:id" element={<TenantGuard />}>
           <Route index element={<InicioTenant />} />
           <Route path="dashboard" element={<SalaSituacaoPage />} />
+          <Route path="os" element={<OSListaPage />} />
+          <Route path="os/:osId" element={<OSFichaPage />} />
+          <Route path="os/:osId/baixa" element={<BaixaOSPage />} />
+          <Route path="minhas-os" element={<MinhasOSPage />} />
           <Route path="servicos" element={<ServicosPage />} />
           <Route path="central-municipe" element={<CentralSolicitacoesPage />} />
           <Route path="configuracoes" element={<RedirecionaRegras />} />
