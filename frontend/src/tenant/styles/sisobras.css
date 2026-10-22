@@ -553,6 +553,7 @@
 .so-ph-org{font-family:var(--font-mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .so-ph-app{font-size:25px;font-weight:800;letter-spacing:-.035em;line-height:1.05;color:var(--ink)}
 .so-ph-app::after{content:"";display:block;width:34px;height:3px;margin:8px auto 0;border-radius:3px;background:var(--grad-flow)}
+.so-ph-marca{display:inline-flex;align-items:center;gap:10px}
 .so-ph-body{flex:1;display:flex;flex-direction:column;gap:14px;padding:22px 24px 24px}
 .so-ph-body h1{font-size:22px;font-weight:800;letter-spacing:-.03em}
 .so-ph-body .lead{margin-top:4px;font-size:14px;line-height:1.5;color:var(--muted)}

@@ -1,0 +1,42 @@
+/* Marca SisObras (prefixo sbs-). Movimento só com transform/opacity; para com reduced-motion. */
+.sbs { display: block; overflow: visible; flex: none; }
+.sbs-cubo { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .6s cubic-bezier(.16, 1, .3, 1); }
+.sbs.montar .sbs-cubo { animation: sbs-cai .9s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--k) * .13s); }
+.sbs.carregando .sbs-cubo { animation: sbs-pula 1.5s ease-in-out infinite; animation-delay: calc(var(--k) * .14s); }
+/* quem segura a marca decide quando os blocos se soltam: classe sbs-gatilho no contêiner */
+.sbs-gatilho:hover .sbs-cubo, .sbs-gatilho:focus-visible .sbs-cubo { transform: translate(var(--dx), var(--dy)); }
+@keyframes sbs-cai { 0% { opacity: 0; transform: translateY(-60%); } 55% { opacity: 1; } 72% { transform: translateY(4%); } 100% { transform: none; } }
+@keyframes sbs-pula { 0%, 60%, 100% { transform: none; } 25% { transform: translateY(-22%); } }
+
+.sbs-assin { display: inline-flex; align-items: center; gap: .55em; min-width: 0; }
+.sbs-wm { display: flex; flex-direction: column; min-width: 0; }
+.sbs-wm b { font-family: 'Manrope', system-ui, sans-serif; font-weight: 800; letter-spacing: -.035em; line-height: 1; color: #17213C; font-size: 1.35em; }
+.sbs-wm b i { font-style: normal; background-image: linear-gradient(100deg, #635BFF, #4F7BFF 55%, #10C6D4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sbs-wm small { margin-top: .45em; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .5em; letter-spacing: .18em; text-transform: uppercase; color: #68728A; white-space: nowrap; }
+.sbs-assin.escuro .sbs-wm b { color: #F1F3FF; }
+.sbs-assin.escuro .sbs-wm b i { background-image: linear-gradient(100deg, #A9A4FF, #6F8BFF 50%, #22D3EE); }
+.sbs-assin.escuro .sbs-wm small { color: rgba(34, 211, 238, .8); }
+
+/* abertura depois da senha */
+.sbs-abertura {
+  position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
+  background: radial-gradient(620px 420px at 50% 48%, rgba(99, 91, 255, .28), transparent 70%), #05081A;
+  animation: sbs-surge .35s ease both;
+}
+.sbs-abertura > div { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; padding: 0 16px; }
+.sbs-abertura b { font-family: 'Manrope', system-ui, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.02em; color: #F1F3FF; }
+.sbs-abertura small { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #22D3EE; }
+.sbs-abertura .barra { width: 200px; height: 4px; border-radius: 4px; background: rgba(140, 150, 255, .18); overflow: hidden; }
+.sbs-abertura .barra i { display: block; height: 100%; background: linear-gradient(90deg, #635BFF, #22D3EE, #3DD6A6); transform-origin: left; animation: sbs-enche 1.2s cubic-bezier(.16, 1, .3, 1) .2s both; }
+@keyframes sbs-surge { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sbs-enche { from { transform: scaleX(0); } to { transform: none; } }
+
+/* tela de "carregando" do sistema */
+.sbs-carga { min-height: 100svh; display: grid; place-items: center; background: #F5F6FB; }
+.sbs-carga > div { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.sbs-carga span { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #68728A; }
+@media (prefers-color-scheme: dark) { .sbs-carga { background: #0A0C19; } .sbs-carga span { color: #8D93B6; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sbs-cubo, .sbs.montar .sbs-cubo, .sbs.carregando .sbs-cubo, .sbs-abertura, .sbs-abertura .barra i { animation: none !important; transition: none !important; }
+}

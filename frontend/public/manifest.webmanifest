@@ -1,14 +1,14 @@
 {
-  "name": "Gestão de Obras",
-  "short_name": "Obras",
+  "name": "SisObras · Gestão de Obras",
+  "short_name": "SisObras",
   "description": "Registro de ocorrências e serviços urbanos em campo — funciona sem internet.",
   "lang": "pt-BR",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#071010",
-  "theme_color": "#0a1010",
+  "background_color": "#05081A",
+  "theme_color": "#0A0F21",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

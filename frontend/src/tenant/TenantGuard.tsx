@@ -8,6 +8,7 @@ import {
 import { TenantProvider } from './TenantContext';
 import { TenantLayout } from './layouts/TenantLayout';
 import { lembrarTenant } from '../lib/offline/pwa';
+import { SimboloSisObras } from '../components/marca/SimboloSisObras';
 
 /** Protects tenant routes — redirects to entity login if unauthenticated */
 export function TenantGuard() {
@@ -50,8 +51,11 @@ export function TenantGuard() {
 
   if (state === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--color-canvas)]">
-        <p>Carregando…</p>
+      <div className="sbs-carga" role="status">
+        <div>
+          <SimboloSisObras tamanho={64} animacao="carregando" />
+          <span>Carregando…</span>
+        </div>
       </div>
     );
   }

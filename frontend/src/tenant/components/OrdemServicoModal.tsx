@@ -7,6 +7,7 @@ import { useTenant } from '../TenantContext';
 import { tenantApi, mapaApi } from '../../lib/api-client';
 import type { RegistroDiarioRow, PropriedadeConfig } from '../../lib/api-client';
 import type { ServicoConfig } from '../pages/servico-config';
+import { SimboloSisObras } from '../../components/marca/SimboloSisObras';
 
 interface Props {
   row: RegistroDiarioRow;
@@ -425,7 +426,7 @@ export function OrdemServicoModal({ row, config, propConfigs, onClose }: Props) 
 
           {/* Rodapé */}
           <div className="os-footer">
-            <span>Sistema de Gestão de Obras — {session.entity.name}</span>
+            <span className="os-footer-marca"><SimboloSisObras tamanho={14} />SisObras · Gestão de Obras — {session.entity.name}</span>
             <span>{numeroOS} · {formatDataBr(row.data)}</span>
           </div>
         </div>

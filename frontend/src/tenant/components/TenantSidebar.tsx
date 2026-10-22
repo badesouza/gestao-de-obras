@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTenant } from '../TenantContext';
 import { getInitials } from '../utils/format';
 import { centralApi } from '../../lib/api-client';
+import { SimboloSisObras } from '../../components/marca/SimboloSisObras';
 import '../styles/menu-obras.css';
 
 /** Quantos pedidos de munícipes aguardam análise (atualiza a cada 2 min) */
@@ -285,16 +286,7 @@ export function TenantSidebar({ mobile = false, onNavigate }: TenantSidebarProps
       {/* Marca */}
       <div className="mo-head">
         <div className="mo-logo" aria-hidden="true">
-          <svg viewBox="0 0 40 40">
-            <defs>
-              <linearGradient id="mo-lg" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#8B84FF" /><stop offset="1" stopColor="#635BFF" />
-              </linearGradient>
-            </defs>
-            <path className="p3" d="M20 23.5l12 6-12 6-12-6z" fill="#10C6D4" opacity=".7" />
-            <path className="p2" d="M20 16.5l12 6-12 6-12-6z" fill="#4F7BFF" opacity=".9" />
-            <path className="p1" d="M20 9.5l12 6-12 6-12-6z" fill="url(#mo-lg)" />
-          </svg>
+          <SimboloSisObras tamanho={30} />
         </div>
         <div className="mo-brand mo-some">
           <b>{nomeCurto}</b>

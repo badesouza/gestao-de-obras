@@ -1,19 +1,23 @@
 import { Link } from 'react-router-dom';
-import { Card } from '../../components/ui/Card';
+import { Ic } from '../../tenant/components/sisobras/so';
+import { TelaAviso } from '../components/TelaAviso';
 
-/** 403 page for platform area */
+/** Plataforma — acesso negado */
 export function ForbiddenPage() {
   return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <Card className="text-center">
-        <h2 className="text-xl font-semibold text-[var(--color-ink)]">Acesso negado</h2>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">
-          Você não tem permissão para acessar este recurso.
-        </p>
-        <Link to="/platform/login" className="mt-4 inline-block underline">
-          Fazer login
-        </Link>
-      </Card>
-    </div>
+    <TelaAviso
+      icone="lock"
+      tom="coral"
+      codigo="Acesso negado · 403"
+      titulo="Esta área não está liberada para você"
+      texto="Seu login não tem permissão para abrir esta tela. Se precisa dela, peça a liberação a quem administra a plataforma."
+    >
+      <Link to="/platform/entities" className="so-btn so-primary">
+        Ir para Entidades <Ic n="seta" className="arrow" />
+      </Link>
+      <Link to="/platform/login" className="so-btn so-ghost">
+        <Ic n="key" /> Entrar com outro login
+      </Link>
+    </TelaAviso>
   );
 }

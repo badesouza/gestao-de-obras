@@ -1,0 +1,56 @@
+/* Telas de aviso (acesso negado, página não encontrada) no padrão SisObras (prefixo pa-). O resto vem de sisobras.css. */
+
+/* fora da casca do sistema a tela ocupa a janela inteira */
+.pa-cheia { height: 100vh; height: 100dvh; display: flex; }
+.pa-cheia > .so.so-main { flex: 1 1 auto; margin: 0; height: 100%; }
+.pa-cheia .so-rolagem { margin-top: 0; padding-top: 22px; display: flex; }
+.pa-cheia .so-wrap { flex: 1; justify-content: center; }
+
+.pa-centro { display: grid; place-items: center; min-height: min(560px, 70vh); padding: 12px 0; }
+
+.pa-card {
+  position: relative; width: min(100%, 520px); padding: 28px 26px 22px; text-align: center; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.pa-card .so-plan { opacity: .7; }
+.pa-card > * { position: relative; }
+
+.pa-codigo {
+  display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px; border-radius: 99px;
+  font: 800 10.5px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+}
+.pa-codigo .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pa-pulso 1.6s ease-in-out infinite; }
+.pa-card.coral .pa-codigo { color: var(--coral); background: var(--coral-soft); border-color: var(--coral-line); }
+.pa-card.amber .pa-codigo { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-line); }
+@keyframes pa-pulso { 50% { opacity: .3; transform: scale(.7); } }
+
+.pa-card h1 { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 800; color: var(--ink); letter-spacing: -.01em; }
+.pa-card p { margin: 0; max-width: 400px; color: var(--muted); font-size: 13.5px; }
+
+/* endereço que não existe, como ponto fora da planta */
+.pa-ponto {
+  display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 8px 12px; border-radius: 11px;
+  border: 1px dashed var(--line-2); background: var(--surface-2); color: var(--ink-2); font: 600 11.5px/1.3 var(--font-mono);
+}
+.pa-ponto .i { width: 14px; height: 14px; flex: none; color: var(--amber); }
+.pa-ponto span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* fita de obra: o caminho está interditado */
+.pa-fita {
+  width: calc(100% + 52px); height: 10px; margin: 4px -26px 0;
+  background: repeating-linear-gradient(-45deg, #F2B44C 0 12px, var(--tape-dark) 12px 24px);
+  background-size: 34px 34px; animation: pa-fita 1.2s linear infinite; opacity: .9;
+}
+@keyframes pa-fita { to { background-position: 34px 0; } }
+
+.pa-acoes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pa-codigo .dot, .pa-fita { animation: none; }
+}
+@media (max-width: 520px) {
+  .pa-card { padding: 22px 16px 18px; }
+  .pa-fita { width: calc(100% + 32px); margin: 4px -16px 0; }
+  .pa-acoes .so-btn { flex: 1 1 100%; }
+}

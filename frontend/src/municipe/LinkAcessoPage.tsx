@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { linkAcessoApi, setTenantToken } from '../lib/api-client';
 import type { LinkPublico } from '../lib/api-client';
 import { Aviso, Ic, Selo, msgErro } from '../tenant/components/sisobras/so';
+import { SimboloSisObras } from '../components/marca/SimboloSisObras';
 
 function Cabeca({ link }: { link: LinkPublico | null }) {
   const e = link?.entidade;
@@ -12,7 +13,7 @@ function Cabeca({ link }: { link: LinkPublico | null }) {
         ? <div className="so-selo" role="img" aria-label="Brasão do município"><span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" /><img src={e.brasaoUrl} alt="" style={{ position: 'absolute', inset: 12, width: 'calc(100% - 24px)', height: 'calc(100% - 24px)', objectFit: 'contain', zIndex: 2 }} /></div>
         : <Selo icone="shield" rotulo="Brasão do município" />}
       <div className="so-ph-org">Prefeitura Municipal de {e?.municipio ?? '…'}</div>
-      <div className="so-ph-app">Gestão de Obras</div>
+      <div className="so-ph-app"><span className="so-ph-marca"><SimboloSisObras tamanho={30} animacao="montar" />SisObras</span></div>
     </header>
   );
 }

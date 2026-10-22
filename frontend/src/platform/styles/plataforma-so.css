@@ -1,0 +1,114 @@
+/* Área da Plataforma no padrão SisObras (prefixo pf-). O resto vem de sisobras.css e os-premium.css. */
+
+/* casca: sem a busca de mentira do topo, o topo só tem título e quem está usando */
+.pf-so .tn-topbar { justify-content: space-between; }
+
+.pf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── brasão pequeno (lista) e grande (ficha) ── */
+.pf-brasao {
+  width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; overflow: hidden;
+  background-color: var(--surface-2); border: 1px solid var(--line);
+  background-image: linear-gradient(var(--gridc) 1px, transparent 1px), linear-gradient(90deg, var(--gridc) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+.pf-brasao img { width: 80%; height: 80%; object-fit: contain; }
+.pf-brasao b { font: 800 12px/1 var(--font-mono); color: var(--brand-ink); letter-spacing: .04em; }
+.pf-brasao.g { width: 74px; height: 74px; border-radius: 18px; box-shadow: var(--shadow); background-size: 12px 12px; }
+.pf-brasao.g b { font-size: 18px; }
+.pf-brasao-score { padding-left: 18px; }
+
+/* ── lista ── */
+.pf-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.pf-filtros .so-chips { margin-right: auto; }
+.pf-busca { flex: 0 1 320px; padding-left: 10px; gap: 8px; color: var(--muted); }
+.pf-busca input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; padding: 0 10px 0 0; }
+.pf-busca input::-webkit-search-cancel-button { cursor: pointer; }
+
+.pf-ent { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.pf-ent .so-link-nome { text-decoration: none; display: block; }
+.pf-ent .so-link-nome:hover { text-decoration: underline; }
+.so-table tr.pf-inativa td { background: var(--surface-2); }
+.so-table tr.pf-inativa .pf-brasao { filter: grayscale(1); opacity: .6; }
+
+.pf-copiar {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 30px; padding: 0 10px; border-radius: 9px; cursor: pointer;
+  border: 1px dashed var(--line-2); background: var(--surface-2); color: var(--ink-2); font-size: 11.5px;
+  transition: border-color .2s, background .2s, color .2s;
+}
+.pf-copiar .i { width: 14px; height: 14px; color: var(--cyan); }
+.pf-copiar .c { color: var(--faint); transition: color .2s, transform .3s var(--ease); }
+.pf-copiar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-copiar:hover { border-style: solid; border-color: var(--brand); background: var(--brand-soft); color: var(--brand-ink); }
+.pf-copiar:hover .c { color: var(--brand); transform: scale(1.12); }
+
+.so-acao.pf-abrir { color: var(--ink-2); text-decoration: none; }
+.so-acao.pf-abrir::before { background: linear-gradient(145deg, #17213C, #3A4363); }
+
+/* ── janela de cadastro ── */
+.pf-ent-form { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; align-items: start; }
+.pf-ent-campos { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pf-uf-mun { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; }
+.pf-buscando { flex: none; margin-right: 10px; font: 600 10.5px/1 var(--font-mono); color: var(--cyan); animation: pf-pisca 1s ease-in-out infinite; }
+@keyframes pf-pisca { 50% { opacity: .35; } }
+.pf-ent-brasao { display: flex; flex-direction: column; gap: 8px; }
+.pf-brasao-quadro {
+  position: relative; height: 170px; border-radius: 14px; border: 1.5px dashed var(--line-2); display: grid; place-items: center;
+  background-color: var(--surface-2);
+  background-image: linear-gradient(var(--gridc) 1px, transparent 1px), linear-gradient(90deg, var(--gridc) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.pf-brasao-quadro img { max-width: 78%; max-height: 120px; object-fit: contain; }
+@media (max-width: 640px) {
+  .pf-ent-form { grid-template-columns: minmax(0, 1fr); }
+  .pf-ent-brasao { order: -1; }
+  .pf-brasao-quadro { height: 130px; }
+}
+
+.pf-ver { flex: none; width: 34px; height: 100%; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.pf-ver:hover { color: var(--brand); }
+
+/* ── ficha ── */
+.pf-proximo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px 12px 12px; border-radius: 16px;
+  background: linear-gradient(100deg, var(--mint-soft), var(--cyan-soft)); border: 1px solid var(--mint-line); color: var(--ink-2); font-size: 13px;
+}
+.pf-proximo b { color: var(--ink); }
+.pf-proximo-ic { width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; color: #fff; background: var(--grad-mint); box-shadow: 0 8px 18px -8px rgba(25,184,138,.8); }
+
+.pf-link { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pf-link-url {
+  flex: 1 1 280px; min-width: 0; height: 38px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px;
+  background: var(--surface-2); border: 1px dashed var(--line-2); color: var(--ink); font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.pf-admin { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface-2); }
+.pf-admin b { display: block; color: var(--ink); font-size: 13px; }
+.pf-admin span:not(.pf-admin-ic) { display: block; font-size: 12px; color: var(--muted); }
+.pf-admin-ic { width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; color: #fff; }
+.pf-admin.ok { border-color: var(--mint-line); background: var(--mint-soft); }
+.pf-admin.ok .pf-admin-ic { background: var(--grad-mint); }
+.pf-admin.falta { border-color: var(--amber-line); background: var(--amber-soft); }
+.pf-admin.falta .pf-admin-ic { background: linear-gradient(135deg, #F2B44C, #E8962A); }
+
+.pf-dados { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.pf-dados > div { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.pf-dados dt { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.pf-dados dt .i { width: 13px; height: 13px; color: var(--brand); }
+.pf-dados dd { margin: 4px 0 0; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.pf-dados .vazio { border-style: dashed; background: var(--surface-2); }
+.pf-dados .vazio dd { color: var(--faint); font-weight: 600; font-style: italic; }
+.pf-dados .vazio dt .i { color: var(--faint); }
+
+.pf-hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; position: relative; }
+.pf-hist::before { content: ""; position: absolute; left: 15px; top: 14px; bottom: 14px; width: 2px; background: repeating-linear-gradient(180deg, var(--line-2) 0 4px, transparent 4px 8px); }
+.pf-hist li { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.pf-hist li b { display: block; font-size: 12.5px; color: var(--ink); }
+.pf-hist li .mono { display: block; font-size: 11px; color: var(--muted); }
+.pf-hist-ic { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--surface-3); color: var(--muted); border: 2px solid var(--surface); position: relative; z-index: 1; }
+.pf-hist-ic .i { width: 14px; height: 14px; }
+.pf-hist li.brand .pf-hist-ic { background: var(--brand-soft); color: var(--brand-ink); }
+.pf-hist li.cyan .pf-hist-ic { background: var(--cyan-soft); color: var(--cyan); }
+.pf-hist li.mint .pf-hist-ic { background: var(--mint-soft); color: var(--mint); }
+.pf-hist li.coral .pf-hist-ic { background: var(--coral-soft); color: var(--coral); }
