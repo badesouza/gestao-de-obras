@@ -2,7 +2,7 @@ import type { EtapaOS, Prisma, PrismaClient } from '../../../../generated/prisma
 import { AppError } from '../../../shared/errors.js';
 import { hojeBrasilia, proximoNumero } from '../../../shared/sequencia.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
-import { pode, poderesFluxo, type QuemAge } from '../../../shared/acessos.js';
+import { MODELOS_SEM_EQUIPE, pode, poderesFluxo, type QuemAge } from '../../../shared/acessos.js';
 
 /* ── Ordem de serviço: número oficial e etapas ────────────────────
    Registrada → Executada (baixa do fiscal) → Finalizada (conferência).
@@ -91,7 +91,7 @@ export async function aplicarAcao(
     select: { id: true, etapa: true, centroCustoId: true, numeroOS: true, executadoPorId: true, recusadoEm: true },
   });
   if (!r) throw new AppError(404, 'NOT_FOUND', 'Ordem de serviço não encontrada');
-  await assertAcessoServico(prisma, ator.id, r.centroCustoId);
+  await assertAcessoOS(prisma, ator, r.id, entityId);
 
   const cfg = await obterConfig(prisma, entityId);
   const { podeAprovar, podeConferir, podeReabrir, podeCancelar } = poderesFluxo(ator);
@@ -120,6 +120,8 @@ export async function aplicarAcao(
       dados = cfg.exigeConferencia
         ? { etapa: 'EXECUTADA', executadoEm: agora, executadoPorId: ator.id }
         : { etapa: 'FINALIZADA', executadoEm: agora, executadoPorId: ator.id, finalizadoEm: agora, finalizadoPorId: ator.id };
+      /* baixa refeita: a devolução fica só no histórico */
+      dados = { ...dados, devolvidoEm: null, motivoDevolucao: null };
       break;
     case 'finalizar':
       if (r.etapa !== 'EXECUTADA') etapaInvalida();
@@ -132,6 +134,8 @@ export async function aplicarAcao(
       if (!podeReabrir) negar('Você não tem acesso para reabrir ordens de serviço');
       exigirMotivo();
       dados = { etapa: 'REGISTRADA', executadoEm: null, executadoPorId: null, finalizadoEm: null, finalizadoPorId: null };
+      /* baixa devolvida para refazer: o fiscal vê o motivo no celular */
+      if (r.etapa === 'EXECUTADA') dados = { ...dados, devolvidoEm: agora, motivoDevolucao: observacao!.trim() };
       /* reabrir uma abertura recusada vale como aprovação de quem reabriu */
       if (r.recusadoEm) dados = { ...dados, recusadoEm: null, recusadoPorId: null, motivoRecusa: null, aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
@@ -167,10 +171,32 @@ export async function escopoServicos(prisma: PrismaClient, ator: QuemAge & { id:
   return servicosDoUsuario(prisma, ator.id);
 }
 
-/** Filtro de OS pelo alcance da pessoa (lista vazia não acha nada) */
+/** Equipes que limitam o que a pessoa vê: null = não depende de equipe
+    (Administrador, Secretário(a) e Coordenador); senão, as equipes dela */
+export async function escopoEquipes(prisma: PrismaClient, userId: string): Promise<string[] | null> {
+  const u = await prisma.tenantUser.findUnique({
+    where: { id: userId },
+    select: { adminGeral: true, role: { select: { code: true } }, equipes: { select: { equipeId: true } } },
+  });
+  if (!u || u.adminGeral || MODELOS_SEM_EQUIPE.includes(u.role.code)) return null;
+  return u.equipes.map(e => e.equipeId);
+}
+
+/** Filtro de OS pelo alcance da pessoa: serviços que atende E equipes dela
+    (OS antiga sem equipe aparece para quem a abriu). Lista vazia não acha nada. */
 export async function filtroEscopoOS(prisma: PrismaClient, ator: QuemAge & { id: string }): Promise<Prisma.RegistroDiarioWhereInput> {
-  const escopo = await escopoServicos(prisma, ator);
-  return escopo ? { centroCustoId: { in: escopo } } : {};
+  const [servicos, equipes] = await Promise.all([escopoServicos(prisma, ator), escopoEquipes(prisma, ator.id)]);
+  const partes: Prisma.RegistroDiarioWhereInput[] = [];
+  if (servicos) partes.push({ centroCustoId: { in: servicos } });
+  if (equipes) partes.push({ OR: [{ equipeId: { in: equipes } }, { equipeId: null, createdByUserId: ator.id }] });
+  return partes.length ? { AND: partes } : {};
+}
+
+/** A pessoa pode ver esta OS? (serviço e equipe) */
+export async function assertAcessoOS(prisma: PrismaClient, ator: QuemAge & { id: string }, registroId: string, entityId: string) {
+  const escopo = await filtroEscopoOS(prisma, ator);
+  const ok = await prisma.registroDiario.count({ where: { id: registroId, entityId, ...escopo } });
+  if (!ok) throw new AppError(403, 'FORBIDDEN', 'Esta OS não é dos seus serviços ou das suas equipes');
 }
 
 export async function assertAcessoServico(prisma: PrismaClient, userId: string, centroId: string) {

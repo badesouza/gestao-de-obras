@@ -308,9 +308,12 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       const MAX = tipo === 'video' ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
       if (buffer.length > MAX) return reply.status(413).send({ error: `Arquivo muito grande (max ${MAX / 1024 / 1024}MB)` });
 
+      /* ?momento=ABERTURA (foto do antes) ou BAIXA (foto do depois) */
+      const m = String((req.query as { momento?: string }).momento ?? '').toUpperCase();
+      const momento = m === 'ABERTURA' || m === 'BAIXA' ? m : null;
       const midia = await fastify.prisma.registroMidia.create({
-        data: { registroDiarioId: id, entityId, tipo, nomeArquivo: data.filename || `upload.${tipo === 'video' ? 'mp4' : 'jpg'}`, mimeType: mime, tamanhoBytes: buffer.length, dados: buffer as unknown as Uint8Array<ArrayBuffer> },
-        select: { id: true, tipo: true, nomeArquivo: true, mimeType: true, tamanhoBytes: true, createdAt: true },
+        data: { registroDiarioId: id, entityId, tipo, momento, nomeArquivo: data.filename || `upload.${tipo === 'video' ? 'mp4' : 'jpg'}`, mimeType: mime, tamanhoBytes: buffer.length, dados: buffer as unknown as Uint8Array<ArrayBuffer> },
+        select: { id: true, tipo: true, momento: true, nomeArquivo: true, mimeType: true, tamanhoBytes: true, createdAt: true },
       });
       return reply.status(201).send(midia);
     } catch (e) { return handleAppError(reply, e); }
@@ -326,7 +329,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       await assertAcessoServico(fastify.prisma, req.user.sub, registro.centroCustoId);
       const midias = await fastify.prisma.registroMidia.findMany({
         where: { registroDiarioId: id, entityId },
-        select: { id: true, tipo: true, nomeArquivo: true, mimeType: true, tamanhoBytes: true, createdAt: true },
+        select: { id: true, tipo: true, momento: true, nomeArquivo: true, mimeType: true, tamanhoBytes: true, createdAt: true },
         orderBy: { createdAt: 'asc' },
       });
       return reply.send({ midias });

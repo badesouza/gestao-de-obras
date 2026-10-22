@@ -1,4 +1,4 @@
-import type { PrismaClient, PropriedadeTipo } from '../../../../generated/prisma/index.js';
+import type { Prisma, PrismaClient, PropriedadeTipo } from '../../../../generated/prisma/index.js';
 import { AppError } from '../../../shared/errors.js';
 import { writeTenantAudit } from '../audit/audit.service.js';
 import { iniciarOrdemServico, sincronizarStatusTexto, type OrigemOS } from '../ordens/ordens.service.js';
@@ -165,6 +165,8 @@ export async function listRegistrosDiarios(
   centroId: string,
   year: number,
   month: number,
+  /** alcance de quem pede (equipes dele); vazio = tudo do serviço */
+  filtroExtra: Prisma.RegistroDiarioWhereInput = {},
 ) {
   await getCentroForEntity(prisma, entityId, centroId);
   const { start, end } = getMonthDateRange(year, month);
@@ -191,6 +193,7 @@ export async function listRegistrosDiarios(
       centroCustoId: centroId,
       entityId,
       data: { gte: start, lte: end },
+      ...filtroExtra,
     },
     include: {
       valores: {

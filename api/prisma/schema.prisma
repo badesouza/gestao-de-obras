@@ -146,7 +146,9 @@ model CadastroAuxiliar {
   subtipo     String?              @db.VarChar(80)
   placa       String?              @db.VarChar(20)
   patrimonio  String?              @db.VarChar(40)
-  /** veículos e equipamentos: tipo do cadastro de tipos (Veículos, Máquinas, Equipamentos, Móveis…) */
+  /**
+   * veículos e equipamentos: tipo do cadastro de tipos (Veículos, Máquinas, Equipamentos, Móveis…)
+   */
   tipoFrotaId String?              @map("tipo_frota_id")
   createdAt   DateTime             @default(now()) @map("created_at")
   updatedAt   DateTime             @updatedAt @map("updated_at")
@@ -157,9 +159,10 @@ model CadastroAuxiliar {
   bairros           CadastroAuxiliar[] @relation("BairroMacrozona")
   usuarios          TenantUser[]       @relation("UsuarioEquipe")
   usuariosEquipe    UsuarioEquipe[]    @relation("EquipeUsuarios")
+  ordensServico     RegistroDiario[]   @relation("OSEquipe")
   equipesComVeiculo Equipe[]           @relation("EquipeVeiculo")
   servicosFrota     ServicoFrota[]
-  tipoFrota         TipoFrota?   @relation(fields: [tipoFrotaId], references: [id], onDelete: SetNull)
+  tipoFrota         TipoFrota?         @relation(fields: [tipoFrotaId], references: [id], onDelete: SetNull)
 
   @@unique([entityId, tipo, nome])
   @@index([entityId, tipo, ativo])
@@ -577,12 +580,24 @@ model RegistroDiario {
   motivoRecusa  String?     @map("motivo_recusa")
   recusadoPor   TenantUser? @relation("OSRecusadaPor", fields: [recusadoPorId], references: [id])
 
+  /// Módulo de OS: equipe responsável (toda OS tem equipe), respostas da ficha do serviço e a baixa
+  equipeId        String?           @map("equipe_id")
+  equipe          CadastroAuxiliar? @relation("OSEquipe", fields: [equipeId], references: [id], onDelete: SetNull)
+  /// { abertura: [{ id, nome, tipo, valor }], baixa: [...], obsBaixa }
+  campos          Json?
+  /// quem trabalhou na execução (nomes, marcados na baixa)
+  trabalharam     String[]          @default([])
+  /// o conferente devolveu a baixa para refazer
+  devolvidoEm     DateTime?         @map("devolvido_em")
+  motivoDevolucao String?           @map("motivo_devolucao")
+
   @@unique([entityId, numeroOS])
   @@index([entityId, etapa])
   @@index([entityId, origem, etapa])
   @@index([centroCustoId, data])
   @@index([entityId, centroCustoId, data])
   @@index([entityId, lat, lng])
+  @@index([entityId, equipeId])
   @@map("registros_diarios")
 }
 
@@ -591,6 +606,8 @@ model RegistroMidia {
   registroDiarioId String   @map("registro_diario_id")
   entityId         String   @map("entity_id")
   tipo             String   @db.VarChar(10)
+  /// ABERTURA (foto do antes) ou BAIXA (foto do depois); vazio nas fotos antigas
+  momento          String?  @db.VarChar(10)
   nomeArquivo      String   @map("nome_arquivo") @db.VarChar(255)
   mimeType         String   @map("mime_type") @db.VarChar(100)
   tamanhoBytes     Int      @map("tamanho_bytes")

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { assertAcessoServico } from '../ordens/ordens.service.js';
+import { assertAcessoServico, filtroEscopoOS } from '../ordens/ordens.service.js';
 import { z } from 'zod';
 import {
   PERMISSION_CENTROS_CUSTO_MANAGE,
@@ -9,6 +9,7 @@ import {
 } from '../../../shared/constants.js';
 import { handleAppError } from '../../../shared/errors.js';
 import {
+  carregarAtor,
   requireTenantAuth,
   requireTenantPermission,
 } from '../../../plugins/auth-tenant.js';
@@ -281,12 +282,14 @@ export async function registerCentroCustoRoutes(fastify: FastifyInstance) {
         const { id } = request.params as { id: string };
         await assertAcessoServico(fastify.prisma, request.user.sub, id);
         const query = monthQuerySchema.parse(request.query);
+        const ator = await carregarAtor(fastify.prisma, request.user.sub);
         const result = await listRegistrosDiarios(
           fastify.prisma,
           request.user.entityId!,
           id,
           query.year,
           query.month,
+          ator ? await filtroEscopoOS(fastify.prisma, ator) : {},
         );
         return reply.send(result);
       } catch (error) {
