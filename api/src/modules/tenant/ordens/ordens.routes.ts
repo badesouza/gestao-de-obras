@@ -29,7 +29,7 @@ export async function registerOrdensRoutes(fastify: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const { acao, observacao } = validar(z.object({
-        acao: z.enum(['aprovar', 'executar', 'finalizar', 'reabrir', 'cancelar']),
+        acao: z.enum(['aprovar', 'recusar', 'executar', 'finalizar', 'reabrir', 'cancelar']),
         observacao: z.string().trim().max(1000).optional(),
       }), req.body);
       const ator = await carregarAtor(fastify.prisma, req.user.sub);

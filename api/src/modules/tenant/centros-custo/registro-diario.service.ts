@@ -269,7 +269,7 @@ export async function createRegistroDiario(
   );
 
   /* número oficial da OS e etapa inicial (conforme as regras da secretaria) */
-  await iniciarOrdemServico(prisma, entityId, registro.id, centroId, origem);
+  await iniciarOrdemServico(prisma, entityId, registro.id, centroId, origem, origem === 'MUNICIPE' ? actorId : undefined);
 
   await writeTenantAudit(prisma, {
     entityId,

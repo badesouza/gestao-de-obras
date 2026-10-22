@@ -2,8 +2,9 @@ import { servicosParaMunicipe } from '../tenant/cadastros-base/servicos-ficha.se
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../shared/errors.js';
-import { PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT, PERMISSION_CENTROS_CUSTO_VIEW } from '../../shared/constants.js';
-import { requireTenantAuth, requireTenantPermission } from '../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../shared/constants.js';
+import { carregarAtor, requireAcesso, requireTenantAuth, requireTenantPermission } from '../../plugins/auth-tenant.js';
+import { contarPendentes, listarInternas, poderesCentral } from './central-interna.service.js';
 import {
   consultarSolicitacao, converterEmOcorrencia, criarSolicitacao, lerFoto, listarBairros,
   listarSolicitacoes, novaSolicitacaoSchema, recusarSolicitacao, type FotoRecebida,
@@ -97,7 +98,25 @@ export async function registerCentralPublicRoutes(fastify: FastifyInstance) {
 export async function registerCentralTenantRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
   const podeVer = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_VIEW)];
-  const podeEditar = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT)];
+  /* virar OS ou recusar o pedido do munícipe é o passo "Triar" do fluxo */
+  const podeTriar = [tenantAuth, requireAcesso(fastify.prisma, 'os.triar')];
+  const ator = async (userId: string) => {
+    const a = await carregarAtor(fastify.prisma, userId);
+    if (!a) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
+    return a;
+  };
+
+  /* Central de Solicitações: munícipe + escritório + campo numa lista só */
+  fastify.get('/central-solicitacoes', { preHandler: podeVer }, async (req, reply) => {
+    try {
+      const a = await ator(req.user.sub);
+      const [municipe, internas] = await Promise.all([
+        listarSolicitacoes(fastify.prisma, req.user.entityId!),
+        listarInternas(fastify.prisma, req.user.entityId!, a),
+      ]);
+      return reply.send({ municipe: municipe.itens, internas, poderes: poderesCentral(a) });
+    } catch (e) { return handleAppError(reply, e); }
+  });
 
   fastify.get('/central-municipe', { preHandler: podeVer }, async (req, reply) => {
     try {
@@ -108,8 +127,7 @@ export async function registerCentralTenantRoutes(fastify: FastifyInstance) {
 
   fastify.get('/central-municipe/resumo', { preHandler: podeVer }, async (req, reply) => {
     try {
-      const novas = await fastify.prisma.solicitacaoMunicipe.count({ where: { entityId: req.user.entityId!, status: 'NOVA' } });
-      return reply.send({ novas });
+      return reply.send(await contarPendentes(fastify.prisma, req.user.entityId!, await ator(req.user.sub)));
     } catch (e) { return handleAppError(reply, e); }
   });
 
@@ -121,7 +139,7 @@ export async function registerCentralTenantRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.post('/central-municipe/:id/converter', { preHandler: podeEditar }, async (req, reply) => {
+  fastify.post('/central-municipe/:id/converter', { preHandler: podeTriar }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const { centroCustoId } = validar(z.object({ centroCustoId: z.string().uuid('Escolha o serviço') }), req.body);
@@ -129,7 +147,7 @@ export async function registerCentralTenantRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.post('/central-municipe/:id/recusar', { preHandler: podeEditar }, async (req, reply) => {
+  fastify.post('/central-municipe/:id/recusar', { preHandler: podeTriar }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const { motivo } = validar(z.object({ motivo: z.string().trim().min(5, 'Explique o motivo').max(1000) }), req.body);

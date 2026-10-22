@@ -267,6 +267,7 @@ model TenantUser {
   osAprovadas                     RegistroDiario[]          @relation("OSAprovadaPor")
   osExecutadas                    RegistroDiario[]          @relation("OSExecutadaPor")
   osFinalizadas                   RegistroDiario[]          @relation("OSFinalizadaPor")
+  osRecusadas                     RegistroDiario[]          @relation("OSRecusadaPor")
   servicos                        UsuarioServico[]
   pedidosRevisados                PedidoCompra[]            @relation("PedidoRevisadoPor")
   pedidosAprovados                PedidoCompra[]            @relation("PedidoAprovadoPor")
@@ -548,8 +549,16 @@ model RegistroDiario {
   centroDeCustoId String?        @map("centro_de_custo_id")
   centroDeCusto   CentroDeCusto? @relation(fields: [centroDeCustoId], references: [id], onDelete: SetNull)
 
+  /// Central de Solicitações: de onde veio e, se o responsável recusou, por quê
+  origem          OrigemOS       @default(ESCRITORIO)
+  recusadoEm      DateTime?      @map("recusado_em")
+  recusadoPorId   String?        @map("recusado_por_id")
+  motivoRecusa    String?        @map("motivo_recusa")
+  recusadoPor     TenantUser?    @relation("OSRecusadaPor", fields: [recusadoPorId], references: [id])
+
   @@unique([entityId, numeroOS])
   @@index([entityId, etapa])
+  @@index([entityId, origem, etapa])
   @@index([centroCustoId, data])
   @@index([entityId, centroCustoId, data])
   @@index([entityId, lat, lng])
@@ -852,6 +861,13 @@ model SolicitacaoMunicipeFoto {
 /**
  * ── Etapas da ordem de serviço ──
  */
+/// De onde veio a OS: escritório (computador), campo (celular do fiscal/coordenador) ou munícipe (link/QR)
+enum OrigemOS {
+  ESCRITORIO
+  CAMPO
+  MUNICIPE
+}
+
 enum EtapaOS {
   AGUARDANDO_APROVACAO
   REGISTRADA
@@ -865,7 +881,8 @@ enum EtapaOS {
  */
 model ConfiguracaoObras {
   entityId             String   @id @map("entity_id")
-  exigeAprovacaoOS     Boolean  @default(false) @map("exige_aprovacao_os")
+  /// Sempre ligado: toda OS passa pelo crivo do responsável na Central de Solicitações
+  exigeAprovacaoOS     Boolean  @default(true) @map("exige_aprovacao_os")
   aprovadores          String[] @default(["ADMIN", "COORDENADOR"])
   exigeConferencia     Boolean  @default(true) @map("exige_conferencia")
   conferentes          String[] @default(["ADMIN", "COORDENADOR"])

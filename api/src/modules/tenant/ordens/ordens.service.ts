@@ -30,6 +30,7 @@ export async function salvarConfig(
     exigeAprovacaoCompra: boolean; revisoresCompra: string[]; aprovadoresCompra: string[];
   },
 ) {
+  dados = { ...dados, exigeAprovacaoOS: true }; /* sempre ligado (Central de Solicitações) */
   const filtra = (l: string[]) => Array.from(new Set(l.filter(p => (PAPEIS_CONFIGURAVEIS as readonly string[]).includes(p))));
   const cfg = await prisma.configuracaoObras.upsert({
     where: { entityId },
@@ -59,21 +60,27 @@ export const ORIGENS_OS = ['ESCRITORIO', 'MUNICIPE', 'CAMPO'] as const;
 export type OrigemOS = typeof ORIGENS_OS[number];
 
 /** Dá número oficial e a etapa inicial a uma ocorrência recém-criada.
-    A aprovação vale só para as origens marcadas em "Fluxo e aprovações". */
-export async function iniciarOrdemServico(prisma: PrismaClient, entityId: string, registroId: string, centroId: string, origem: OrigemOS = 'ESCRITORIO') {
-  const cfg = await obterConfig(prisma, entityId);
+    Tudo passa pelo crivo do responsável na Central de Solicitações:
+    - escritório e campo → entram em "Aguardando aprovação";
+    - munícipe → quem converteu o pedido na Central já analisou, então a OS nasce aprovada por ele. */
+export async function iniciarOrdemServico(
+  prisma: PrismaClient, entityId: string, registroId: string, centroId: string, origem: OrigemOS = 'ESCRITORIO', analistaId?: string,
+) {
   const ano = hojeBrasilia().slice(0, 4);
   const n = await proximoNumero(prisma, entityId, `OS-${ano}`);
-  const exige = cfg.exigeAprovacaoOS && (cfg.aprovacaoOrigens ?? ORIGENS_OS).includes(origem);
-  const etapa: EtapaOS = exige ? 'AGUARDANDO_APROVACAO' : 'REGISTRADA';
+  const jaAnalisada = origem === 'MUNICIPE' && !!analistaId;
+  const etapa: EtapaOS = jaAnalisada ? 'REGISTRADA' : 'AGUARDANDO_APROVACAO';
   await prisma.registroDiario.update({
     where: { id: registroId },
-    data: { numeroOS: `OS ${ano}/${String(n).padStart(4, '0')}`, etapa },
+    data: {
+      numeroOS: `OS ${ano}/${String(n).padStart(4, '0')}`, etapa, origem,
+      ...(jaAnalisada ? { aprovadoEm: new Date(), aprovadoPorId: analistaId } : {}),
+    },
   });
   await sincronizarStatusTexto(prisma, entityId, registroId, centroId, etapa);
 }
 
-export type AcaoOS = 'aprovar' | 'executar' | 'finalizar' | 'reabrir' | 'cancelar';
+export type AcaoOS = 'aprovar' | 'recusar' | 'executar' | 'finalizar' | 'reabrir' | 'cancelar';
 
 export async function aplicarAcao(
   prisma: PrismaClient, entityId: string, ator: QuemAge & { id: string },
@@ -81,7 +88,7 @@ export async function aplicarAcao(
 ) {
   const r = await prisma.registroDiario.findFirst({
     where: { id: registroId, entityId },
-    select: { id: true, etapa: true, centroCustoId: true, numeroOS: true, executadoPorId: true },
+    select: { id: true, etapa: true, centroCustoId: true, numeroOS: true, executadoPorId: true, recusadoEm: true },
   });
   if (!r) throw new AppError(404, 'NOT_FOUND', 'Ordem de serviço não encontrada');
   await assertAcessoServico(prisma, ator.id, r.centroCustoId);
@@ -99,6 +106,13 @@ export async function aplicarAcao(
       if (r.etapa !== 'AGUARDANDO_APROVACAO') etapaInvalida();
       if (!podeAprovar) negar('Você não tem acesso para aprovar ordens de serviço');
       dados = { etapa: 'REGISTRADA', aprovadoEm: agora, aprovadoPorId: ator.id };
+      break;
+    case 'recusar':
+      /* o responsável não aprova a abertura: a OS sai como cancelada, com o motivo guardado */
+      if (r.etapa !== 'AGUARDANDO_APROVACAO') etapaInvalida();
+      if (!podeAprovar) negar('Você não tem acesso para recusar a abertura de ordens de serviço');
+      exigirMotivo();
+      dados = { etapa: 'CANCELADA', recusadoEm: agora, recusadoPorId: ator.id, motivoRecusa: observacao!.trim() };
       break;
     case 'executar':
       if (r.etapa !== 'REGISTRADA') etapaInvalida();
@@ -118,6 +132,8 @@ export async function aplicarAcao(
       if (!podeReabrir) negar('Você não tem acesso para reabrir ordens de serviço');
       exigirMotivo();
       dados = { etapa: 'REGISTRADA', executadoEm: null, executadoPorId: null, finalizadoEm: null, finalizadoPorId: null };
+      /* reabrir uma abertura recusada vale como aprovação de quem reabriu */
+      if (r.recusadoEm) dados = { ...dados, recusadoEm: null, recusadoPorId: null, motivoRecusa: null, aprovadoEm: agora, aprovadoPorId: ator.id };
       break;
     case 'cancelar':
       if (r.etapa === 'FINALIZADA' || r.etapa === 'CANCELADA') etapaInvalida();

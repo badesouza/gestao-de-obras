@@ -120,7 +120,7 @@ const listaSelect = {
   nome: true, telefone: true, cpf: true, email: true, status: true, motivoRecusa: true,
   registroDiarioId: true, analisadoEm: true, createdAt: true,
   analisadoPor: { select: { name: true } },
-  registroDiario: { select: { centroCustoId: true } },
+  registroDiario: { select: { centroCustoId: true, numeroOS: true, etapa: true } },
   fotos: { select: { id: true }, orderBy: { createdAt: 'asc' as const } },
 } as const;
 
@@ -141,6 +141,8 @@ export async function listarSolicitacoes(prisma: PrismaClient, entityId: string,
       ...i,
       analisadoPor: i.analisadoPor?.name ?? null,
       centroCustoId: i.registroDiario?.centroCustoId ?? null,
+      osNumero: i.registroDiario?.numeroOS ?? null,
+      osEtapa: i.registroDiario?.etapa ?? null,
       registroDiario: undefined,
       fotos: i.fotos.map(f => f.id),
       analisadoEm: i.analisadoEm?.toISOString() ?? null,

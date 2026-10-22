@@ -25,7 +25,7 @@ import { ComprasPage } from './tenant/pages/ComprasPage';
 import { MapaFullPage } from './tenant/pages/MapaFullPage';
 import { ultimoTenant } from './lib/offline/pwa';
 import { CentralMunicipePage } from './municipe/CentralMunicipePage';
-import { CentralMunicipeAdminPage } from './tenant/pages/CentralMunicipeAdminPage';
+import { CentralSolicitacoesPage } from './tenant/pages/CentralSolicitacoesPage';
 import { PedidosCompraPage } from './tenant/pages/PedidosCompraPage';
 import { SaldosPage } from './tenant/pages/SaldosPage';
 import { CentrosDeCustoPage } from './tenant/pages/CentrosDeCustoPage';
@@ -87,7 +87,7 @@ function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SalaSituacaoPage />} />
           <Route path="servicos" element={<ServicosPage />} />
-          <Route path="central-municipe" element={<CentralMunicipeAdminPage />} />
+          <Route path="central-municipe" element={<CentralSolicitacoesPage />} />
           <Route path="configuracoes" element={<RedirecionaRegras />} />
           <Route path="pedidos" element={<PedidosCompraPage />} />
           <Route path="saldos" element={<SaldosPage />} />

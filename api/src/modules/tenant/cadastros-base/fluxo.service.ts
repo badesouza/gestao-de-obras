@@ -45,8 +45,9 @@ export async function obterFluxo(prisma: PrismaClient, entityId: string) {
   }));
   return {
     config: {
-      exigeAprovacaoOS: cfg.exigeAprovacaoOS,
-      aprovacaoOrigens: cfg.aprovacaoOrigens ?? [...ORIGENS_OS],
+      /* sempre ligado: toda OS passa pela Central de Solicitações */
+      exigeAprovacaoOS: true,
+      aprovacaoOrigens: [...ORIGENS_OS],
       exigeConferencia: cfg.exigeConferencia,
       conferenciaPropriaBloqueada: cfg.conferenciaPropriaBloqueada,
       exigeRevisaoCompra: cfg.exigeRevisaoCompra,
@@ -70,8 +71,8 @@ export interface DadosFluxo {
 }
 
 export async function salvarFluxo(prisma: PrismaClient, entityId: string, userId: string, d: DadosFluxo) {
-  const origens = [...new Set(d.config.aprovacaoOrigens)];
-  if (d.config.exigeAprovacaoOS && !origens.length) throw new AppError(400, 'VALIDATION_ERROR', 'Marque de onde vem a OS que precisa de aprovação');
+  /* a aprovação da abertura não se desliga: toda OS passa pelo crivo do responsável */
+  const origens = [...ORIGENS_OS];
   for (const passo of Object.keys(d.passos)) {
     if (!PASSOS_FLUXO[passo]) throw new AppError(400, 'VALIDATION_ERROR', `Passo desconhecido: ${passo}`);
   }
@@ -99,7 +100,7 @@ export async function salvarFluxo(prisma: PrismaClient, entityId: string, userId
     }
   }
 
-  const config = { ...d.config, aprovacaoOrigens: origens };
+  const config = { ...d.config, exigeAprovacaoOS: true, aprovacaoOrigens: origens };
   await prisma.$transaction(async tx => {
     await tx.configuracaoObras.upsert({ where: { entityId }, update: config, create: { entityId, ...config } });
     for (const m of mudancas) await tx.tenantUser.update({ where: { id: m.id }, data: { acessos: m.depois } });

@@ -23,7 +23,7 @@ export const CATALOGO_ACESSOS: MenuAcesso[] = [
     { nome: 'Telas', itens: [
       { chave: 'os.lista', nome: 'Lista de OS' },
       { chave: 'os.minhas', nome: 'Minhas OS (celular)' },
-      { chave: 'os.central', nome: 'Central do Munícipe' },
+      { chave: 'os.central', nome: 'Central de Solicitações' },
     ] },
     { nome: 'Passos', fluxo: true, itens: [
       { chave: 'os.abrir', nome: 'Abrir OS / ocorrência', etapa: 'Registrada' },

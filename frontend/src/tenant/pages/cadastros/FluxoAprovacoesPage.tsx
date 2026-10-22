@@ -30,13 +30,8 @@ interface DefPasso {
 }
 
 const FLUXO_OS: DefPasso[] = [
-  { n: 1, passo: 'os.triar', nome: 'Triar pedido do munícipe', desc: 'Olha o que chegou pelo link ou QR Code e transforma em OS ou recusa com motivo.' },
-  { n: 2, passo: 'os.aprovar', liga: 'exigeAprovacaoOS', nome: 'Aprovar a abertura da OS', desc: 'A OS só vai para o fiscal depois que alguém aprova.',
-    opcoes: [
-      { chave: 'origem:ESCRITORIO', texto: 'Vale para OS aberta no escritório' },
-      { chave: 'origem:MUNICIPE', texto: 'Vale para OS que veio do munícipe' },
-      { chave: 'origem:CAMPO', texto: 'Vale também para OS aberta pelo fiscal em campo' },
-    ] },
+  { n: 1, passo: 'os.triar', nome: 'Triar pedido do munícipe', desc: 'Na Central de Solicitações, olha o que chegou pelo link ou QR Code e transforma em OS (já sai aprovada) ou recusa com motivo.' },
+  { n: 2, passo: 'os.aprovar', nome: 'Aprovar a abertura da OS', desc: 'Toda OS aberta no escritório ou em campo (fiscal ou coordenador) entra na Central de Solicitações e só vai para a equipe depois que o responsável aprova. Pode recusar com motivo.' },
   { n: 3, info: true, nome: 'Executar e dar baixa', desc: 'Vai a campo, faz o serviço e dá baixa com as fotos do depois e quem trabalhou.' },
   { n: 4, passo: 'os.conferir', liga: 'exigeConferencia', nome: 'Conferir a baixa', desc: 'Alguém olha as fotos e finaliza a OS, ou reabre com motivo.',
     opcoes: [{ chave: 'conferenciaPropriaBloqueada', texto: 'Quem deu a baixa não pode conferir a própria baixa' }] },
@@ -129,7 +124,6 @@ export function FluxoAprovacoesPage() {
   }
 
   async function salvar() {
-    if (cfg!.exigeAprovacaoOS && !cfg!.aprovacaoOrigens.length) { showToast('Marque de onde vem a OS que precisa de aprovação', 'warning'); return; }
     if (!(cfg!.metaDias >= 1 && cfg!.metaDias <= 90)) { showToast('O prazo vai de 1 a 90 dias', 'warning'); return; }
     setSalvando(true);
     try {
@@ -283,7 +277,7 @@ export function FluxoAprovacoesPage() {
 
       {Fluxo({
         nome: 'Ordem de Serviço', desenho: 'cadastros/fluxo/os', passos: FLUXO_OS,
-        trilha: [{ nome: 'Triagem' }, { nome: 'Aprovação', liga: 'exigeAprovacaoOS' }, { nome: 'Execução' }, { nome: 'Conferência', liga: 'exigeConferencia' }, { nome: 'Finalizada' }],
+        trilha: [{ nome: 'Triagem' }, { nome: 'Aprovação' }, { nome: 'Execução' }, { nome: 'Conferência', liga: 'exigeConferencia' }, { nome: 'Finalizada' }],
       })}
       {Fluxo({
         nome: 'Pedido de compra', desenho: 'cadastros/fluxo/pedido', passos: FLUXO_PEDIDO,
