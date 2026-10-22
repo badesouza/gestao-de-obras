@@ -9,6 +9,10 @@ import {
   AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Selinho, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros,
 } from '../../components/sisobras/so';
 import { TipoFrotaCampo } from './TipoFrotaCampo';
+import { padroesDoServico } from './servico-padroes';
+
+/* serviço sem cor salva: a mesma cor padrão da lista de Serviços */
+const corDoServico = (sv: { id: string; cor: string | null }) => sv.cor ?? padroesDoServico(sv.id).cor ?? 'var(--brand)';
 
 const SITUACAO: Record<SituacaoFrota, { texto: string; tom: string }> = {
   EM_USO: { texto: 'Em uso', tom: 'mint' },
@@ -130,7 +134,7 @@ function FrotaPage({ tipo }: { tipo: TipoFrota }) {
                       <td data-l={ehVeiculo ? 'Veículo' : 'Equipamento'}><button type="button" className="so-link-nome" onClick={() => abrir(i)}>{i.nome}</button><span className="sub">{i.tipo?.nome ?? i.subtipo ?? '—'}</span></td>
                       <td data-l="Placa / patrimônio" className="mono">{ehVeiculo ? `${i.placa ?? '—'} · ${i.patrimonio ?? '—'}` : i.patrimonio ?? '—'}</td>
                       <td data-l="Serviços que usam">{i.servicos.length
-                        ? <span className="so-frota-servs">{i.servicos.map(sv => <span key={sv.id} className="so-frota-serv"><i style={{ background: sv.cor ?? 'var(--brand)' }} />{sv.nome}</span>)}</span>
+                        ? <span className="so-frota-servs">{i.servicos.map(sv => <span key={sv.id} className="so-frota-serv"><i style={{ background: corDoServico(sv) }} />{sv.nome}</span>)}</span>
                         : <span className="so-badge amber"><span className="dot" />Sem serviço</span>}</td>
                       {ehVeiculo && <td data-l="Equipe">{i.equipe?.nome ?? 'Uso geral'}</td>}
                       <td data-l="Situação"><span className={`so-badge ${s.tom}`}><span className="dot" />{s.texto}</span></td>
@@ -193,7 +197,7 @@ function FrotaPage({ tipo }: { tipo: TipoFrota }) {
             <div className={`so-chips so-frota-escolha${erroServicos ? ' invalid' : ''}`}>
               {dados.servicos.map(sv => (
                 <button key={sv.id} type="button" className={`so-chip${form.servicoIds.includes(sv.id) ? ' on' : ''}`} aria-pressed={form.servicoIds.includes(sv.id)} onClick={() => marcarServico(sv.id)}>
-                  <i className="cor" style={{ background: sv.cor ?? 'var(--brand)' }} />{sv.nome}
+                  <i className="cor" style={{ background: corDoServico(sv) }} />{sv.nome}
                   {form.servicoIds.includes(sv.id) && <Ic n="check" />}
                 </button>
               ))}

@@ -347,7 +347,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
         mapaApi.reverse(entityIdRef.current, lat, lng),
         mapaApi.bairroMaisProximo(entityIdRef.current, lat, lng),
       ]).then(([res, proximo]) => {
-        setGeoLabel(res.label);
+        setGeoLabel(res.label ?? '');
         setGeoStatus('found');
         skipGeoRef.current = true;
 
@@ -399,7 +399,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
         /* dragend sempre faz reverso — usuário moveu manualmente */
         void mapaApi.reverse(entityIdRef.current, pos.lat, pos.lng).then(res => {
           setCoords({ lat: pos.lat, lng: pos.lng });
-          setGeoLabel(res.label);
+          setGeoLabel(res.label ?? '');
           setGeoStatus('found');
           skipGeoRef.current = true;
           if (res.logradouro) setValues(prev => ({ ...prev, 'Logradouro / Referência': res.logradouro! }));
@@ -449,7 +449,7 @@ export function NovaOcorrenciaModal({ config, centro: _centro, propMap, editRow,
           mapaApi.reverse(entityIdRef.current, lat, lng),
           mapaApi.bairroMaisProximo(entityIdRef.current, lat, lng),
         ]).then(([res, proximo]) => {
-          setGeoLabel(res.label);
+          setGeoLabel(res.label ?? '');
           setGeoStatus('found');
           skipGeoRef.current = true;
 

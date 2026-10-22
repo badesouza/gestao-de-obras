@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { mapaApi, osApi, type FormOS, type ValorCampoOS } from '../../../lib/api-client';
 import { useTenant } from '../../TenantContext';
 import { CameraCarimbo, type LocalFoto } from '../../components/camera/CameraCarimbo';
-import { bairroMaisProximoLocal } from '../../components/camera/carimbo';
+import { bairroMaisProximoLocal, enderecoDoGps } from '../../components/camera/carimbo';
 import { Aviso, Carregando, Ic, Janela, msgErro } from '../../components/sisobras/so';
 import { Avatares, CampoFicha, IconeServico, corServico, fichaDoServico, paraResposta, respostaVazia } from './os-ui';
 
@@ -27,6 +27,12 @@ export function NovaOSJanela({ onFechar, onCriada }: { onFechar: () => void; onC
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [buscandoGps, setBuscandoGps] = useState(false);
+  const [ruaDoGps, setRuaDoGps] = useState<'buscando' | 'achou' | ''>('');
+  const consultaRef = useRef(0);
+  /* o que a pessoa digitou o GPS não troca; a foto vale mais que a localização da abertura */
+  const bairroTocado = useRef(false);
+  const ruaTocada = useRef(false);
+  const origemLocal = useRef<'auto' | 'botao' | 'foto' | null>(null);
 
   useEffect(() => {
     osApi.form(entityId).then(f => {
@@ -52,26 +58,47 @@ export function NovaOSJanela({ onFechar, onCriada }: { onFechar: () => void; onC
   function escolherServico(id: string) {
     setServicoId(id); setTipo(''); setValores({}); setErro('');
   }
-  function usarLocal(l: { lat: number; lng: number; precisao?: number }) {
+  function usarLocal(l: { lat: number; lng: number; precisao?: number }, origem: 'auto' | 'botao' | 'foto') {
     setCoords(l);
-    if (!bairro) {
+    origemLocal.current = origem;
+    if (!bairroTocado.current) {
       const p = bairroMaisProximoLocal(l.lat, l.lng, bairrosCoords);
       if (p) setBairro(p);
     }
+    /* rua e bairro pelo GPS, igual à página do munícipe */
+    if (ruaTocada.current) return;
+    const n = ++consultaRef.current;
+    setRuaDoGps('buscando');
+    mapaApi.reverse(entityId, l.lat, l.lng).then(r => {
+      if (n !== consultaRef.current || ruaTocada.current) return;
+      const achado = enderecoDoGps(r, form?.bairros ?? []);
+      if (achado.rua) { setLogradouro(achado.rua); setRuaDoGps('achou'); } else setRuaDoGps('');
+      if (achado.bairro && !bairroTocado.current) setBairro(achado.bairro);
+    }).catch(() => { if (n === consultaRef.current) setRuaDoGps(''); });
   }
-  function pegarGps() {
-    if (!navigator.geolocation) { setErro('Este aparelho não tem GPS'); return; }
+  function pegarGps(auto = false) {
+    if (!navigator.geolocation) { if (!auto) setErro('Este aparelho não tem GPS'); return; }
     setBuscandoGps(true);
     navigator.geolocation.getCurrentPosition(
-      p => { setBuscandoGps(false); usarLocal({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: p.coords.accuracy }); },
-      () => { setBuscandoGps(false); setErro('Não consegui pegar a localização. Confira se o GPS está ligado.'); },
-      { enableHighAccuracy: true, timeout: 15000 },
+      p => {
+        setBuscandoGps(false);
+        /* a foto chegou antes: ela manda */
+        if (auto && origemLocal.current === 'foto') return;
+        usarLocal({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: p.coords.accuracy }, auto ? 'auto' : 'botao');
+      },
+      () => { setBuscandoGps(false); if (!auto) setErro('Não consegui pegar a localização. Confira se o GPS está ligado.'); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
     );
   }
+  /* no celular a localização vem sozinha ao abrir; no computador do escritório fica no botão */
+  const celular = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+  useEffect(() => {
+    if (form && celular && !origemLocal.current) pegarGps(true);
+  }, [form]); // eslint-disable-line react-hooks/exhaustive-deps
   function fotosDaCamera(files: File[], local: LocalFoto | null) {
     setCamera(false);
     setFotos(prev => [...prev, ...files.map(file => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }))]);
-    if (local && !coords) usarLocal(local);
+    if (local && origemLocal.current !== 'foto') usarLocal(local, 'foto');
   }
   function anexar(files: FileList | null) {
     if (!files) return;
@@ -183,19 +210,20 @@ export function NovaOSJanela({ onFechar, onCriada }: { onFechar: () => void; onC
           <div className="so-fs-t">3 · Onde</div>
           <div className="so-fgrid">
             <label className="so-field"><span className="so-lbl">Bairro <span className="req">*</span></span>
-              <span className="so-ctrl"><select value={bairro} onChange={e => setBairro(e.target.value)}><option value="">Escolha…</option>{form.bairros.map(b => <option key={b.nome}>{b.nome}</option>)}</select></span>
+              <span className="so-ctrl"><select value={bairro} onChange={e => { setBairro(e.target.value); bairroTocado.current = true; }}><option value="">Escolha…</option>{form.bairros.map(b => <option key={b.nome}>{b.nome}</option>)}</select></span>
             </label>
             <label className="so-field" style={{ gridColumn: 'span 2' }}><span className="so-lbl">Rua / referência <span className="req">*</span></span>
-              <span className="so-ctrl"><Ic n="pin" /><input type="text" value={logradouro} maxLength={300} placeholder="Ex.: Rua Rui Barbosa, em frente ao 210" onChange={e => setLogradouro(e.target.value)} /></span>
+              <span className="so-ctrl"><Ic n="pin" /><input type="text" value={logradouro} maxLength={300} placeholder={ruaDoGps === 'buscando' ? 'Procurando a rua pelo GPS…' : 'Ex.: Rua Rui Barbosa, em frente ao 210'} onChange={e => { setLogradouro(e.target.value); ruaTocada.current = true; setRuaDoGps(''); }} /></span>
+              {ruaDoGps === 'achou' && <span className="so-help" style={{ color: 'var(--mint-ink, #0E8A5F)' }}>Rua encontrada pelo GPS. Confira o número.</span>}
             </label>
             <div className="so-field all">
-              <span className="so-lbl">Ponto no mapa <span className="opt">opcional no escritório · no celular vem do GPS da foto</span></span>
+              <span className="so-lbl">Ponto no mapa <span className="opt">vem sozinho pelo GPS no celular</span></span>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                 {coords
                   ? <span className="os-pill mint"><i /><span className="mono" style={{ fontSize: 11 }}>{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</span>{coords.precisao != null && <span style={{ fontWeight: 600 }}>±{Math.round(coords.precisao)} m</span>}</span>
-                  : <span className="so-help">Sem ponto marcado</span>}
-                <button type="button" className="so-btn so-ghost sm" onClick={pegarGps} disabled={buscandoGps}><Ic n="pin" />{buscandoGps ? 'Buscando…' : 'Usar minha localização'}</button>
-                {coords && <button type="button" className="so-btn so-ghost sm" onClick={() => setCoords(null)}>Tirar</button>}
+                  : <span className="so-help">{buscandoGps ? 'Pegando a localização…' : 'Sem ponto marcado'}</span>}
+                <button type="button" className="so-btn so-ghost sm" onClick={() => pegarGps()} disabled={buscandoGps}><Ic n="pin" />{buscandoGps ? 'Buscando…' : coords ? 'Pegar de novo' : 'Usar minha localização'}</button>
+                {coords && <button type="button" className="so-btn so-ghost sm" onClick={() => { setCoords(null); origemLocal.current = null; }}>Tirar</button>}
               </div>
             </div>
           </div>

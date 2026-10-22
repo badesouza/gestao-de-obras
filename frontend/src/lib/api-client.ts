@@ -245,7 +245,12 @@ export const centralPublicaApi = {
   },
   acompanhar: (entityId: string, protocolo: string, telefone: string) =>
     apiRequest<AcompanhamentoSolicitacao>(`/api/public/v1/tenants/${entityId}/solicitacoes/${encodeURIComponent(protocolo)}?telefone=${encodeURIComponent(telefone)}`),
+  endereco: (entityId: string, lat: number, lng: number) =>
+    apiRequest<EnderecoGps>(`/api/public/v1/tenants/${entityId}/endereco?lat=${lat}&lng=${lng}`),
 };
+
+/** Endereço achado pelo GPS (rua, número quando o mapa tem, bairro) */
+export interface EnderecoGps { label: string | null; logradouro: string | null; numero: string | null; bairro: string | null }
 
 export const centralApi = {
   listar: (entityId: string, status?: StatusSolicitacao) =>
@@ -1325,7 +1330,7 @@ export const mapaApi = {
       `/api/tenant/v1/mapa/geocode?q=${encodeURIComponent(q)}`,
     ),
   reverse: (entityId: string, lat: number, lng: number) =>
-    tenantRequest<{ label: string; logradouro: string | null; bairro: string | null }>(
+    tenantRequest<EnderecoGps>(
       entityId,
       `/api/tenant/v1/mapa/reverse?lat=${lat}&lng=${lng}`,
     ),

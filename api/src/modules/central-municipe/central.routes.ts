@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AppError, handleAppError } from '../../shared/errors.js';
 import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../shared/constants.js';
 import { carregarAtor, requireAcesso, requireTenantAuth, requireTenantPermission } from '../../plugins/auth-tenant.js';
+import { enderecoPorCoordenada } from '../tenant/mapa/endereco-gps.js';
 import { contarPendentes, listarInternas, poderesCentral } from './central-interna.service.js';
 import {
   consultarSolicitacao, converterEmOcorrencia, criarSolicitacao, lerFoto, listarBairros,
@@ -24,6 +25,18 @@ function dentroDoLimite(ip: string) {
   lista.push(agora);
   envios.set(ip, lista);
   if (envios.size > 5000) for (const [k, v] of envios) if (v.every(t => agora - t >= JANELA_MS)) envios.delete(k);
+  return true;
+}
+
+/* consulta de endereço: até 30 por minuto por IP */
+const consultas = new Map<string, number[]>();
+function consultaDentroDoLimite(ip: string) {
+  const agora = Date.now();
+  const lista = (consultas.get(ip) ?? []).filter(t => agora - t < 60_000);
+  if (lista.length >= 30) { consultas.set(ip, lista); return false; }
+  lista.push(agora);
+  consultas.set(ip, lista);
+  if (consultas.size > 5000) consultas.clear();
   return true;
 }
 
@@ -82,6 +95,15 @@ export async function registerCentralPublicRoutes(fastify: FastifyInstance) {
       const entrada = validar(novaSolicitacaoSchema, json);
       const r = await criarSolicitacao(fastify.prisma, id, entrada, fotos, ip);
       return reply.code(201).send(r);
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  /* rua a partir do GPS da foto (o munícipe só confere o número) */
+  fastify.get('/tenants/:id/endereco', async (req, reply) => {
+    try {
+      const { lat, lng } = validar(z.object({ lat: z.coerce.number().min(-90).max(90), lng: z.coerce.number().min(-180).max(180) }), req.query);
+      if (!consultaDentroDoLimite(ipDe(req))) throw new AppError(429, 'TOO_MANY_REQUESTS', 'Muitas consultas seguidas. Digite a rua.');
+      return reply.send(await enderecoPorCoordenada(lat, lng) ?? { label: null, logradouro: null, numero: null, bairro: null });
     } catch (e) { return handleAppError(reply, e); }
   });
 

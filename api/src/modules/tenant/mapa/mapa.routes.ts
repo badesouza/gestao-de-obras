@@ -4,6 +4,7 @@ import { handleAppError } from '../../../shared/errors.js';
 import { carregarAtor, requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.js';
 import { assertAcessoServico, filtroEscopoOS } from '../ordens/ordens.service.js';
 import { registrarEnderecoDescoberto } from '../enderecos/endereco-descoberto.service.js';
+import { enderecoPorCoordenada } from './endereco-gps.js';
 
 const geocodeQuerySchema = z.object({
   q: z.string().min(1),
@@ -77,46 +78,9 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
     try {
       const { lat, lng } = reverseGeocodeQuerySchema.parse(req.query);
 
-      const url = `https://nominatim.openstreetmap.org/reverse?` +
-        new URLSearchParams({
-          lat: String(lat),
-          lon: String(lng),
-          format: 'json',
-          addressdetails: '1',
-          'accept-language': 'pt-BR',
-        });
-
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'GestaoObras/1.0 (contato@sistema.gov.br)' },
-      });
-
-      if (!res.ok) {
-        return reply.status(502).send({ error: 'Erro ao consultar geocodificação reversa' });
-      }
-
-      const data = await res.json() as {
-        display_name: string;
-        address: {
-          road?: string;
-          suburb?: string;
-          neighbourhood?: string;
-          city_district?: string;
-          quarter?: string;
-          village?: string;
-          town?: string;
-          city?: string;
-        };
-      };
-
-      const addr = data.address ?? {};
-      const logradouro = addr.road ?? null;
-      const bairro = addr.suburb ?? addr.neighbourhood ?? addr.city_district ?? addr.quarter ?? null;
-
-      return reply.send({
-        label: data.display_name,
-        logradouro,
-        bairro,
-      });
+      const r = await enderecoPorCoordenada(lat, lng);
+      if (!r) return reply.status(502).send({ error: 'Erro ao consultar geocodificação reversa' });
+      return reply.send(r);
     } catch (e) {
       return handleAppError(reply, e);
     }

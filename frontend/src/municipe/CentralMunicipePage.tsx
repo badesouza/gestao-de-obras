@@ -6,7 +6,7 @@ import {
   type AcompanhamentoSolicitacao, type BairroCoord, type CentralPublica,
 } from '../lib/api-client';
 import { CameraCarimbo, type LocalFoto } from '../tenant/components/camera/CameraCarimbo';
-import { bairroMaisProximoLocal } from '../tenant/components/camera/carimbo';
+import { bairroMaisProximoLocal, enderecoDoGps } from '../tenant/components/camera/carimbo';
 import { CATEGORIAS_CIDADAO, categoriaPorSlug, corDaCategoria, iconeDaCategoria } from '../tenant/components/obras/categorias';
 import { CENTRO_IDS } from '../tenant/pages/servico-config';
 import './municipe.css';
@@ -105,6 +105,9 @@ export function CentralMunicipePage() {
   const [bairro, setBairro] = useState('');
   const [bairroTocado, setBairroTocado] = useState(false);
   const [logradouro, setLogradouro] = useState('');
+  const [ruaTocada, setRuaTocada] = useState(false);
+  const [ruaDoGps, setRuaDoGps] = useState<'buscando' | 'achou' | ''>('');
+  const consultaRef = useRef(0);
   const [referencia, setReferencia] = useState('');
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -144,6 +147,16 @@ export function CentralMunicipePage() {
       const perto = bairroMaisProximoLocal(l.lat, l.lng, bairrosCoords);
       if (perto) setBairro(perto);
     }
+    /* rua e bairro pelo GPS da foto — o munícipe só confere o número */
+    if (ruaTocada) return;
+    const n = ++consultaRef.current;
+    setRuaDoGps('buscando');
+    centralPublicaApi.endereco(entityId, l.lat, l.lng).then(r => {
+      if (n !== consultaRef.current) return;
+      const achado = enderecoDoGps(r, cfg?.bairros ?? []);
+      if (achado.rua) { setLogradouro(achado.rua); setRuaDoGps('achou'); } else setRuaDoGps('');
+      if (achado.bairro && !bairroTocado) setBairro(achado.bairro);
+    }).catch(() => { if (n === consultaRef.current) setRuaDoGps(''); });
   };
 
   const fotosDaCamera = (files: File[], loc: LocalFoto | null) => {
@@ -192,7 +205,7 @@ export function CentralMunicipePage() {
   const recomecar = () => {
     fotos.forEach(f => URL.revokeObjectURL(f.url));
     setFotos([]); setCategoria(''); setDescricao(''); setLocal(null); setBairro(''); setBairroTocado(false);
-    setLogradouro(''); setReferencia(''); setAceite(false); setProtocolo(''); setErro('');
+    setLogradouro(''); setRuaTocada(false); setRuaDoGps(''); setReferencia(''); setAceite(false); setProtocolo(''); setErro('');
     setEtapa(1); setTela('pedido');
   };
 
@@ -302,7 +315,9 @@ export function CentralMunicipePage() {
                 </label>
                 <label className="mc-campo">
                   <span>Rua e número</span>
-                  <input value={logradouro} onChange={e => setLogradouro(e.target.value)} maxLength={300} placeholder="Ex.: Rua Rui Barbosa, 245" autoComplete="street-address" />
+                  <input value={logradouro} onChange={e => { setLogradouro(e.target.value); setRuaTocada(true); setRuaDoGps(''); }} maxLength={300}
+                    placeholder={ruaDoGps === 'buscando' ? 'Procurando a rua pelo GPS…' : 'Ex.: Rua Rui Barbosa, 245'} autoComplete="street-address" />
+                  {ruaDoGps === 'achou' && <small className="mc-gps-dica">Rua encontrada pelo GPS da foto. Confira e coloque o número.</small>}
                 </label>
                 <label className="mc-campo">
                   <span>Ponto de referência <em>opcional</em></span>

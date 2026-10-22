@@ -282,6 +282,15 @@ export function bairroMaisProximoLocal(lat: number, lng: number, bairros: Bairro
   return melhor && melhor.d <= limiteM ? melhor.nome : null;
 }
 
+/* ── Endereço achado pelo GPS: "Rua X, 245" e o bairro do cadastro com o mesmo nome ── */
+const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+export function enderecoDoGps(r: { logradouro: string | null; numero: string | null; bairro: string | null }, bairros: { nome: string }[]) {
+  const rua = r.logradouro ? (r.numero ? `${r.logradouro}, ${r.numero}` : r.logradouro) : null;
+  const bairro = r.bairro ? bairros.find(b => semAcento(b.nome) === semAcento(r.bairro!))?.nome ?? null : null;
+  return { rua, bairro };
+}
+
 /* ── Brasão (guardado no aparelho para funcionar offline) ─────── */
 
 const chaveBrasao = (entityId: string) => `gdo:brasao:${entityId}`;
