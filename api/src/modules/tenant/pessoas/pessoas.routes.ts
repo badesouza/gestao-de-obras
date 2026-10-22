@@ -5,8 +5,7 @@ import { requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.j
 import { buildTenantTokenPayload } from '../auth/auth.service.js';
 import {
   adicionarMembro, atualizarPessoa, consultarLink, criarEquipe, criarPessoa, definirSituacao, gerarLink,
-  listarEquipes, listarPessoas, obterAcessos, removerEquipe, removerMembro, salvarAcessos, salvarEquipe, usarLink,
-} from './pessoas.service.js';
+  listarEquipes, listarPessoas, obterAcessos, removerEquipe, removerMembro, salvarAcessos, salvarEquipe, usarLink, excluirPessoa } from './pessoas.service.js';
 
 const pessoaSchema = z.object({
   nome: z.string().trim().min(2, 'Informe o nome completo').max(200),
@@ -43,6 +42,13 @@ export async function registerPessoasRoutes(fastify: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await atualizarPessoa(fastify.prisma, req.user.entityId!, req.user.sub, id, pessoaSchema.parse(req.body)));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.delete('/pessoas/:id', { preHandler: podePessoas }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      return reply.send(await excluirPessoa(fastify.prisma, req.user.entityId!, req.user.sub, id));
     } catch (e) { return handleAppError(reply, e); }
   });
 

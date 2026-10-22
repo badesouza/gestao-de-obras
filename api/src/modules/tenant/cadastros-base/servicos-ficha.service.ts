@@ -173,3 +173,24 @@ export async function servicosParaMunicipe(prisma: PrismaClient, entityId: strin
   });
   return s.map(x => ({ id: x.id, pode: x.status === 'ACTIVE' && x.municipePode !== false, nome: x.nomeMunicipe }));
 }
+
+/** Excluir serviço criado por engano: só sai de vez se nunca teve OS;
+    com OS fica inativo (apagar levaria as OS junto) e o histórico continua. */
+export async function excluirServico(prisma: PrismaClient, entityId: string, userId: string, id: string) {
+  const s = await prisma.centroCusto.findFirst({ where: { id, entityId }, select: { id: true, nome: true, _count: { select: { registrosDiarios: true } } } });
+  if (!s) throw new AppError(404, 'NOT_FOUND', 'Serviço não encontrado');
+  const desativar = async () => {
+    await prisma.centroCusto.update({ where: { id }, data: { status: 'INACTIVE' } });
+    await writeTenantAudit(prisma, { entityId, userId, action: 'SERVICO_DESATIVADO', resource: 'servico', newValue: { id, nome: s.nome } });
+    return { removido: false, desativado: true };
+  };
+  if (s._count.registrosDiarios > 0) return desativar();
+  try {
+    await prisma.centroCusto.delete({ where: { id } });
+    await writeTenantAudit(prisma, { entityId, userId, action: 'SERVICO_EXCLUIDO', resource: 'servico', previousValue: { id, nome: s.nome } });
+    return { removido: true, desativado: false };
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'P2003') throw e;
+    return desativar();
+  }
+}

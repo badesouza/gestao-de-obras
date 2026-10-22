@@ -5,7 +5,7 @@ import type { ServicoResumo, TipoServico } from '../../../lib/api-client';
 import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
-import { Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros } from '../../components/sisobras/so';
+import { AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros } from '../../components/sisobras/so';
 import { padroesDoServico } from './servico-padroes';
 
 type Filtro = 'todos' | 'MANUTENCAO' | 'CONSTRUCAO' | 'sem-centro' | 'inativos';
@@ -19,6 +19,7 @@ export function ServicosListaPage() {
   const [servicos, setServicos] = useState<ServicoResumo[] | null>(null);
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [novo, setNovo] = useState<{ nome: string; tipo: TipoServico } | null>(null);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async () => {
     try { setServicos((await servicosFichaApi.listar(entityId)).servicos); }
@@ -57,6 +58,20 @@ export function ServicosListaPage() {
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
 
+  function excluir(sv: { id: string; nome: string }) {
+    confirmar({
+      oque: 'serviço', nome: sv.nome,
+      texto: 'Se o serviço já tiver OS, ele não é apagado (as OS iriam junto): fica inativo, some das listas novas e o histórico continua.',
+      acao: async () => {
+        try {
+          const r = await servicosFichaApi.excluir(entityId, sv.id);
+          showToast(r.desativado ? 'Tem OS: ficou inativo e o histórico continua' : 'Serviço excluído', r.desativado ? 'warning' : 'success');
+          await carregar(); recarregar();
+        } catch (e) { showToast(msgErro(e), 'error'); }
+      },
+    });
+  }
+
   return (
     <Pagina>
       <CabecalhoPasso passo={6} resumo={resumo} sub="O que a secretaria faz. Cada serviço tem uma ficha: centro de custo, contratos, quem atende e o que o fiscal preenche." />
@@ -87,7 +102,7 @@ export function ServicosListaPage() {
                   <td data-l="Contratos" className="c mono">{s.contratos}</td>
                   <td data-l="Quem atende" className="c mono">{s.pessoas}</td>
                   <td data-l="Munícipe pede?" className="c"><span className={`so-badge ${s.municipePode ? 'mint' : ''}`}>{s.municipePode ? 'Sim' : 'Não'}</span></td>
-                  <td data-l="" className="r"><Link to={rotaTenant(entityId, `cadastros/servicos/${s.id}`)} className="so-btn so-ghost sm">Abrir ficha<Ic n="seta" className="arrow" /></Link></td>
+                  <td data-l="" className="acoes"><AcoesLinha nome={s.nome} textoEditar="Abrir a ficha de" onEditar={() => navigate(rotaTenant(entityId, `cadastros/servicos/${s.id}`))} onExcluir={s.ativo ? () => excluir(s) : undefined} /></td>
                 </tr>
               ))}
               {!visiveis.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Nenhum serviço aqui.</td></tr>}
@@ -121,6 +136,7 @@ export function ServicosListaPage() {
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Centros de custo</Link>
         <Link to={rotaTenant(entityId, 'cadastros/fluxo')} className="so-btn so-primary">Concluir: Fluxo e aprovações<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>
   );

@@ -9,7 +9,7 @@ import {
   obterOrgao, removerBairro, removerMacrozona, renomearMacrozona, resumoCadastros, salvarOrgao,
 } from './cadastros-base.service.js';
 import { atualizarFrota, criarFrota, listarFrota, removerFrota, servicosSemCentro } from './frota.service.js';
-import { MOMENTOS, TIPOS_CAMPO, criarServico, listarServicos, obterFicha, salvarFicha } from './servicos-ficha.service.js';
+import { MOMENTOS, TIPOS_CAMPO, criarServico, excluirServico, listarServicos, obterFicha, salvarFicha } from './servicos-ficha.service.js';
 import { PASSOS_FLUXO, obterFluxo, salvarFluxo } from './fluxo.service.js';
 import { ORIGENS_OS } from '../ordens/ordens.service.js';
 
@@ -218,6 +218,13 @@ export async function registerCadastrosBaseRoutes(fastify: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       return reply.send(await salvarFicha(fastify.prisma, req.user.entityId!, req.user.sub, id, fichaSchema.parse(req.body)));
+    } catch (e) { return handleAppError(reply, e); }
+  });
+
+  fastify.delete('/cadastros/servicos/:id', { preHandler: podeServicos }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      return reply.send(await excluirServico(fastify.prisma, req.user.entityId!, req.user.sub, id));
     } catch (e) { return handleAppError(reply, e); }
   });
 

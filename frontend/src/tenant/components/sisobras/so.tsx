@@ -50,7 +50,8 @@ const ICONES = {
   chat: <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z" />,
   copiar: <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></>,
   carrinho: <><circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" /><path d="M2 2h2l2.7 12.4a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 1.9-1.6L21 8H5.1" /></>,
-  osCheck: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>,
+  lixeira: <><g className="tampa"><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></g><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></>,
+    osCheck: <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>,
 } as const;
 
 export type NomeIcone = keyof typeof ICONES;
@@ -85,7 +86,7 @@ export function Mira() {
 }
 
 /** Selo da página: prancha quadriculada com cantoneiras e o bloco do ícone flutuando */
-export function Selo({ icone, tom, pequeno, rotulo }: { icone?: NomeIcone; tom?: 'mint' | 'amber'; pequeno?: boolean; rotulo?: string }) {
+export function Selo({ icone, tom, pequeno, rotulo }: { icone?: NomeIcone; tom?: 'mint' | 'amber' | 'coral'; pequeno?: boolean; rotulo?: string }) {
   return (
     <div className={`so-selo${pequeno ? ' sm' : ''}`} {...(rotulo ? { role: 'img', 'aria-label': rotulo } : { 'aria-hidden': true })}>
       <span className="cm tl" /><span className="cm tr" /><span className="cm br" /><span className="cm bl" />
@@ -297,7 +298,7 @@ export function msgErro(e: unknown, padrao = 'Não foi possível salvar') {
 /** Janela no padrão SisObras: abre pelo botão, com selo, título, corpo e rodapé de ações.
     Fecha no X, no Esc ou no Cancelar (clicar fora não fecha, para não perder o que foi digitado). */
 export function Janela({ icone, tom, eyebrow, titulo, sub, ajuda, largura = 560, onFechar, rodape, children, rotulo }: {
-  icone: NomeIcone; tom?: 'mint' | 'amber'; eyebrow?: ReactNode; titulo: ReactNode; sub?: ReactNode; ajuda?: string;
+  icone: NomeIcone; tom?: 'mint' | 'amber' | 'coral'; eyebrow?: ReactNode; titulo: ReactNode; sub?: ReactNode; ajuda?: string;
   largura?: number; onFechar: () => void; rodape?: ReactNode; children: ReactNode; rotulo?: string;
 }) {
   const ref = useRef<HTMLElement>(null);
@@ -312,7 +313,7 @@ export function Janela({ icone, tom, eyebrow, titulo, sub, ajuda, largura = 560,
   }, []);
   return createPortal(
     <div className="so so-scrim fixo" role="presentation">
-      <section ref={ref} className="so-dialog so-janela" role="dialog" aria-modal="true" aria-label={rotulo ?? (typeof titulo === 'string' ? titulo : undefined)} style={{ width: largura }}>
+      <section ref={ref} className={`so-dialog so-janela${tom === 'coral' ? ' perigo' : ''}`} role="dialog" aria-modal="true" aria-label={rotulo ?? (typeof titulo === 'string' ? titulo : undefined)} style={{ width: largura }}>
         <div className="so-dlg-h">
           <Selo icone={icone} tom={tom} pequeno />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -331,4 +332,62 @@ export function Janela({ icone, tom, eyebrow, titulo, sub, ajuda, largura = 560,
     </div>,
     document.body,
   );
+}
+
+/* ═══════════════════════ Editar e excluir ═══════════════════════ */
+
+/** Os dois botões de ícone de cada linha/cartão: lápis (editar) e lixeira (excluir) */
+export function AcoesLinha({ nome, onEditar, onExcluir, textoEditar = 'Editar' }: {
+  nome: string; onEditar?: () => void; onExcluir?: () => void; textoEditar?: string;
+}) {
+  return (
+    <span className="so-acoes">
+      {onEditar && (
+        <button type="button" className="so-acao edit" title={`${textoEditar} ${nome}`} aria-label={`${textoEditar} ${nome}`} onClick={onEditar}>
+          <Ic n="editar" />
+        </button>
+      )}
+      {onExcluir && (
+        <button type="button" className="so-acao del" title={`Excluir ${nome}`} aria-label={`Excluir ${nome}`} onClick={onExcluir}>
+          <Ic n="lixeira" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+export interface PedidoExclusao {
+  /** o que está sendo excluído: "bairro", "veículo"… */
+  oque: string;
+  nome: string;
+  /** o que acontece depois (ex.: "Se já tiver OS, fica inativo e o histórico continua.") */
+  texto?: ReactNode;
+  rotuloBotao?: string;
+  acao: () => Promise<void>;
+}
+
+/** Janela de confirmação para excluir (no lugar da caixinha do navegador).
+    Uso: const { confirmar, janelaExclusao } = useConfirmarExclusao(); … confirmar({ oque, nome, acao }) … {janelaExclusao} */
+export function useConfirmarExclusao() {
+  const [pedido, setPedido] = useState<PedidoExclusao | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const fechar = () => { if (!ocupado) setPedido(null); };
+  async function executar() {
+    if (!pedido) return;
+    setOcupado(true);
+    try { await pedido.acao(); setPedido(null); }
+    finally { setOcupado(false); }
+  }
+  const janelaExclusao = pedido ? (
+    <Janela icone="lixeira" tom="coral" eyebrow={<span style={{ color: 'var(--coral)' }}>Excluir {pedido.oque}</span>}
+      titulo={`Excluir ${pedido.nome}?`} largura={480} onFechar={fechar} rotulo={`Excluir ${pedido.nome}`}
+      rodape={<>
+        <button type="button" className="so-btn so-ghost" disabled={ocupado} onClick={fechar}>Cancelar</button>
+        <button type="button" className="so-btn so-excluir" disabled={ocupado} onClick={executar}><Ic n="lixeira" />{ocupado ? 'Excluindo…' : pedido.rotuloBotao ?? 'Excluir'}</button>
+      </>}>
+      <div className="so-excluir-alvo"><Ic n="alerta" /><span><b>{pedido.nome}</b> vai sair da lista.</span></div>
+      {pedido.texto && <p className="so-help" style={{ fontSize: 12.5 }}>{pedido.texto}</p>}
+    </Janela>
+  ) : null;
+  return { confirmar: setPedido, janelaExclusao };
 }

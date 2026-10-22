@@ -5,7 +5,7 @@ import type { CampoServico, FichaServico, MomentoCampo, TipoCampo, TipoServico }
 import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
-import { Aviso, BarraAcoes, Cabecalho, Carregando, Cartao, Ic, Janela, Pagina, Selo, Sep, msgErro, rotaTenant } from '../../components/sisobras/so';
+import { AcoesLinha, Aviso, BarraAcoes, Cabecalho, Carregando, Cartao, Ic, Janela, Pagina, Selo, Sep, msgErro, rotaTenant, useConfirmarExclusao } from '../../components/sisobras/so';
 import { CAMPOS_FIXOS, CORES, padroesDoServico } from './servico-padroes';
 
 interface Form {
@@ -45,6 +45,7 @@ export function FichaServicoPage() {
   const [novoSub, setNovoSub] = useState('');
   /* janela de um campo: i = posição na lista (null = campo novo); c = rascunho */
   const [campoJ, setCampoJ] = useState<{ i: number | null; c: CampoServico } | null>(null);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
   const [vincular, setVincular] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -233,7 +234,8 @@ export function FichaServicoPage() {
                       <td data-l="Tipo">{TIPO_CAMPO[c.tipo]}</td>
                       <td data-l="Quando"><span className={`so-badge ${c.momento === 'ABERTURA' ? 'brand' : 'mint'}`}>{c.momento === 'ABERTURA' ? 'Abertura' : 'Baixa'}</span></td>
                       <td data-l="Obrigatório" className="c"><input type="checkbox" className="so-ck" checked={c.obrigatorio} aria-label="Obrigatório" onChange={e => setCampo(i, { obrigatorio: e.target.checked })} /></td>
-                      <td data-l="" className="r"><button type="button" className="so-btn so-ghost sm" onClick={() => setCampoJ({ i, c: { ...c, opcoes: [...c.opcoes] } })}>Editar</button></td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={c.nome || 'campo'} onEditar={() => setCampoJ({ i, c: { ...c, opcoes: [...c.opcoes] } })}
+                        onExcluir={() => confirmar({ oque: 'campo', nome: c.nome || 'este campo', texto: 'Sai da ficha quando você clicar em "Salvar ficha". As OS antigas guardam o que já foi preenchido.', acao: async () => { set('campos', form.campos.filter((_, j) => j !== i)); } })} /></td>
                     </tr>
                   ))}
                   {!form.campos.length && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 16 }}>Nenhum campo próprio. Só os de toda OS.</td></tr>}
@@ -285,9 +287,10 @@ export function FichaServicoPage() {
 
       <BarraAcoes esquerda={<><span className="so-dotc" style={{ background: form.cor, width: 10, height: 10 }} /><b>{form.nome}</b><Sep />{form.campos.length} campos próprios<Sep />{ligadas.length} contratos</>}>
         <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar à lista</Link>
-        {ficha.ativo && <button type="button" className="so-btn so-danger" disabled={salvando} onClick={() => { if (window.confirm(`Desativar "${ficha.nome}"? Ele some das listas novas; o histórico continua.`)) void salvar(false); }}>Desativar serviço</button>}
+        {ficha.ativo && <button type="button" className="so-btn so-danger" disabled={salvando} onClick={() => confirmar({ oque: 'serviço', nome: ficha.nome, rotuloBotao: 'Desativar', texto: 'Ele some das listas novas e da página do munícipe; o histórico continua.', acao: () => salvar(false) })}>Desativar serviço</button>}
         <button type="button" className="so-btn so-primary" disabled={salvando} onClick={() => salvar()}><Ic n="check" />Salvar ficha</button>
       </BarraAcoes>
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>
   );

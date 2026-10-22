@@ -7,7 +7,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const CENTRO_PADRAO: [number, number] = [-12.5253, -40.3083];
@@ -61,6 +61,8 @@ export function LugaresPage() {
   const [busca, setBusca] = useState('');
   const [painel, setPainel] = useState<Painel>(null);
   const [novaMacro, setNovaMacro] = useState<string | null>(null);
+  const [macroEdId, setMacroEdId] = useState<string | null>(null);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   // campos do painel
   const [nome, setNome] = useState('');
@@ -117,8 +119,14 @@ export function LugaresPage() {
     finally { setSalvando(false); }
   }
 
-  async function removerBairro(b: BairroLugar) {
-    if (!window.confirm(`Tirar "${b.nome}" da lista?`)) return;
+  function removerBairro(b: BairroLugar) {
+    confirmar({
+      oque: 'bairro', nome: b.nome,
+      texto: 'Se o bairro já tiver OS, ele não é apagado: fica inativo, some das listas novas e o histórico continua.',
+      acao: () => excluirBairro(b),
+    });
+  }
+  async function excluirBairro(b: BairroLugar) {
     try {
       const r = await cadastrosBaseApi.removerBairro(entityId, b.id);
       showToast(r.desativado ? 'O bairro tem OS: ficou inativo e o histórico continua' : 'Bairro removido', r.desativado ? 'warning' : 'success');
@@ -138,12 +146,28 @@ export function LugaresPage() {
   }
 
   async function criarMacro() {
-    if (!novaMacro?.trim()) return;
+    if (!novaMacro?.trim()) { showToast('Informe o nome da macrozona', 'warning'); return; }
     try {
-      await cadastrosBaseApi.criarMacrozona(entityId, novaMacro);
-      setNovaMacro(null); showToast('Macrozona criada'); await carregar(); recarregar();
+      if (macroEdId) await cadastrosBaseApi.renomearMacrozona(entityId, macroEdId, novaMacro);
+      else await cadastrosBaseApi.criarMacrozona(entityId, novaMacro);
+      showToast(macroEdId ? 'Macrozona salva' : 'Macrozona criada');
+      setNovaMacro(null); setMacroEdId(null); await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
+  function fecharMacro() { setNovaMacro(null); setMacroEdId(null); }
+  function excluirMacro(m: MacrozonaLugar) {
+    confirmar({
+      oque: 'macrozona', nome: m.nome,
+      texto: m.bairros > 0 ? `Os ${m.bairros} bairros dela continuam cadastrados e ficam "sem macrozona".` : 'Ela não tem bairros.',
+      acao: async () => {
+        try {
+          await cadastrosBaseApi.removerMacrozona(entityId, m.id);
+          showToast('Macrozona excluída'); setFiltro('todas'); await carregar(); recarregar();
+        } catch (e) { showToast(msgErro(e), 'error'); }
+      },
+    });
+  }
+  const macroSel = macros.find(m => m.id === filtro) ?? null;
 
   const tituloPainel = painel?.modo === 'editar' ? 'Editar bairro' : painel?.modo === 'colar' ? 'Colar lista de bairros' : 'Novo bairro';
 
@@ -151,7 +175,7 @@ export function LugaresPage() {
     <Pagina>
       <CabecalhoPasso passo={2} resumo={resumo} sub="Macrozonas e bairros. Aparecem ao abrir uma OS, nos filtros do painel e na página do munícipe." />
 
-      <Cartao className="so-rise" icone="map" titulo="Macrozonas" meta="clique para filtrar os bairros" ajuda="Ajuda: Macrozonas"
+      <Cartao className="so-rise" icone="map" titulo="Macrozonas" meta="clique numa macrozona para filtrar, editar ou excluir" ajuda="Ajuda: Macrozonas"
         direita={<button type="button" className="so-btn so-dashed sm" onClick={() => setNovaMacro('')}><Ic n="plus" />Nova macrozona</button>}>
         <div className="so-chips">
           <button type="button" className={`so-chip${filtro === 'todas' ? ' on' : ''}`} onClick={() => setFiltro('todas')}>Todas <span className="n">{bairros.length}</span></button>
@@ -159,6 +183,11 @@ export function LugaresPage() {
             <button key={m.id} type="button" className={`so-chip${filtro === m.id ? ' on' : ''}`} onClick={() => setFiltro(m.id)}>{m.nome} <span className="n">{m.bairros}</span></button>
           ))}
           {semMacro > 0 && <button type="button" className={`so-chip alert${filtro === 'sem' ? ' on' : ''}`} onClick={() => setFiltro('sem')}>Sem macrozona <span className="n">{semMacro}</span></button>}
+          {macroSel && (
+            <span className="so-macro-sel">Macrozona <b>{macroSel.nome}</b>
+              <AcoesLinha nome={`a macrozona ${macroSel.nome}`} onEditar={() => { setMacroEdId(macroSel.id); setNovaMacro(macroSel.nome); }} onExcluir={() => excluirMacro(macroSel)} />
+            </span>
+          )}
         </div>
       </Cartao>
 
@@ -182,7 +211,7 @@ export function LugaresPage() {
                       <td data-l="Macrozona">{b.macrozona ?? <span style={{ color: 'var(--amber)', fontWeight: 700 }}>sem macrozona</span>}</td>
                       <td data-l="No mapa"><span className={`so-badge ${marcado ? 'mint' : 'amber'}`}><span className="dot" />{marcado ? 'Marcado' : 'Sem ponto'}</span></td>
                       <td data-l="OS abertas" className="r mono">{b.osAbertas}</td>
-                      <td data-l="" className="r"><button type="button" className="so-btn so-ghost sm" onClick={() => abrir({ modo: 'editar', bairro: b })}>Editar</button></td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={b.nome} onEditar={() => abrir({ modo: 'editar', bairro: b })} onExcluir={() => removerBairro(b)} /></td>
                     </tr>
                   );
                 })}
@@ -196,11 +225,12 @@ export function LugaresPage() {
       </Cartao>
 
       {novaMacro !== null && (
-        <Janela icone="map" eyebrow="Lugares · macrozona" titulo="Nova macrozona" sub="Uma região da cidade que agrupa bairros. Ex.: Norte, Sede, Zona rural."
-          largura={460} onFechar={() => setNovaMacro(null)} ajuda="Ajuda: Macrozonas"
+        <Janela icone={macroEdId ? 'editar' : 'map'} eyebrow="Lugares · macrozona" titulo={macroEdId ? 'Editar macrozona' : 'Nova macrozona'} sub="Uma região da cidade que agrupa bairros. Ex.: Norte, Sede, Zona rural."
+          largura={460} onFechar={fecharMacro} ajuda="Ajuda: Macrozonas"
           rodape={<>
-            <button type="button" className="so-btn so-ghost" onClick={() => setNovaMacro(null)}>Cancelar</button>
-            <button type="button" className="so-btn so-primary" onClick={criarMacro}><Ic n="check" />Criar macrozona</button>
+            {macroEdId && macroSel && <button type="button" className="so-btn so-danger esq" onClick={() => { fecharMacro(); excluirMacro(macroSel); }}><Ic n="lixeira" />Excluir</button>}
+            <button type="button" className="so-btn so-ghost" onClick={fecharMacro}>Cancelar</button>
+            <button type="button" className="so-btn so-primary" onClick={criarMacro}><Ic n="check" />{macroEdId ? 'Salvar macrozona' : 'Criar macrozona'}</button>
           </>}>
           <label className="so-field"><span className="so-lbl">Nome da macrozona <span className="req">*</span></span>
             <span className="so-ctrl"><input type="text" placeholder="Ex.: Norte" value={novaMacro} onChange={e => setNovaMacro(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') criarMacro(); }} /></span>
@@ -219,7 +249,7 @@ export function LugaresPage() {
             <button type="button" className="so-btn so-ghost" onClick={() => setPainel(null)}>Cancelar</button>
             <button type="button" className="so-btn so-primary" disabled={salvando} onClick={colar}><Ic n="check" />Cadastrar todos</button>
           </> : <>
-            {painel.modo === 'editar' && <button type="button" className="so-btn so-danger esq" onClick={() => removerBairro(painel.bairro)}>Remover</button>}
+            {painel.modo === 'editar' && <button type="button" className="so-btn so-danger esq" onClick={() => removerBairro(painel.bairro)}><Ic n="lixeira" />Excluir</button>}
             <button type="button" className="so-btn so-ghost" onClick={() => setPainel(null)}>Cancelar</button>
             <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvarBairro}><Ic n="check" />Salvar bairro</button>
           </>}>
@@ -260,6 +290,7 @@ export function LugaresPage() {
         <Link to={rotaTenant(entityId, 'cadastros/orgao')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Órgão</Link>
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-primary">Continuar: Pessoas<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>
   );

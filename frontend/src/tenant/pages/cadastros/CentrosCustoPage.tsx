@@ -6,7 +6,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const TIPOS: { code: TipoCentroDeCusto; nome: string; tom: string }[] = [
@@ -44,6 +44,7 @@ export function CentrosCustoPage() {
   const [salvando, setSalvando] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [sugerida, setSugerida] = useState<{ codigo: string; nome: string } | null>(null);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async () => {
     try {
@@ -93,11 +94,18 @@ export function CentrosCustoPage() {
     finally { setSalvando(false); }
   }
 
-  async function remover(c: CentroDeCusto) {
-    if (!window.confirm(`Tirar "${c.codigo} ${c.nome}" da estrutura?`)) return;
+  function remover(c: CentroDeCusto) {
+    const filhos = (itens ?? []).filter(x => x.paiId === c.id).length;
+    confirmar({
+      oque: 'centro de custo', nome: `${c.codigo} ${c.nome}`,
+      texto: <>Se já recebeu lançamento, não é apagado: fica desativado e some das listas novas.{filhos > 0 && <> Ele tem <strong>{filhos} {filhos === 1 ? 'centro' : 'centros'} dentro</strong>.</>}</>,
+      acao: () => excluir(c),
+    });
+  }
+  async function excluir(c: CentroDeCusto) {
     try {
       const r = await centrosDeCustoApi.remover(entityId, c.id);
-      showToast(r.desativado ? 'Já recebeu lançamento: foi desativado e some das listas novas' : 'Centro removido', r.desativado ? 'warning' : 'success');
+      showToast(r.desativado ? 'Já recebeu lançamento: foi desativado e some das listas novas' : 'Centro excluído', r.desativado ? 'warning' : 'success');
       fechar(); await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
@@ -137,7 +145,7 @@ export function CentrosCustoPage() {
           </>}>
           <div className="so-tw">
             <table className="so-table">
-              <thead><tr><th scope="col">Código</th><th scope="col">Centro de custo</th><th scope="col">Tipo</th><th scope="col">Serviços que lançam aqui</th></tr></thead>
+              <thead><tr><th scope="col">Código</th><th scope="col">Centro de custo</th><th scope="col">Tipo</th><th scope="col">Serviços que lançam aqui</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
               <tbody>
                 {arvore.map(({ c, nivel }) => {
                   const t = TIPOS.find(x => x.code === c.tipo);
@@ -157,10 +165,11 @@ export function CentrosCustoPage() {
                           {!c.servicos.length && <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>{nivel === 0 ? 'soma tudo que está dentro' : 'lançado direto na OS ou no pedido'}</span>}
                         </div>
                       </td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={`${c.codigo} ${c.nome}`} onEditar={() => abrir(c)} onExcluir={() => remover(c)} /></td>
                     </tr>
                   );
                 })}
-                {!arvore.length && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Nenhum centro ainda. Use "Montar estrutura sugerida" ou "Novo centro".</td></tr>}
+                {!arvore.length && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Nenhum centro ainda. Use "Montar estrutura sugerida" ou "Novo centro".</td></tr>}
               </tbody>
             </table>
           </div>
@@ -174,7 +183,7 @@ export function CentrosCustoPage() {
           sub="Para onde vai o gasto. Quem escolhe o centro é o serviço, no passo 6."
           largura={600} onFechar={fechar} ajuda="Ajuda: Centro de custo"
           rodape={<>
-            {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}>Remover</button>}
+            {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}><Ic n="lixeira" />Excluir</button>}
             <button type="button" className="so-btn so-ghost" onClick={fechar}>Cancelar</button>
             <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar centro</button>
           </>}>
@@ -220,6 +229,7 @@ export function CentrosCustoPage() {
         <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Veículos</Link>
         <Link to={rotaTenant(entityId, 'cadastros/servicos')} className="so-btn so-primary">Continuar: Serviços<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>
   );

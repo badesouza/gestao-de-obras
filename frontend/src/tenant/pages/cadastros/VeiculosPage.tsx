@@ -6,7 +6,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Selinho, Sep, msgErro, rotaTenant, useResumoCadastros,
+  AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Selinho, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const SITUACAO: Record<SituacaoFrota, { texto: string; tom: string }> = {
@@ -33,6 +33,7 @@ export function VeiculosPage() {
   const [form, setForm] = useState<Form>(VAZIO);
   const [erroNome, setErroNome] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async () => {
     try { setDados(await frotaApi.listar(entityId, tipo)); }
@@ -66,11 +67,17 @@ export function VeiculosPage() {
     finally { setSalvando(false); }
   }
 
-  async function remover(i: ItemFrota) {
-    if (!window.confirm(`Tirar "${i.nome}" da lista?`)) return;
+  function remover(i: ItemFrota) {
+    confirmar({
+      oque: nomeTipo, nome: i.nome,
+      texto: 'Se já foi usado em alguma OS, não é apagado: fica inativo e o histórico continua.',
+      acao: () => excluir(i),
+    });
+  }
+  async function excluir(i: ItemFrota) {
     try {
       const r = await frotaApi.remover(entityId, i.id);
-      showToast(r.desativado ? 'Já foi usado em OS: ficou inativo e o histórico continua' : 'Removido', r.desativado ? 'warning' : 'success');
+      showToast(r.desativado ? 'Já foi usado em OS: ficou inativo e o histórico continua' : 'Excluído', r.desativado ? 'warning' : 'success');
       fechar(); await carregar(); recarregar();
     } catch (e) { showToast(msgErro(e), 'error'); }
   }
@@ -100,7 +107,7 @@ export function VeiculosPage() {
           </div>
           <div className="so-tw">
             <table className="so-table">
-              <thead><tr><th scope="col">{ehVeiculo ? 'Veículo' : 'Equipamento'}</th><th scope="col">{ehVeiculo ? 'Placa / patrimônio' : 'Patrimônio'}</th>{ehVeiculo && <th scope="col">Equipe</th>}<th scope="col">Situação</th><th scope="col" className="r">Uso no mês</th></tr></thead>
+              <thead><tr><th scope="col">{ehVeiculo ? 'Veículo' : 'Equipamento'}</th><th scope="col">{ehVeiculo ? 'Placa / patrimônio' : 'Patrimônio'}</th>{ehVeiculo && <th scope="col">Equipe</th>}<th scope="col">Situação</th><th scope="col" className="r">Uso no mês</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
               <tbody>
                 {visiveis.map(i => {
                   const s = SITUACAO[i.situacao];
@@ -111,10 +118,11 @@ export function VeiculosPage() {
                       {ehVeiculo && <td data-l="Equipe">{i.equipe?.nome ?? 'Uso geral'}</td>}
                       <td data-l="Situação"><span className={`so-badge ${s.tom}`}><span className="dot" />{s.texto}</span></td>
                       <td data-l="Uso no mês" className="r mono">{i.situacao === 'NA_OFICINA' && i.osOficina ? i.osOficina : `${i.usoMes} OS`}</td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={i.nome} onEditar={() => abrir(i)} onExcluir={() => remover(i)} /></td>
                     </tr>
                   );
                 })}
-                {!visiveis.length && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Nada aqui ainda.</td></tr>}
+                {!visiveis.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Nada aqui ainda.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -127,7 +135,7 @@ export function VeiculosPage() {
           sub="Na baixa da OS, o fiscal escolhe daqui o que foi usado."
           largura={620} onFechar={fechar} ajuda={`Ajuda: ${editando ? 'Editar' : 'Novo'} ${nomeTipo}`}
           rodape={<>
-            {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}>Remover</button>}
+            {editando && <button type="button" className="so-btn so-danger esq" onClick={() => remover(editando)}><Ic n="lixeira" />Excluir</button>}
             <button type="button" className="so-btn so-ghost" onClick={fechar}>Cancelar</button>
             <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar {nomeTipo}</button>
           </>}>
@@ -163,6 +171,7 @@ export function VeiculosPage() {
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-ghost">Pular este passo</Link>
         <Link to={rotaTenant(entityId, 'cadastros/centros-de-custo')} className="so-btn so-primary">Continuar: Centros de custo<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>
   );

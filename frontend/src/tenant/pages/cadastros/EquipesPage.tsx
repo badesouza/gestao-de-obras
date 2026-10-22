@@ -6,7 +6,7 @@ import { useTenant } from '../../TenantContext';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import {
-  BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  AcoesLinha, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 function iniciais(nome: string) {
@@ -29,6 +29,7 @@ export function EquipesPage() {
   const [salvando, setSalvando] = useState(false);
   const [nova, setNova] = useState<string | null>(null);
   const [totalUsuarios, setTotalUsuarios] = useState<number | null>(null);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async (manter?: string | null) => {
     try {
@@ -84,10 +85,15 @@ export function EquipesPage() {
     catch (e) { showToast(msgErro(e), 'error'); }
   }
 
-  async function removerEquipe() {
-    if (!sel || !window.confirm(`Tirar a equipe "${sel.nome}" da lista? As OS antigas continuam com o nome dela.`)) return;
-    try { await equipesCampoApi.remover(entityId, sel.id); showToast('Equipe removida'); setSelId(null); await carregar(null); recarregar(); }
-    catch (e) { showToast(msgErro(e), 'error'); }
+  function removerEquipe(eq: EquipeCampo) {
+    confirmar({
+      oque: 'equipe', nome: eq.nome,
+      texto: `As OS antigas continuam com o nome dela.${eq.membros.length ? ` Os ${eq.membros.length} membros saem junto.` : ''}`,
+      acao: async () => {
+        try { await equipesCampoApi.remover(entityId, eq.id); showToast('Equipe excluída'); setSelId(null); await carregar(null); recarregar(); }
+        catch (e) { showToast(msgErro(e), 'error'); }
+      },
+    });
   }
 
   return (
@@ -122,7 +128,7 @@ export function EquipesPage() {
                 <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{e.membros.length ? e.membros.map(m => m.funcao ? `${m.nome} (${m.funcao.toLowerCase()})` : m.nome).join(', ') : 'Nenhum membro ainda.'}</p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 'auto' }}>
                   <span className="so-tag"><Ic n="truck" style={{ width: 13, height: 13 }} />{e.veiculo?.nome ?? 'Sem veículo'}</span>
-                  <button type="button" className="so-btn so-ghost sm" onClick={() => escolher(e)}>Editar</button>
+                  <AcoesLinha nome={e.nome} onEditar={() => escolher(e)} onExcluir={() => removerEquipe(e)} />
                 </div>
               </article>
             ))}
@@ -149,7 +155,7 @@ export function EquipesPage() {
           sub="Líder, membros e o veículo que a equipe usa."
           largura={640} onFechar={() => setSelId(null)} ajuda="Ajuda: Editar equipe"
           rodape={<>
-            <button type="button" className="so-btn so-danger esq" onClick={removerEquipe}>Remover</button>
+            <button type="button" className="so-btn so-danger esq" onClick={() => removerEquipe(sel)}><Ic n="lixeira" />Excluir</button>
             <button type="button" className="so-btn so-ghost" onClick={() => setSelId(null)}>Cancelar</button>
             <button type="button" className="so-btn so-primary" disabled={salvando} onClick={salvar}><Ic n="check" />Salvar equipe</button>
           </>}>
@@ -188,6 +194,7 @@ export function EquipesPage() {
         <Link to={rotaTenant(entityId, 'cadastros/pessoas')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Usuários</Link>
         <Link to={rotaTenant(entityId, 'cadastros/veiculos')} className="so-btn so-primary">Continuar: Veículos e equipamentos<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
+      {janelaExclusao}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>
   );

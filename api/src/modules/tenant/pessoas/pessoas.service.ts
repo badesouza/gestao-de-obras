@@ -390,3 +390,30 @@ export async function removerMembro(prisma: PrismaClient, entityId: string, memb
   if (!m) throw new AppError(404, 'NOT_FOUND', 'Membro não encontrado');
   await prisma.operador.update({ where: { id: membroId }, data: { ativo: false } });
 }
+
+/** Excluir pessoa cadastrada por engano: some de vez se nunca fez nada no sistema;
+    se já tem histórico (OS, pedidos, registros), fica inativa e o histórico continua. */
+export async function excluirPessoa(prisma: PrismaClient, entityId: string, atorId: string, id: string) {
+  const u = await prisma.tenantUser.findFirst({ where: { id, entityId } });
+  if (!u) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
+  if (id === atorId) throw new AppError(409, 'CONFLICT', 'Você não pode excluir a si mesmo');
+  if (u.adminGeral) await garantirOutroAdmin(prisma, entityId, id);
+  const desativar = async () => {
+    await prisma.tenantUser.update({ where: { id }, data: { status: 'INACTIVE' } });
+    await writeTenantAudit(prisma, { entityId, userId: atorId, action: 'USER_DEACTIVATED', resource: 'user', newValue: { id } });
+    return { removido: false, desativado: true };
+  };
+  /* quem já entrou no sistema tem rastro (OS, pedidos, auditoria): só desativa */
+  if (u.senhaDefinida || await prisma.tenantAuditLog.count({ where: { userId: id } })) return desativar();
+  try {
+    await prisma.$transaction(async tx => {
+      await tx.equipe.updateMany({ where: { liderUserId: id }, data: { liderUserId: null } });
+      await tx.tenantUser.delete({ where: { id } });
+    });
+    await writeTenantAudit(prisma, { entityId, userId: atorId, action: 'USER_DELETED', resource: 'user', previousValue: { id, nome: u.name, email: u.email } });
+    return { removido: true, desativado: false };
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'P2003') throw e;
+    return desativar();
+  }
+}

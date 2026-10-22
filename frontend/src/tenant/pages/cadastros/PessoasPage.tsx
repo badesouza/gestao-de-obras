@@ -8,7 +8,7 @@ import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/Toast';
 import { LinkGeradoDialog } from '../../components/sisobras/LinkGeradoDialog';
 import {
-  Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useResumoCadastros,
+  AcoesLinha, Aviso, BarraAcoes, CabecalhoPasso, Carregando, Cartao, Ic, Janela, Pagina, Sep, msgErro, rotaTenant, useConfirmarExclusao, useResumoCadastros,
 } from '../../components/sisobras/so';
 
 const SITUACAO: Record<SituacaoPessoa, { texto: string; tom: string; link: string }> = {
@@ -46,6 +46,7 @@ export function PessoasPage() {
   const [erros, setErros] = useState<Record<string, boolean>>({});
   const [salvando, setSalvando] = useState(false);
   const [link, setLink] = useState<{ dados: LinkGerado; novo: boolean } | null>(null);
+  const { confirmar, janelaExclusao } = useConfirmarExclusao();
 
   const carregar = useCallback(async () => {
     try { setDados(await pessoasApi.listar(entityId)); }
@@ -113,14 +114,29 @@ export function PessoasPage() {
     catch (err) { showToast(msgErro(err), 'error'); }
   }
 
-  async function alternarSituacao(p: Pessoa) {
-    const ativar = p.situacao === 'INATIVO';
-    if (!ativar && !window.confirm(`Desativar ${p.nome}? A pessoa não consegue mais entrar.`)) return;
+  async function mudarSituacao(p: Pessoa, ativar: boolean) {
     try {
       await pessoasApi.situacao(entityId, p.id, ativar);
       showToast(ativar ? 'Pessoa ativada' : 'Pessoa desativada');
       await carregar(); recarregar(); fechar();
     } catch (err) { showToast(msgErro(err), 'error'); }
+  }
+  function alternarSituacao(p: Pessoa) {
+    if (p.situacao === 'INATIVO') { void mudarSituacao(p, true); return; }
+    confirmar({ oque: 'acesso', nome: p.nome, rotuloBotao: 'Desativar', texto: 'A pessoa não consegue mais entrar. O cadastro e o histórico continuam; dá para ativar de novo depois.', acao: () => mudarSituacao(p, false) });
+  }
+  function excluir(p: Pessoa) {
+    confirmar({
+      oque: 'usuário', nome: p.nome,
+      texto: 'Se a pessoa nunca entrou no sistema, o cadastro é apagado. Se já entrou, fica desativada e o histórico do que ela fez continua.',
+      acao: async () => {
+        try {
+          const r = await pessoasApi.excluir(entityId, p.id);
+          showToast(r.desativado ? 'Já tinha entrado no sistema: ficou desativada e o histórico continua' : 'Usuário excluído', r.desativado ? 'warning' : 'success');
+          await carregar(); recarregar(); fechar();
+        } catch (err) { showToast(msgErro(err), 'error'); }
+      },
+    });
   }
 
   const tituloPainel = pessoaEditada ? 'Editar usuário' : 'Novo usuário';
@@ -147,7 +163,7 @@ export function PessoasPage() {
           </div>
           <div className="so-tw">
             <table className="so-table">
-              <thead><tr><th scope="col">Nome</th><th scope="col">Perfil</th><th scope="col">Equipe · atende</th><th scope="col">Acesso</th><th scope="col" className="r">Link de senha</th></tr></thead>
+              <thead><tr><th scope="col">Nome</th><th scope="col">Perfil</th><th scope="col">Equipe · atende</th><th scope="col">Acesso</th><th scope="col" className="r">Link de senha</th><th scope="col"><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Ações</span></th></tr></thead>
               <tbody>
                 {visiveis.map(u => {
                   const sit = SITUACAO[u.situacao];
@@ -158,10 +174,11 @@ export function PessoasPage() {
                       <td data-l="Equipe · atende"><span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>{u.equipe ? `${u.equipe.nome}${u.lider ? ' · líder' : ''}` : '—'}</span><span className="sub">atende {u.atende ? u.atende.map(s => s.nome).join(', ') : 'todos'}</span></td>
                       <td data-l="Acesso"><span className={`so-badge ${sit.tom}`}><span className="dot" />{sit.texto}</span></td>
                       <td data-l="Link de senha" className="r">{sit.link && <button type="button" className="so-btn so-ghost sm" onClick={() => novoLink(u)}>{sit.link}</button>}</td>
+                      <td data-l="" className="acoes"><AcoesLinha nome={u.nome} onEditar={() => abrir(u)} onExcluir={u.id !== session.id ? () => excluir(u) : undefined} /></td>
                     </tr>
                   );
                 })}
-                {!visiveis.length && <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Ninguém encontrado.</td></tr>}
+                {!visiveis.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)', padding: 18 }}>Ninguém encontrado.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -258,6 +275,7 @@ export function PessoasPage() {
         <Link to={rotaTenant(entityId, 'cadastros/lugares')} className="so-btn so-ghost"><Ic n="voltar" className="back" />Voltar: Lugares</Link>
         <Link to={rotaTenant(entityId, 'cadastros/equipes')} className="so-btn so-primary">Continuar: Equipes<Ic n="seta" className="arrow" /></Link>
       </BarraAcoes>
+      {janelaExclusao}
       {link && <LinkGeradoDialog dados={link.dados} novo={link.novo} onFechar={() => setLink(null)} />}
       <ToastContainer toasts={toasts} onClose={closeToast} />
     </Pagina>

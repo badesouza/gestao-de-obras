@@ -1588,6 +1588,7 @@ export const pessoasApi = {
   listar: (entityId: string) => tenantRequest<ListaPessoas>(entityId, `${TV}/pessoas`),
   criar: (entityId: string, d: DadosPessoa) => tenantRequest<LinkGerado>(entityId, `${TV}/pessoas`, { method: 'POST', body: JSON.stringify(d) }),
   atualizar: (entityId: string, id: string, d: DadosPessoa) => tenantRequest<{ id: string }>(entityId, `${TV}/pessoas/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  excluir: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `${TV}/pessoas/${id}`, { method: 'DELETE' }),
   situacao: (entityId: string, id: string, ativo: boolean) => tenantRequest<void>(entityId, `${TV}/pessoas/${id}/situacao`, { method: 'PATCH', body: JSON.stringify({ ativo }) }),
   gerarLink: (entityId: string, id: string) => tenantRequest<LinkGerado>(entityId, `${TV}/pessoas/${id}/link`, { method: 'POST' }),
   acessos: (entityId: string, id: string) => tenantRequest<AcessosPessoa>(entityId, `${TV}/pessoas/${id}/acessos`),
@@ -1660,6 +1661,7 @@ export const servicosFichaApi = {
   criar: (entityId: string, nome: string, tipoServico: TipoServico) => tenantRequest<{ id: string }>(entityId, '/api/tenant/v1/cadastros/servicos', { method: 'POST', body: JSON.stringify({ nome, tipoServico }) }),
   obter: (entityId: string, id: string) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`),
   salvar: (entityId: string, id: string, d: DadosFicha) => tenantRequest<FichaServico>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  excluir: (entityId: string, id: string) => tenantRequest<{ removido: boolean; desativado: boolean }>(entityId, `/api/tenant/v1/cadastros/servicos/${id}`, { method: 'DELETE' }),
 };
 
 /* ── Fluxo e aprovações ── */
