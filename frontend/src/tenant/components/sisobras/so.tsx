@@ -64,9 +64,11 @@ export function Ic({ n, className, style }: { n: NomeIcone; className?: string; 
 export function Pagina({ children, semMira }: { children: ReactNode; semMira?: boolean }) {
   return (
     <div className="so so-main">
-      <div className="so-wrap">
-        {!semMira && <Mira />}
-        {children}
+      <div className="so-rolagem">
+        <div className="so-wrap">
+          {!semMira && <Mira />}
+          {children}
+        </div>
       </div>
     </div>
   );
