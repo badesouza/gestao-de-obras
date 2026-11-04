@@ -147,7 +147,7 @@ export async function registerLinkAcessoPublicRoutes(fastify: FastifyInstance) {
       const { senha } = z.object({ senha: z.string().min(6, 'A senha precisa ter pelo menos 6 caracteres').max(200) }).parse(req.body);
       const r = await usarLink(fastify.prisma, token, senha);
       const jwt = await reply.jwtSign(
-        buildTenantTokenPayload(r.userId, r.email, r.entityId, r.roleCode),
+        buildTenantTokenPayload(r.userId, r.email, r.entityId, r.roleCode, r.sessaoVersao),
         { expiresIn: process.env.JWT_EXPIRES_IN ?? '8h' },
       );
       return reply.send({ token: jwt, entityId: r.entityId });

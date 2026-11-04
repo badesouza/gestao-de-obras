@@ -3,6 +3,7 @@ import type { PrismaClient } from '../../generated/prisma/index.js';
 import { JWT_SCOPE_TENANT } from '../shared/constants.js';
 import { sendError } from '../shared/errors.js';
 import { pode, permissoesDasCaixas } from '../shared/acessos.js';
+import { sessaoValida } from '../seguranca/sessao-versao.js';
 
 export interface JwtPayload {
   sub: string;
@@ -10,6 +11,8 @@ export interface JwtPayload {
   scope: string;
   entityId?: string;
   roleCode?: string;
+  /** versão da sessão no login (cinturão); token antigo sem o campo = 0 */
+  sv?: number;
 }
 
 declare module '@fastify/jwt' {
@@ -36,6 +39,18 @@ export function requireTenantAuth(prisma: PrismaClient) {
       await request.jwtVerify();
       if (request.user.scope !== JWT_SCOPE_TENANT) {
         return sendError(reply, 403, 'FORBIDDEN', 'Acesso negado');
+      }
+
+      /* Cinturão: o token só vale enquanto a pessoa está ativa, o órgão não está suspenso e a
+         versão da sessão é a do banco (sair, desativar, excluir e trocar a senha somam 1) */
+      const pessoa = await prisma.tenantUser.findUnique({
+        where: { id: request.user.sub },
+        select: { status: true, entityId: true, sessaoVersao: true, entity: { select: { status: true } } },
+      });
+      const valendo = !!pessoa && pessoa.entityId === request.user.entityId && pessoa.entity.status === 'ACTIVE'
+        && sessaoValida(request.user, { ativo: pessoa.status === 'ACTIVE', sessaoVersao: pessoa.sessaoVersao });
+      if (!valendo) {
+        return sendError(reply, 401, 'SESSAO_ENCERRADA', 'Sua sessão foi encerrada. Entre de novo.');
       }
 
       const requestEntityId = resolveTenantEntityId(request);

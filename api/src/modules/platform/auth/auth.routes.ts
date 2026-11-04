@@ -21,7 +21,7 @@ export async function registerPlatformAuthRoutes(fastify: FastifyInstance) {
       });
 
       const token = await reply.jwtSign(
-        buildPlatformTokenPayload(result.operatorId, result.email),
+        buildPlatformTokenPayload(result.operatorId, result.email, result.sessaoVersao),
         { expiresIn: process.env.JWT_EXPIRES_IN ?? '8h' },
       );
 

@@ -92,6 +92,7 @@ export async function loginTenantUser(
     entityUf: entity.uf,
     roleCode: user.role.code,
     roleName: user.role.name,
+    sessaoVersao: user.sessaoVersao,
     permissions,
   };
 }
@@ -154,6 +155,8 @@ export async function logoutTenantUser(
   entityId: string,
   metadata?: Record<string, unknown>,
 ) {
+  /* sair derruba todos os tokens desta pessoa (inclusive cópias e outros aparelhos) */
+  await prisma.tenantUser.update({ where: { id: userId }, data: { sessaoVersao: { increment: 1 } } });
   await writeTenantAudit(prisma, {
     entityId,
     userId,
@@ -169,6 +172,7 @@ export function buildTenantTokenPayload(
   email: string,
   entityId: string,
   roleCode: string,
+  sessaoVersao: number,
 ) {
   return {
     sub: userId,
@@ -176,6 +180,7 @@ export function buildTenantTokenPayload(
     entityId,
     roleCode,
     scope: JWT_SCOPE_TENANT,
+    sv: sessaoVersao,
   };
 }
 

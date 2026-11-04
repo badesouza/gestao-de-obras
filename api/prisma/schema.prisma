@@ -176,6 +176,8 @@ model PlatformOperator {
   email        String         @unique
   passwordHash String
   status       OperatorStatus @default(ACTIVE)
+  /// soma 1 ao sair: os tokens antigos deixam de valer
+  sessaoVersao Int            @default(0)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -260,6 +262,10 @@ model TenantUser {
    */
   senhaDefinida Boolean          @default(true) @map("senha_definida")
   lastLoginAt   DateTime?        @map("last_login_at")
+  /**
+   * soma 1 ao sair, desativar, excluir ou trocar a senha: os tokens antigos deixam de valer
+   */
+  sessaoVersao  Int              @default(0) @map("sessao_versao")
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 

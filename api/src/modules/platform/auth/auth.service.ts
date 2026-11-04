@@ -19,7 +19,7 @@ export async function loginPlatformOperator(
   prisma: PrismaClient,
   input: LoginRequest,
   metadata?: Record<string, unknown>,
-): Promise<{ operatorId: string; email: string; name: string }> {
+): Promise<{ operatorId: string; email: string; name: string; sessaoVersao: number }> {
   const operator = await prisma.platformOperator.findUnique({
     where: { email: input.email.toLowerCase() },
   });
@@ -50,6 +50,7 @@ export async function loginPlatformOperator(
     operatorId: operator.id,
     email: operator.email,
     name: operator.name,
+    sessaoVersao: operator.sessaoVersao,
   };
 }
 
@@ -74,6 +75,8 @@ export async function logoutPlatformOperator(
   operatorId: string,
   metadata?: Record<string, unknown>,
 ) {
+  /* sair derruba todos os tokens deste operador */
+  await prisma.platformOperator.update({ where: { id: operatorId }, data: { sessaoVersao: { increment: 1 } } });
   await writePlatformAudit(prisma, {
     operatorId,
     action: 'AUTH_LOGOUT',
@@ -83,11 +86,12 @@ export async function logoutPlatformOperator(
 }
 
 /** Builds JWT payload for platform scope */
-export function buildPlatformTokenPayload(operatorId: string, email: string) {
+export function buildPlatformTokenPayload(operatorId: string, email: string, sessaoVersao: number) {
   return {
     sub: operatorId,
     email,
     scope: JWT_SCOPE_PLATFORM,
+    sv: sessaoVersao,
   };
 }
 

@@ -30,6 +30,7 @@ export async function registerTenantAuthRoutes(fastify: FastifyInstance) {
           result.email,
           result.entityId,
           result.roleCode,
+          result.sessaoVersao,
         ),
         { expiresIn: process.env.JWT_EXPIRES_IN ?? '8h' },
       );

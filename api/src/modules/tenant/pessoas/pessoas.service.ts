@@ -232,7 +232,8 @@ export async function definirSituacao(prisma: PrismaClient, entityId: string, at
   if (!ativo && id === atorId) throw new AppError(409, 'CONFLICT', 'Você não pode desativar a si mesmo');
   await protegerAdmin(prisma, atorId, u);
   if (!ativo && u.adminGeral) await garantirOutroAdmin(prisma, entityId, id);
-  await prisma.tenantUser.update({ where: { id }, data: { status: ativo ? 'ACTIVE' : 'INACTIVE' } });
+  /* sessaoVersao + 1: quem foi desativado cai na hora, e reativar não ressuscita token antigo */
+  await prisma.tenantUser.update({ where: { id }, data: { status: ativo ? 'ACTIVE' : 'INACTIVE', sessaoVersao: { increment: 1 } } });
   await writeTenantAudit(prisma, { entityId, userId: atorId, action: ativo ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', resource: 'user', newValue: { id } });
 }
 
@@ -315,12 +316,17 @@ export async function usarLink(prisma: PrismaClient, token: string, senha: strin
   if (!link || !valido) throw new AppError(410, 'LINK_VENCIDO', 'Este link não vale mais. Peça um novo para quem cadastrou você.');
   if (senha.length < 6) throw new AppError(400, 'VALIDATION_ERROR', 'A senha precisa ter pelo menos 6 caracteres');
   const passwordHash = await hashPassword(senha);
-  await prisma.$transaction([
-    prisma.tenantUser.update({ where: { id: link.user.id }, data: { passwordHash, senhaDefinida: true, lastLoginAt: new Date() } }),
+  /* senha nova derruba os logins antigos (sessaoVersao + 1); o token novo leva a versão nova */
+  const [atualizado] = await prisma.$transaction([
+    prisma.tenantUser.update({
+      where: { id: link.user.id },
+      data: { passwordHash, senhaDefinida: true, lastLoginAt: new Date(), sessaoVersao: { increment: 1 } },
+      select: { sessaoVersao: true },
+    }),
     prisma.tenantUserLink.update({ where: { id: link.id }, data: { usadoEm: new Date() } }),
   ]);
   await writeTenantAudit(prisma, { entityId: link.entityId, userId: link.user.id, action: 'USER_SENHA_CRIADA', resource: 'auth', newValue: { via: 'link' } });
-  return { userId: link.user.id, email: link.user.email, entityId: link.entityId, roleCode: link.user.role.code };
+  return { userId: link.user.id, email: link.user.email, entityId: link.entityId, roleCode: link.user.role.code, sessaoVersao: atualizado.sessaoVersao };
 }
 
 /* ───────────────────────── Equipes ───────────────────────── */
@@ -448,7 +454,7 @@ export async function excluirPessoa(prisma: PrismaClient, entityId: string, ator
   await protegerAdmin(prisma, atorId, u);
   if (u.adminGeral) await garantirOutroAdmin(prisma, entityId, id);
   const desativar = async () => {
-    await prisma.tenantUser.update({ where: { id }, data: { status: 'INACTIVE' } });
+    await prisma.tenantUser.update({ where: { id }, data: { status: 'INACTIVE', sessaoVersao: { increment: 1 } } });
     await writeTenantAudit(prisma, { entityId, userId: atorId, action: 'USER_DEACTIVATED', resource: 'user', newValue: { id } });
     return { removido: false, desativado: true };
   };

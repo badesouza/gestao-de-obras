@@ -263,7 +263,7 @@ export async function updateTenantUserStatus(
 
   const updated = await prisma.tenantUser.update({
     where: { id: userId },
-    data: { status },
+    data: { status, sessaoVersao: { increment: 1 } },
     include: { role: true },
   });
 
@@ -300,7 +300,7 @@ export async function resetTenantUserPassword(
   const passwordHash = await hashPassword(password);
   await prisma.tenantUser.update({
     where: { id: userId },
-    data: { passwordHash },
+    data: { passwordHash, sessaoVersao: { increment: 1 } },
   });
 
   await writeTenantAudit(prisma, {
