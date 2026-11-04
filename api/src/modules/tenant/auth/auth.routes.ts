@@ -10,12 +10,13 @@ import {
   logoutTenantUser,
 } from './auth.service.js';
 import { tenantLoginSchema } from './auth.schema.js';
+import { protecaoLogin } from '../../../seguranca/protecao-login.js';
 
 /** Registers tenant authentication routes */
 export async function registerTenantAuthRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
 
-  fastify.post('/auth/login', async (request, reply) => {
+  fastify.post('/auth/login', { ...protecaoLogin }, async (request, reply) => {
     try {
       const body = tenantLoginSchema.parse(request.body);
       const result = await loginTenantUser(fastify.prisma, body, {

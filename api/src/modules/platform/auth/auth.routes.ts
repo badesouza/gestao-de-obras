@@ -8,10 +8,11 @@ import {
 } from './auth.service.js';
 import { loginRequestSchema } from './auth.schema.js';
 import { requirePlatformAuth } from '../../../plugins/auth-platform.js';
+import { protecaoLogin } from '../../../seguranca/protecao-login.js';
 
 /** Registers platform authentication routes */
 export async function registerPlatformAuthRoutes(fastify: FastifyInstance) {
-  fastify.post('/auth/login', async (request, reply) => {
+  fastify.post('/auth/login', { ...protecaoLogin }, async (request, reply) => {
     try {
       const body = loginRequestSchema.parse(request.body);
       const result = await loginPlatformOperator(fastify.prisma, body, {

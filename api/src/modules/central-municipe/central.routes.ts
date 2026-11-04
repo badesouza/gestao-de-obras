@@ -50,7 +50,9 @@ function validar<T>(schema: z.ZodType<T>, dados: unknown): T {
   return r.data;
 }
 
-const ipDe = (req: FastifyRequest) => (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() || req.ip;
+/* IP real: o trustProxy (server.ts) já tira do X-Forwarded-For só o que o proxy do Railway escreveu;
+   ler o cabeçalho na mão deixava o visitante inventar um IP por pedido e furar o limite */
+const ipDe = (req: FastifyRequest) => req.ip;
 
 /** Rotas públicas — o munícipe usa sem login (link / QR Code) */
 export async function registerCentralPublicRoutes(fastify: FastifyInstance) {

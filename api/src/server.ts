@@ -15,12 +15,16 @@ import { registerUploadRoutes } from './modules/platform/uploads/upload.routes.j
 import { registerPublicRoutes } from './modules/public/public.routes.js';
 import { registerTenantRoutes } from './modules/tenant/tenant.routes.js';
 import { htmlDoLinkDeAcesso } from './shared/previa-link.js';
+import { SALTOS_DE_PROXY } from './seguranca/protecao-login.js';
 
 /** Bootstraps the Fastify API server */
 async function start() {
   const fastify = Fastify({
     logger: true,
     bodyLimit: 5 * 1024 * 1024,
+    /* IP real atrás do proxy do Railway (1 salto): request.ip deixa de ser o do proxy
+       e o X-Forwarded-For escrito pelo visitante não vale */
+    trustProxy: SALTOS_DE_PROXY,
   });
 
   await fastify.register(cors, {
