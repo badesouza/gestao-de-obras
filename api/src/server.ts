@@ -16,6 +16,7 @@ import { registerPublicRoutes } from './modules/public/public.routes.js';
 import { registerTenantRoutes } from './modules/tenant/tenant.routes.js';
 import { htmlDoLinkDeAcesso } from './shared/previa-link.js';
 import { SALTOS_DE_PROXY } from './seguranca/protecao-login.js';
+import { ligarCabecalhosFastify, montarCspRelatorio } from './seguranca/cabecalhos.js';
 
 /** Bootstraps the Fastify API server */
 async function start() {
@@ -25,6 +26,19 @@ async function start() {
     /* IP real atrás do proxy do Railway (1 salto): request.ip deixa de ser o do proxy
        e o X-Forwarded-For escrito pelo visitante não vale */
     trustProxy: SALTOS_DE_PROXY,
+  });
+
+  /* Cinturão (kit-node): avisos ao navegador em toda resposta (API, site e arquivos).
+     HSTS só em produção. A CSP que vale só traz regras que não quebram tela (moldura, <base>,
+     plugins, destino de formulário); a CSP forte fica em modo relatório: o navegador só avisa
+     no console o que bloquearia. Sem avisos nas telas por uns dias → dá para passar a valer. */
+  ligarCabecalhosFastify(fastify, {
+    cspRelatorio: montarCspRelatorio({
+      estilos: ['https://fonts.googleapis.com'],
+      fontes: ['https://fonts.gstatic.com'],
+      imagens: ['https:'], // mapas (OpenStreetMap/Esri) e marcadores do Leaflet (unpkg)
+      conexoes: ['https://nominatim.openstreetmap.org'],
+    }),
   });
 
   await fastify.register(cors, {
