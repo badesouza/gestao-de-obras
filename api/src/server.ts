@@ -15,7 +15,7 @@ import { registerUploadRoutes } from './modules/platform/uploads/upload.routes.j
 import { registerPublicRoutes } from './modules/public/public.routes.js';
 import { registerTenantRoutes } from './modules/tenant/tenant.routes.js';
 import { htmlDoLinkDeAcesso } from './shared/previa-link.js';
-import { SALTOS_DE_PROXY } from './seguranca/protecao-login.js';
+import { confiarNosSaltos } from './seguranca/protecao-login.js';
 import { ligarCabecalhosFastify, montarCspRelatorio } from './seguranca/cabecalhos.js';
 
 /** Bootstraps the Fastify API server */
@@ -25,7 +25,7 @@ async function start() {
     bodyLimit: 5 * 1024 * 1024,
     /* IP real atrás do proxy do Railway (1 salto): request.ip deixa de ser o do proxy
        e o X-Forwarded-For escrito pelo visitante não vale */
-    trustProxy: SALTOS_DE_PROXY,
+    trustProxy: confiarNosSaltos,
   });
 
   /* Cinturão (kit-node): avisos ao navegador em toda resposta (API, site e arquivos).

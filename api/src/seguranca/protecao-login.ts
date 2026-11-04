@@ -16,3 +16,8 @@ export const protecaoLogin = limiteLoginFastify(limiteLogin, {
  * o que o visitante põe no cabeçalho fica antes e é ignorado.
  */
 export const SALTOS_DE_PROXY = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '1', 10) || 0;
+
+/** Para o `trustProxy` do Fastify: confia só nos N primeiros saltos (o socket é o salto 0).
+ *  Função em vez do número: no Fastify 5.12 `trustProxy: 1` passou a não confiar em ninguém
+ *  (todo mundo com o IP do proxy). Hoje o Obras está no 5.8, mas assim não quebra ao atualizar. */
+export const confiarNosSaltos = (_endereco: string, salto: number) => salto < SALTOS_DE_PROXY;
