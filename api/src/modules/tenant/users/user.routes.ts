@@ -1,6 +1,7 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { handleAppError } from '../../../shared/errors.js';
+import { handleAppError, sendError } from '../../../shared/errors.js';
+import { atorEhAdmin } from '../pessoas/pessoas.service.js';
 import {
   PERMISSION_USERS_MANAGE,
   PERMISSION_USERS_VIEW,
@@ -35,7 +36,18 @@ const listQuerySchema = z.object({
 export async function registerTenantUserRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
   const canView = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_USERS_VIEW)];
-  const canManage = [tenantAuth, requireTenantPermission(fastify.prisma, PERMISSION_USERS_MANAGE)];
+  /* Rotas antigas (as telas de hoje usam /pessoas): gravar aqui é só do administrador geral,
+     a mesma trava de /pessoas. Sem isso, quem tinha só a caixa Pessoas criava ADMIN ou trocava
+     a senha de um administrador por este caminho. */
+  const canManage = [
+    tenantAuth,
+    requireTenantPermission(fastify.prisma, PERMISSION_USERS_MANAGE),
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (!(await atorEhAdmin(fastify.prisma, req.user.sub))) {
+        return sendError(reply, 403, 'FORBIDDEN', 'Só um administrador gerencia usuários por aqui');
+      }
+    },
+  ];
 
   fastify.get(
     '/users',
