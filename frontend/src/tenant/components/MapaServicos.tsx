@@ -20,6 +20,11 @@ const NOME_PARA_SLUG: Record<string, string> = {
   'Tapa-Buracos': 'tapa-buracos', 'Varricao': 'varricao',
 };
 
+/* Texto que vem do banco (rua, bairro, serviço) entra no balão do mapa só como texto. */
+function esc(v: unknown): string {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+
 function getCorServico(nomeCC: string): string {
   const slug = NOME_PARA_SLUG[nomeCC];
   return slug ? (SERVICOS_CONFIG[slug]?.cor ?? '#5b8db8') : '#5b8db8';
@@ -241,9 +246,9 @@ export function MapaServicos({ height = 420, showFilters = true, fullscreenMode 
         <div style="font-family:system-ui,sans-serif;min-width:220px;max-width:260px;line-height:1.4">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f0f0f0">
             <div style="width:8px;height:8px;border-radius:50%;background:${statusCor};flex-shrink:0;box-shadow:0 0 0 3px ${statusCor}22"></div>
-            <strong style="font-size:13px;color:#0a0a0a;letter-spacing:-0.01em;flex:1">${pin.centroCusto.nome}</strong>
+            <strong style="font-size:13px;color:#0a0a0a;letter-spacing:-0.01em;flex:1">${esc(pin.centroCusto.nome)}</strong>
             ${href ? `
-            <a href="${href}" title="Ver ordem de serviço" style="
+            <a href="${esc(href)}" title="Ver ordem de serviço" style="
               display:inline-flex;align-items:center;justify-content:center;
               width:26px;height:26px;border-radius:7px;flex-shrink:0;
               background:#f0f4fa;border:1px solid rgba(91,141,184,0.25);
@@ -260,14 +265,14 @@ export function MapaServicos({ height = 420, showFilters = true, fullscreenMode 
           ${[pin.logradouro, pin.bairro].filter(Boolean).length > 0 ? `
           <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" style="flex-shrink:0;margin-top:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span style="font-size:12px;color:#555">${[pin.logradouro, pin.bairro].filter(Boolean).join(', ')}</span>
+            <span style="font-size:12px;color:#555">${esc([pin.logradouro, pin.bairro].filter(Boolean).join(', '))}</span>
           </div>` : ''}
-          ${pin.tipoServico ? `<div style="font-size:11px;color:#888;margin-bottom:8px;padding:3px 8px;background:#f8f8f8;border-radius:4px;display:inline-block">${pin.tipoServico}</div>` : ''}
+          ${pin.tipoServico ? `<div style="font-size:11px;color:#888;margin-bottom:8px;padding:3px 8px;background:#f8f8f8;border-radius:4px;display:inline-block">${esc(pin.tipoServico)}</div>` : ''}
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
             <span style="padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;background:${statusCor}18;color:${statusCor};border:1px solid ${statusCor}40">
-              ${getStatusLabel(pin.status)}
+              ${esc(getStatusLabel(pin.status))}
             </span>
-            <span style="font-size:10px;color:#bbb">${dataFmt}</span>
+            <span style="font-size:10px;color:#bbb">${esc(dataFmt)}</span>
           </div>
         </div>`, { maxWidth: 280, className: 'sv-mapa-popup' });
 
