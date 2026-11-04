@@ -173,7 +173,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
           logradouro,
           lat: body.lat,
           lng: body.lng,
-        });
+        }).catch(err => req.log.warn({ err }, 'endereço descoberto não gravado'));
       }
 
       return reply.send({ id: updated.id, lat: updated.lat, lng: updated.lng });

@@ -8,6 +8,12 @@ interface EnderecoPayload {
   lng: number;
 }
 
+/* Corta por letra (não quebra acento nem emoji ao meio). */
+function cortar(texto: string, max: number): string {
+  const letras = Array.from(texto);
+  return letras.length > max ? letras.slice(0, max).join('').trim() : texto;
+}
+
 /**
  * Grava bairro + rua + coords quando uma ocorrência é salva.
  * Se a combinação (entityId, bairro, logradouro) já existe, ignora silenciosamente.
@@ -19,8 +25,9 @@ export async function registrarEnderecoDescoberto(
 ): Promise<void> {
   const { entityId, bairro, logradouro, lat, lng } = payload;
 
-  const bairroNorm = bairro.trim();
-  const logradouroNorm = logradouro.trim();
+  /* O banco guarda até 150 (bairro) e 300 (rua) letras; texto maior seria recusado. */
+  const bairroNorm = cortar(bairro.trim(), 150);
+  const logradouroNorm = cortar(logradouro.trim(), 300);
 
   if (!bairroNorm || !logradouroNorm) return;
 
