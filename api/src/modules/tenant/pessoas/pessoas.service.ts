@@ -241,6 +241,11 @@ export async function gerarLink(prisma: PrismaClient, entityId: string, atorId: 
   if (!u) throw new AppError(404, 'NOT_FOUND', 'Pessoa não encontrada');
   if (u.status !== 'ACTIVE') throw new AppError(409, 'CONFLICT', 'Ative a pessoa antes de gerar o link');
   await protegerAdmin(prisma, atorId, u);
+  /* Link novo para quem já criou a senha é trocar a senha dela: quem abrisse entraria na conta.
+     Isso fica só com o administrador geral (ex.: a pessoa esqueceu a senha). */
+  if (u.senhaDefinida && id !== atorId && !(await atorEhAdmin(prisma, atorId))) {
+    throw new AppError(403, 'FORBIDDEN', 'Essa pessoa já criou a senha; só um administrador gera um link novo para ela');
+  }
   const link = await novoLink(prisma, entityId, id, atorId);
   await writeTenantAudit(prisma, { entityId, userId: atorId, action: 'USER_LINK_GERADO', resource: 'user', newValue: { id } });
   return { id: u.id, nome: u.name, email: u.email, celular: u.celular, link };
