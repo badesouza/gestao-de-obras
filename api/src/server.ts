@@ -46,8 +46,13 @@ async function start() {
     credentials: true,
   });
 
+  /* Sem chave de verdade o servidor não sobe: com uma chave conhecida qualquer um forjaria login */
+  const segredoJwt = process.env.JWT_SECRET ?? '';
+  if (segredoJwt.length < 32) {
+    throw new Error('JWT_SECRET ausente ou curto (mínimo 32 caracteres).');
+  }
   await fastify.register(jwt, {
-    secret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
+    secret: segredoJwt,
   });
 
   await fastify.register(multipart, {
