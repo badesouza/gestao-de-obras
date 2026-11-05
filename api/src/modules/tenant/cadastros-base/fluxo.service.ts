@@ -100,6 +100,16 @@ export async function salvarFluxo(prisma: PrismaClient, entityId: string, userId
     }
   }
 
+  /* Cinturão: quem salva sem ser administrador geral não se põe num passo (seria dar a si mesmo
+     o poder de aprovar OS ou pedido); tirar-se de um passo pode. Vincular os colegas continua igual. */
+  const proprio = mudancas.find(m => m.id === userId);
+  if (proprio && proprio.depois.some(c => !proprio.antes.includes(c))) {
+    const ator = await prisma.tenantUser.findUnique({ where: { id: userId }, select: { adminGeral: true } });
+    if (!ator?.adminGeral) {
+      throw new AppError(403, 'FORBIDDEN', 'Você não pode se colocar num passo do fluxo; peça a um administrador geral');
+    }
+  }
+
   const config = { ...d.config, exigeAprovacaoOS: true, aprovacaoOrigens: origens };
   await prisma.$transaction(async tx => {
     await tx.configuracaoObras.upsert({ where: { entityId }, update: config, create: { entityId, ...config } });
