@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
 import { PERMISSION_LICITACOES_MANAGE, PERMISSION_LICITACOES_VIEW, PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
 import { requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
+import { comoEntregar, conferirConteudo, nomeParaCabecalho } from '../../../seguranca/conteudo-arquivo.js';
 import {
   MODALIDADES, TIPOS_DOCUMENTO, TIPOS_LICITACAO, adicionarItem, anexarDocumento, atualizarContrato, atualizarLote,
   consultarCnpj, contratosAVencer, criarAditivo, criarContrato, criarLote, desfazerAditivo, estruturaDaLicitacao,
@@ -152,16 +153,19 @@ export async function registerContratosRoutes(fastify: FastifyInstance) {
       const arq = await req.file();
       if (!arq) throw new AppError(400, 'VALIDATION_ERROR', 'Envie o arquivo');
       const dados = await arq.toBuffer();
-      if (!TIPOS_DOCUMENTO.has(arq.mimetype)) throw new AppError(400, 'VALIDATION_ERROR', 'Use PDF ou imagem (JPG, PNG)');
-      return reply.code(201).send(await anexarDocumento(fastify.prisma, e(req), req.user.sub, alvo, { nome: arq.filename || 'documento.pdf', mimeType: arq.mimetype, dados }));
+      /* PDF ou imagem de verdade (pelo conteúdo, não pelo tipo que o navegador declarou) */
+      const tipo = conferirConteudo(dados, TIPOS_DOCUMENTO);
+      if (!tipo) throw new AppError(400, 'VALIDATION_ERROR', 'Use PDF ou imagem (JPG, PNG)');
+      return reply.code(201).send(await anexarDocumento(fastify.prisma, e(req), req.user.sub, alvo, { nome: arq.filename || 'documento.pdf', mimeType: tipo, dados }));
     } catch (err) { return handleAppError(reply, err); }
   });
   fastify.get('/documentos-contratacao/:id', { preHandler: podeVer }, async (req, reply) => {
     try {
       const d = await lerDocumento(fastify.prisma, e(req), id(req));
+      const entrega = comoEntregar(d.dados, TIPOS_DOCUMENTO);
       return reply
-        .header('Content-Type', d.mimeType)
-        .header('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(d.nome)}`)
+        .header('Content-Type', entrega.tipo)
+        .header('Content-Disposition', `${entrega.disposicao}; ${nomeParaCabecalho(d.nome, 'documento')}`)
         .header('Cache-Control', 'private, max-age=3600')
         .send(d.dados);
     } catch (err) { return handleAppError(reply, err); }

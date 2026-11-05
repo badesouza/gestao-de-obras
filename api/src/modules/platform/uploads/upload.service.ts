@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { MultipartFile } from '@fastify/multipart';
 import { AppError } from '../../../shared/errors.js';
+import { conferirConteudo } from '../../../seguranca/conteudo-arquivo.js';
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
@@ -30,7 +31,9 @@ async function writeCoatOfArmsFile(
   buffer: Buffer,
   mimeType: string,
 ): Promise<string> {
-  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+  /* imagem de verdade (pelo conteúdo): o tipo declarado não basta, e a extensão sai do conteúdo */
+  const tipoReal = ALLOWED_MIME_TYPES.has(mimeType) ? conferirConteudo(buffer, ALLOWED_MIME_TYPES) : null;
+  if (!tipoReal) {
     throw new AppError(
       400,
       'VALIDATION_ERROR',
@@ -42,7 +45,7 @@ async function writeCoatOfArmsFile(
     throw new AppError(400, 'VALIDATION_ERROR', 'Imagem deve ter no máximo 2 MB');
   }
 
-  const extension = EXTENSION_BY_MIME[mimeType] ?? '.png';
+  const extension = EXTENSION_BY_MIME[tipoReal] ?? '.png';
   const filename = `${randomUUID()}${extension}`;
   const uploadDir = getCoatOfArmsUploadDir();
 

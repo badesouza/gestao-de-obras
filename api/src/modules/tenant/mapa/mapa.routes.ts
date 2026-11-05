@@ -5,6 +5,10 @@ import { carregarAtor, requireAcesso, requireTenantAuth } from '../../../plugins
 import { assertAcessoServico, filtroEscopoOS } from '../ordens/ordens.service.js';
 import { registrarEnderecoDescoberto } from '../enderecos/endereco-descoberto.service.js';
 import { enderecoPorCoordenada } from './endereco-gps.js';
+import { TIPOS_IMAGEM, TIPOS_VIDEO, comoEntregar, conferirConteudo, nomeParaCabecalho } from '../../../seguranca/conteudo-arquivo.js';
+
+/* foto ou vídeo de verdade (pelo conteúdo): página HTML disfarçada de foto não entra */
+const FOTO_OU_VIDEO = new Set([...TIPOS_IMAGEM, ...TIPOS_VIDEO]);
 
 const geocodeQuerySchema = z.object({
   q: z.string().min(1),
@@ -266,9 +270,10 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       const data = await req.file();
       if (!data) return reply.status(400).send({ error: 'Nenhum arquivo enviado' });
 
-      const mime = data.mimetype;
-      const tipo = mime.startsWith('video/') ? 'video' : 'foto';
       const buffer = await data.toBuffer();
+      const mime = conferirConteudo(buffer, FOTO_OU_VIDEO);
+      if (!mime) return reply.status(400).send({ error: 'Envie uma foto (JPG, PNG, WebP, HEIC) ou um vídeo (MP4, MOV, WebM)' });
+      const tipo = mime.startsWith('video/') ? 'video' : 'foto';
       const MAX = tipo === 'video' ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
       if (buffer.length > MAX) return reply.status(413).send({ error: `Arquivo muito grande (max ${MAX / 1024 / 1024}MB)` });
 
@@ -311,11 +316,14 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
       });
       if (!midia) return reply.status(404).send({ error: 'Mídia não encontrada' });
       await assertAcessoServico(fastify.prisma, req.user.sub, midia.registroDiario.centroCustoId);
+      /* tipo pelo conteúdo: arquivo antigo que não é foto/vídeo sai como download, nunca como página */
+      const dados = Buffer.from(midia.dados.buffer, midia.dados.byteOffset, midia.dados.byteLength);
+      const entrega = comoEntregar(dados, FOTO_OU_VIDEO);
       return reply
-        .header('Content-Type', midia.mimeType)
-        .header('Content-Disposition', `inline; filename="${midia.nomeArquivo}"`)
+        .header('Content-Type', entrega.tipo)
+        .header('Content-Disposition', `${entrega.disposicao}; ${nomeParaCabecalho(midia.nomeArquivo, 'midia')}`)
         .header('Cache-Control', 'private, max-age=86400')
-        .send(midia.dados);
+        .send(dados);
     } catch (e) { return handleAppError(reply, e); }
   });
 

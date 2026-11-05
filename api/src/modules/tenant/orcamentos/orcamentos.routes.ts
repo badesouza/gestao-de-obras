@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
 import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
 import { carregarAtor, requireAcesso, requireTenantAuth, requireTenantPermission } from '../../../plugins/auth-tenant.js';
+import { comoEntregar, conferirConteudo } from '../../../seguranca/conteudo-arquivo.js';
 import {
   MAX_FOTOS_ORCAMENTO, acaoOrcamento, adicionarFotos, atualizarOrcamento, criarOrcamento, gerarPedidos,
   lerFotoOrcamento, listarOrcamentos, obterOrcamento, removerFoto, resumoOrcamentos,
@@ -71,7 +72,10 @@ export async function registerOrcamentosRoutes(fastify: FastifyInstance) {
     try {
       const { fotoId } = req.params as { fotoId: string };
       const f = await lerFotoOrcamento(fastify.prisma, req.user.entityId!, fotoId);
-      return reply.header('Content-Type', f.mimeType).header('Cache-Control', 'private, max-age=86400').send(f.dados);
+      const dados = Buffer.from(f.dados.buffer, f.dados.byteOffset, f.dados.byteLength);
+      const entrega = comoEntregar(dados, TIPOS_FOTO);
+      return reply.header('Content-Type', entrega.tipo).header('Content-Disposition', entrega.disposicao)
+        .header('Cache-Control', 'private, max-age=86400').send(dados);
     } catch (e) { return handleAppError(reply, e); }
   });
 
@@ -99,8 +103,10 @@ export async function registerOrcamentosRoutes(fastify: FastifyInstance) {
       for await (const parte of req.parts()) {
         if (parte.type !== 'file') continue;
         const buf = await parte.toBuffer();
-        if (!TIPOS_FOTO.has(parte.mimetype)) continue;
-        if (fotos.length < MAX_FOTOS_ORCAMENTO) fotos.push({ nome: parte.filename || 'foto.jpg', mimeType: parte.mimetype, dados: buf });
+        /* foto de verdade (pelo conteúdo, não pelo tipo que o navegador declarou) */
+        const tipo = conferirConteudo(buf, TIPOS_FOTO);
+        if (!tipo) continue;
+        if (fotos.length < MAX_FOTOS_ORCAMENTO) fotos.push({ nome: parte.filename || 'foto.jpg', mimeType: tipo, dados: buf });
       }
       if (!fotos.length) throw new AppError(400, 'VALIDATION_ERROR', 'Envie ao menos uma foto (JPG, PNG ou WEBP)');
       return reply.send(await adicionarFotos(fastify.prisma, req.user.entityId!, id, fotos));

@@ -5,6 +5,7 @@ import { AppError, handleAppError } from '../../shared/errors.js';
 import { PERMISSION_CENTROS_CUSTO_VIEW } from '../../shared/constants.js';
 import { carregarAtor, requireAcesso, requireTenantAuth, requireTenantPermission } from '../../plugins/auth-tenant.js';
 import { enderecoPorCoordenada } from '../tenant/mapa/endereco-gps.js';
+import { comoEntregar, conferirConteudo } from '../../seguranca/conteudo-arquivo.js';
 import { contarPendentes, listarInternas, poderesCentral } from './central-interna.service.js';
 import {
   consultarSolicitacao, converterEmOcorrencia, criarSolicitacao, lerFoto, listarBairros,
@@ -84,9 +85,11 @@ export async function registerCentralPublicRoutes(fastify: FastifyInstance) {
       const fotos: FotoRecebida[] = [];
       for await (const parte of req.parts()) {
         if (parte.type === 'file') {
-          if (!TIPOS_FOTO.has(parte.mimetype)) { await parte.toBuffer(); continue; }
           const buf = await parte.toBuffer();
-          if (fotos.length < MAX_FOTOS) fotos.push({ mimeType: parte.mimetype, dados: buf });
+          /* foto de verdade (pelo conteúdo, não pelo tipo que o navegador declarou) */
+          const tipo = conferirConteudo(buf, TIPOS_FOTO);
+          if (!tipo) continue;
+          if (fotos.length < MAX_FOTOS) fotos.push({ mimeType: tipo, dados: buf });
         } else if (parte.fieldname === 'dados') {
           dadosBrutos = String(parte.value);
         }
@@ -159,7 +162,10 @@ export async function registerCentralTenantRoutes(fastify: FastifyInstance) {
     try {
       const { fotoId } = req.params as { fotoId: string };
       const f = await lerFoto(fastify.prisma, req.user.entityId!, fotoId);
-      return reply.header('Content-Type', f.mimeType).header('Cache-Control', 'private, max-age=86400').send(f.dados);
+      const dados = Buffer.from(f.dados.buffer, f.dados.byteOffset, f.dados.byteLength);
+      const entrega = comoEntregar(dados, TIPOS_FOTO);
+      return reply.header('Content-Type', entrega.tipo).header('Content-Disposition', entrega.disposicao)
+        .header('Cache-Control', 'private, max-age=86400').send(dados);
     } catch (e) { return handleAppError(reply, e); }
   });
 
