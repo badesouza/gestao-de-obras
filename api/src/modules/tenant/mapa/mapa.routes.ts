@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { handleAppError } from '../../../shared/errors.js';
-import { carregarAtor, requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { carregarAtor, requireAcesso, requireTela, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT, PERMISSION_CENTROS_CUSTO_VIEW, PERMISSION_DASHBOARD_VIEW } from '../../../shared/constants.js';
 import { assertAcessoServico, filtroEscopoOS } from '../ordens/ordens.service.js';
 import { registrarEnderecoDescoberto } from '../enderecos/endereco-descoberto.service.js';
 import { enderecoPorCoordenada } from './endereco-gps.js';
@@ -34,9 +35,17 @@ const salvarCoordsSchema = z.object({
 
 export async function registerMapaRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
+  /* Cinturão (linha 5): a regra do menu da tela que usa cada rota, conferida no servidor.
+     Modo observação: quem seria barrado só vai para o log até OBRAS_BLOQUEAR_TELAS=true. */
+  /* busca de endereço e bairro: abrir OS / ocorrência (telas de OS e Serviços, menu centros_custo.view) */
+  const podeBuscar = [tenantAuth, requireTela(fastify.prisma, 'Mapa: busca de endereço', PERMISSION_CENTROS_CUSTO_VIEW)];
+  /* posição e fotos da OS: quem abre OS ou dá baixa (os.abrir | os.baixa) */
+  const podeGravarOS = [tenantAuth, requireTela(fastify.prisma, 'OS: posição e fotos (gravar)', PERMISSION_CENTROS_CUSTO_REGISTROS_EDIT)];
+  /* ver fotos da OS: Sala de Situação e telas de OS */
+  const podeVerFotos = [tenantAuth, requireTela(fastify.prisma, 'OS: fotos (ver)', PERMISSION_DASHBOARD_VIEW, PERMISSION_CENTROS_CUSTO_VIEW)];
 
   /* ── GET /mapa/geocode?q=endereco ─────────────────────────────── */
-  fastify.get('/mapa/geocode', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/mapa/geocode', { preHandler: podeBuscar }, async (req, reply) => {
     try {
       const { q } = geocodeQuerySchema.parse(req.query);
 
@@ -78,7 +87,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── GET /mapa/reverse?lat=&lng= ─────────────────────────────── */
-  fastify.get('/mapa/reverse', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/mapa/reverse', { preHandler: podeBuscar }, async (req, reply) => {
     try {
       const { lat, lng } = reverseGeocodeQuerySchema.parse(req.query);
 
@@ -91,7 +100,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── GET /mapa/bairro-mais-proximo?lat=&lng= ─────────────────── */
-  fastify.get('/mapa/bairro-mais-proximo', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/mapa/bairro-mais-proximo', { preHandler: podeBuscar }, async (req, reply) => {
     try {
       const { lat, lng } = reverseGeocodeQuerySchema.parse(req.query);
       const entityId = req.user.entityId!;
@@ -128,7 +137,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── PATCH /mapa/registros/:id/coords ─────────────────────────── */
-  fastify.patch('/mapa/registros/:id/coords', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.patch('/mapa/registros/:id/coords', { preHandler: podeGravarOS }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const body = salvarCoordsSchema.omit({ registroId: true }).parse(req.body);
@@ -256,7 +265,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── POST /mapa/registros/:id/midias ─── upload de foto/vídeo ─── */
-  fastify.post('/mapa/registros/:id/midias', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.post('/mapa/registros/:id/midias', { preHandler: podeGravarOS }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const entityId = req.user.entityId!;
@@ -289,7 +298,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── GET /mapa/registros/:id/midias ── */
-  fastify.get('/mapa/registros/:id/midias', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/mapa/registros/:id/midias', { preHandler: podeVerFotos }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const entityId = req.user.entityId!;
@@ -306,7 +315,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── GET /mapa/midias/:midiaId ─── servir arquivo ── */
-  fastify.get('/mapa/midias/:midiaId', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/mapa/midias/:midiaId', { preHandler: podeVerFotos }, async (req, reply) => {
     try {
       const { midiaId } = req.params as { midiaId: string };
       const entityId = req.user.entityId!;
@@ -328,7 +337,7 @@ export async function registerMapaRoutes(fastify: FastifyInstance) {
   });
 
   /* ── DELETE /mapa/midias/:midiaId ── */
-  fastify.delete('/mapa/midias/:midiaId', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.delete('/mapa/midias/:midiaId', { preHandler: podeGravarOS }, async (req, reply) => {
     try {
       const { midiaId } = req.params as { midiaId: string };
       const entityId = req.user.entityId!;

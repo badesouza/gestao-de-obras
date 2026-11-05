@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AppError, handleAppError } from '../../../shared/errors.js';
-import { carregarAtor, requireAcesso, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { carregarAtor, requireAcesso, requireTela, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_VIEW, PERMISSION_DASHBOARD_VIEW } from '../../../shared/constants.js';
 import { abrirOS, darBaixa, detalheOS, formOS, painelOS } from './os.service.js';
 
 function validar<T>(schema: z.ZodType<T>, dados: unknown): T {
@@ -18,6 +19,8 @@ const resposta = z.object({ id: z.string().uuid().nullable(), nome: z.string().t
 
 export async function registerOsRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
+  /* Cinturão (linha 5), modo observação: ficha da OS = Sala de Situação e telas de OS */
+  const podeVerFicha = [tenantAuth, requireTela(fastify.prisma, 'OS: ficha', PERMISSION_DASHBOARD_VIEW, PERMISSION_CENTROS_CUSTO_VIEW)];
   const ator = async (userId: string) => {
     const a = await carregarAtor(fastify.prisma, userId);
     if (!a) throw new AppError(401, 'UNAUTHORIZED', 'Usuário inválido');
@@ -59,7 +62,7 @@ export async function registerOsRoutes(fastify: FastifyInstance) {
     } catch (e) { return handleAppError(reply, e); }
   });
 
-  fastify.get('/os/:id', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/os/:id', { preHandler: podeVerFicha }, async (req, reply) => {
     try {
       const { id } = validar(z.object({ id: z.string().uuid() }), req.params);
       return reply.send(await detalheOS(fastify.prisma, req.user.entityId!, await ator(req.user.sub), id));

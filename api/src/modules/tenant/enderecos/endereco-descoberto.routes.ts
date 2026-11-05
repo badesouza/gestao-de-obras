@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { handleAppError } from '../../../shared/errors.js';
-import { requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { requireTela, requireTenantAuth } from '../../../plugins/auth-tenant.js';
+import { PERMISSION_CENTROS_CUSTO_MANAGE, PERMISSION_CENTROS_CUSTO_VIEW } from '../../../shared/constants.js';
 import { registrarEnderecoDescoberto } from './endereco-descoberto.service.js';
 
 const createSchema = z.object({
@@ -17,9 +18,13 @@ const listQuerySchema = z.object({
 
 export async function registerEnderecoDescobertoRoutes(fastify: FastifyInstance) {
   const tenantAuth = requireTenantAuth(fastify.prisma);
+  /* Cinturão (linha 5): a regra do menu da tela que usa cada rota, conferida no servidor.
+     Modo observação: quem seria barrado só vai para o log até OBRAS_BLOQUEAR_TELAS=true. */
+  const podeVer = [tenantAuth, requireTela(fastify.prisma, 'Endereços descobertos (ver)', PERMISSION_CENTROS_CUSTO_VIEW)];
+  const podeGerir = [tenantAuth, requireTela(fastify.prisma, 'Endereços descobertos (gravar)', PERMISSION_CENTROS_CUSTO_MANAGE)];
 
   /* GET /enderecos-descobertos?bairro= */
-  fastify.get('/enderecos-descobertos', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.get('/enderecos-descobertos', { preHandler: podeVer }, async (req, reply) => {
     try {
       const { bairro } = listQuerySchema.parse(req.query);
       const entityId = req.user.entityId!;
@@ -37,7 +42,7 @@ export async function registerEnderecoDescobertoRoutes(fastify: FastifyInstance)
   });
 
   /* POST /enderecos-descobertos — cadastro manual */
-  fastify.post('/enderecos-descobertos', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.post('/enderecos-descobertos', { preHandler: podeGerir }, async (req, reply) => {
     try {
       const body = createSchema.parse(req.body);
       const entityId = req.user.entityId!;
@@ -59,7 +64,7 @@ export async function registerEnderecoDescobertoRoutes(fastify: FastifyInstance)
   });
 
   /* DELETE /enderecos-descobertos/:id */
-  fastify.delete('/enderecos-descobertos/:id', { preHandler: [tenantAuth] }, async (req, reply) => {
+  fastify.delete('/enderecos-descobertos/:id', { preHandler: podeGerir }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       const entityId = req.user.entityId!;

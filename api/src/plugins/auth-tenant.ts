@@ -119,3 +119,35 @@ export function requireAcesso(prisma: PrismaClient, ...chaves: string[]) {
     }
   };
 }
+
+/** Bloqueio das telas ligado? (OBRAS_BLOQUEAR_TELAS=true); desligado = só observa */
+export function bloqueioDasTelasLigado() {
+  return process.env.OBRAS_BLOQUEAR_TELAS === 'true';
+}
+
+/**
+ * Cinturão (linha 5): a mesma regra que o menu usa para mostrar a tela, conferida no servidor
+ * nas rotas que até aqui só pediam login. `regras` aceita permissões antigas (ex.:
+ * 'centros_custo.view', as do menu) e caixas (ex.: 'os.abrir'); basta uma.
+ *
+ * MODO OBSERVAÇÃO por padrão: quem a regra barraria só vai para o log, com a marca
+ * "[cinturao-observacao]" (aparece nos registros do Railway), e o pedido segue normal.
+ * Depois de uns dias sem ninguém de verdade no log, OBRAS_BLOQUEAR_TELAS=true passa a recusar (403).
+ */
+export function requireTela(prisma: PrismaClient, tela: string, ...regras: string[]) {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    const ator = await carregarAtor(prisma, request.user.sub);
+    if (!ator) return sendError(reply, 401, 'UNAUTHORIZED', 'Usuário inválido');
+    const permissoes = permissoesDasCaixas(ator.acessos, ator.admin);
+    if (regras.some(r => permissoes.includes(r) || pode(ator, r))) return;
+
+    if (!bloqueioDasTelasLigado()) {
+      request.log.warn({
+        cinturao: 'observacao', tela, exigido: regras.join('|'), usuario: ator.id, entityId: ator.entityId,
+        metodo: request.method, rota: request.routeOptions?.url ?? request.url,
+      }, `[cinturao-observacao] seria barrado: ${tela} (${request.method} ${request.routeOptions?.url ?? ''})`);
+      return;
+    }
+    return negarAcesso(prisma, request, reply, ator.entityId, ator.id, regras.join('|'));
+  };
+}
