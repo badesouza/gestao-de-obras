@@ -148,22 +148,25 @@ const PERMISSIONS = [
 
 /** Seeds platform operator, tenant roles and permissions */
 async function main() {
-  const email = process.env.PLATFORM_ADMIN_EMAIL ?? 'admin@plataforma.local';
-  const password = process.env.PLATFORM_ADMIN_PASSWORD ?? 'Admin@1234';
+  const email = (process.env.PLATFORM_ADMIN_EMAIL ?? 'admin@plataforma.local').toLowerCase();
+  const password = process.env.PLATFORM_ADMIN_PASSWORD ?? '';
   const name = process.env.PLATFORM_ADMIN_NAME ?? 'Operador Plataforma';
 
-  const passwordHash = await hashPassword(password);
-
-  await prisma.platformOperator.upsert({
-    where: { email: email.toLowerCase() },
-    update: { name, passwordHash, status: 'ACTIVE' },
-    create: {
-      email: email.toLowerCase(),
-      name,
-      passwordHash,
-      status: 'ACTIVE',
-    },
-  });
+  /* Cinturão: nenhuma senha escrita no código. O operador só nasce com a senha da variável
+     (12+ caracteres); se já existe, a semente não mexe na senha nem na situação dele
+     (rodar a semente de novo não desfaz uma troca de senha nem religa quem foi desligado). */
+  const existente = await prisma.platformOperator.findUnique({ where: { email }, select: { id: true } });
+  if (existente) {
+    await prisma.platformOperator.update({ where: { email }, data: { name } });
+    console.log(`Platform operator já existia: ${email} (senha mantida)`);
+  } else if (password.length >= 12) {
+    await prisma.platformOperator.create({
+      data: { email, name, passwordHash: await hashPassword(password), status: 'ACTIVE' },
+    });
+    console.log(`Platform operator seeded: ${email}`);
+  } else {
+    console.warn(`Operador ${email} NÃO criado: defina PLATFORM_ADMIN_PASSWORD com 12+ caracteres e rode a semente de novo.`);
+  }
 
   for (const permission of PERMISSIONS) {
     await prisma.tenantPermission.upsert({
@@ -209,7 +212,6 @@ async function main() {
     }
   }
 
-  console.log(`Platform operator seeded: ${email}`);
   console.log('Tenant roles and permissions seeded');
 }
 

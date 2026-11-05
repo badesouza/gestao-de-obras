@@ -28,10 +28,10 @@ copy .env.example .env   # create if missing
 
 ```env
 DATABASE_URL="postgresql://app:app@localhost:5432/gestao_de_obras_db"
-JWT_SECRET="change-me-in-production"
+JWT_SECRET=""                       # 32+ caracteres aleatórios (obrigatório)
 JWT_EXPIRES_IN="8h"
 PLATFORM_ADMIN_EMAIL="admin@plataforma.local"
-PLATFORM_ADMIN_PASSWORD="Admin@1234"
+PLATFORM_ADMIN_PASSWORD=""          # 12+ caracteres, escolhida por você
 PLATFORM_ADMIN_NAME="Operador Plataforma"
 PORT=3000
 CORS_ORIGIN="http://localhost:5173"
@@ -79,7 +79,7 @@ App: `http://localhost:5173`
 # Login
 curl -X POST http://localhost:3000/api/platform/v1/auth/login `
   -H "Content-Type: application/json" `
-  -d '{"email":"admin@plataforma.local","password":"Admin@1234"}'
+  -d '{"email":"admin@plataforma.local","password":"<a senha do PLATFORM_ADMIN_PASSWORD>"}'
 
 # List entities (replace TOKEN)
 curl http://localhost:3000/api/platform/v1/entities `

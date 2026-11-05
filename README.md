@@ -65,9 +65,9 @@ npm run dev
 
 ### Credenciais seed (desenvolvimento)
 
-| Contexto | E-mail | Senha |
-|----------|--------|-------|
-| Plataforma | `admin@plataforma.local` | `Admin@1234` |
+O operador da plataforma nasce com o e-mail e a senha que **você** põe no `api/.env`
+(`PLATFORM_ADMIN_EMAIL` / `PLATFORM_ADMIN_PASSWORD`, 12+ caracteres) ao rodar `npx prisma db seed`.
+Não existe senha padrão; se o operador já existe, a semente não troca a senha dele.
 
 Usuários tenant são criados por entidade (bootstrap admin na plataforma).
 
